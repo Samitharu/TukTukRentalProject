@@ -1,0 +1,12 @@
+<x-core::layouts.public :title="$post->title.' · '.config('app.name')" :description="\Illuminate\Support\Str::limit(strip_tags((string) ($post->excerpt ?: $post->body)), 160)">
+    <section class="section">
+        <div class="container" style="max-width:42rem;">
+            <p><a href="{{ route('blog.index') }}">&larr; {{ __('core::front.blog_back_to_list') }}</a></p>
+            <h1>{{ $post->title }}</h1>
+            @if ($post->cover_image)
+                <img src="{{ asset('storage/'.$post->cover_image) }}" alt="" style="border-radius:var(--radius-md);width:100%;aspect-ratio:16/9;object-fit:cover;margin-bottom:1.5rem;">
+            @endif
+            <div>{!! $post->body !!}</div>
+        </div>
+    </section>
+</x-core::layouts.public>

@@ -1,0 +1,12 @@
+{
+    "Core": true,
+    "Localization": true,
+    "Admin": true,
+    "Fleet": true,
+    "Package": true,
+    "Pricing": true,
+    "Availability": true,
+    "Customer": true,
+    "Booking": true,
+    "CMS": true
+}
