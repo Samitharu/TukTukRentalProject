@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Modules\Booking\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Modules\Booking\Exceptions\InvalidBookingTransitionException;
 use Modules\Booking\Exceptions\NoVehicleAvailableException;
@@ -73,13 +72,10 @@ final class BookingActionController extends Controller
 
     public function changeDates(ChangeDatesRequest $request, Booking $booking): RedirectResponse
     {
+        [$start, $end] = $request->range();
+
         try {
-            $this->bookings->changeDates(
-                $booking,
-                CarbonImmutable::parse($request->string('start_date')->toString()),
-                CarbonImmutable::parse($request->string('end_date')->toString()),
-                $request->user(),
-            );
+            $this->bookings->changeDates($booking, $start, $end, $request->user());
         } catch (NoVehicleAvailableException $exception) {
             return back()->withErrors(['start_date' => $exception->getMessage()]);
         }

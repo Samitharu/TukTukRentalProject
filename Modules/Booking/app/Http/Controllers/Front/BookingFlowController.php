@@ -36,6 +36,7 @@ use Modules\Booking\Support\BookingReference;
 use Modules\CMS\Models\Review;
 use Modules\Core\Support\Countries;
 use Modules\Fleet\Models\Vehicle;
+use Modules\Fleet\Models\VehicleCategory;
 use Modules\Package\Models\Package;
 use Modules\Pricing\DataObjects\PriceBreakdown;
 use Modules\Pricing\Models\Coupon;
@@ -71,6 +72,8 @@ final class BookingFlowController extends Controller
 
     public function start(Request $request): View
     {
+        $this->switchKindFor($request);
+
         if ($request->filled('package')) {
             BookingFlowState::put(['package_id' => $request->integer('package')]);
         }
@@ -81,6 +84,7 @@ final class BookingFlowController extends Controller
 
         return view('booking::front.steps.dates', [
             'state' => BookingFlowState::get(),
+            'isStay' => BookingFlowState::isStay(),
             'locations' => BusinessLocation::query()->active()->get(),
             'deliveryZones' => DeliveryZone::query()->active()->get(),
         ]);
@@ -88,7 +92,7 @@ final class BookingFlowController extends Controller
 
     public function storeDates(StepDatesRequest $request): RedirectResponse
     {
-        BookingFlowState::put([...$request->validated(), 'hold_key' => null]);
+        BookingFlowState::put([...$request->flowData(), 'hold_key' => null]);
 
         return redirect()->route('booking.package');
     }
@@ -104,6 +108,7 @@ final class BookingFlowController extends Controller
         $packages = Package::query()
             ->active()
             ->currentlyValid()
+            ->ofKind(BookingFlowState::kind())
             ->where('min_days', '<=', $days)
             ->where(fn ($q) => $q->whereNull('max_days')->orWhere('max_days', '>=', $days))
             ->with(['pricingTiers', 'images', 'vehicles:id,status', 'categories:id'])
@@ -117,6 +122,7 @@ final class BookingFlowController extends Controller
 
         return view('booking::front.steps.package', [
             'state' => BookingFlowState::get(),
+            'isStay' => BookingFlowState::isStay(),
             'packages' => $packages,
             'days' => $days,
             'freeCounts' => $freeCounts,
@@ -131,11 +137,11 @@ final class BookingFlowController extends Controller
             return redirect()->route('booking.start');
         }
 
-        $package = Package::query()->active()->currentlyValid()->findOrFail($request->validated('package_id'));
+        $package = Package::query()->active()->currentlyValid()->ofKind(BookingFlowState::kind())->findOrFail($request->validated('package_id'));
         $days = $this->daysFromState();
 
         if ($days < $package->min_days || ($package->max_days !== null && $days > $package->max_days)) {
-            return back()->withErrors(['package_id' => __('core::front.booking_package_not_eligible')]);
+            return back()->withErrors(['package_id' => $this->notEligibleMessage()]);
         }
 
         [$start, $end] = $this->datesFromState();
@@ -202,6 +208,7 @@ final class BookingFlowController extends Controller
 
         return view('booking::front.steps.details', [
             'state' => BookingFlowState::get(),
+            'isStay' => BookingFlowState::isStay(),
             'countries' => Countries::all(),
         ]);
     }
@@ -238,6 +245,7 @@ final class BookingFlowController extends Controller
 
         return view('booking::front.steps.review', [
             'state' => $state,
+            'isStay' => BookingFlowState::isStay(),
             'package' => Package::query()->findOrFail($state['package_id']),
             'price' => $this->calculatePrice($state),
         ]);
@@ -349,7 +357,7 @@ final class BookingFlowController extends Controller
                 }
 
                 return redirect()->route('booking.package')
-                    ->withErrors(['package_id' => __('core::front.booking_no_vehicle_available')]);
+                    ->withErrors(['package_id' => __(BookingFlowState::isStay() ? 'core::front.booking_no_unit_available_stay' : 'core::front.booking_no_vehicle_available')]);
             }
 
             $booking = $this->bookings->confirmHold($ownHold, $customerData, $price, $addonSelections);
@@ -364,7 +372,7 @@ final class BookingFlowController extends Controller
 
     public function confirmation(string $locale, string $reference): View
     {
-        $booking = $this->findBookingOrFail($reference, ['vehicle', 'package', 'addons.addon']);
+        $booking = $this->findBookingOrFail($reference, ['vehicle.category', 'package', 'addons.addon']);
         $review = Review::query()->where('booking_id', $booking->id)->first();
 
         return view('booking::front.steps.confirmation', [
@@ -376,7 +384,7 @@ final class BookingFlowController extends Controller
 
     public function status(string $locale, string $reference): View
     {
-        $booking = $this->findBookingOrFail($reference, ['vehicle', 'package']);
+        $booking = $this->findBookingOrFail($reference, ['vehicle.category', 'package']);
 
         return view('booking::front.steps.status', ['booking' => $booking]);
     }
@@ -388,7 +396,7 @@ final class BookingFlowController extends Controller
      */
     public function receipt(string $locale, string $reference): Response
     {
-        $booking = $this->findBookingOrFail($reference, ['customer', 'vehicle', 'package', 'businessLocation', 'deliveryZone']);
+        $booking = $this->findBookingOrFail($reference, ['customer', 'vehicle.category', 'package', 'businessLocation', 'deliveryZone']);
         $statusUrl = route('booking.status', ['locale' => $locale, 'reference' => $booking->reference]);
         $statusQrCode = base64_encode((new Writer(new ImageRenderer(new RendererStyle(240, 2), new SvgImageBackEnd())))
             ->writeString($statusUrl));
@@ -490,6 +498,39 @@ final class BookingFlowController extends Controller
             ?? throw new NotFoundHttpException();
     }
 
+    /**
+     * Arriving from a stay's or a package's page (?vehicle=, ?package=, or
+     * ?kind=stay) decides whether this is a tuk tuk rental or a stay.
+     * Switching kind drops earlier choices: a stored end_date means the
+     * return day for one and the last night for the other.
+     */
+    private function switchKindFor(Request $request): void
+    {
+        $requested = match (true) {
+            $request->filled('package') => Package::query()->find($request->integer('package'))?->kind,
+            $request->filled('vehicle') => Vehicle::query()->with('category')->find($request->integer('vehicle'))?->kind(),
+            default => $request->query('kind'),
+        };
+
+        if (! in_array($requested, VehicleCategory::KINDS, true) || $requested === BookingFlowState::kind()) {
+            return;
+        }
+
+        BookingFlowState::put([
+            'kind' => $requested,
+            'package_id' => null,
+            'vehicle_id' => null,
+            'start_date' => null,
+            'end_date' => null,
+            'hold_key' => null,
+        ]);
+    }
+
+    private function notEligibleMessage(): string
+    {
+        return __(BookingFlowState::isStay() ? 'core::front.booking_package_not_eligible_stay' : 'core::front.booking_package_not_eligible');
+    }
+
     private function couponNoLongerValid(): RedirectResponse
     {
         BookingFlowState::put(['coupon_code' => null]);
@@ -516,13 +557,13 @@ final class BookingFlowController extends Controller
                 ->withErrors(['start_date' => __('core::front.booking_dates_no_longer_valid')]);
         }
 
-        $package = Package::query()->active()->currentlyValid()->find(BookingFlowState::value('package_id'));
+        $package = Package::query()->active()->currentlyValid()->ofKind(BookingFlowState::kind())->find(BookingFlowState::value('package_id'));
 
         if ($package === null || $days < $package->min_days || ($package->max_days !== null && $days > $package->max_days)) {
             BookingFlowState::put(['package_id' => null, 'hold_key' => null]);
 
             return redirect()->route('booking.package')
-                ->withErrors(['package_id' => __('core::front.booking_package_not_eligible')]);
+                ->withErrors(['package_id' => $this->notEligibleMessage()]);
         }
 
         $vehicleId = BookingFlowState::value('vehicle_id');
@@ -547,7 +588,7 @@ final class BookingFlowController extends Controller
      */
     private function freeVehicleCounts(Collection $packages, CarbonImmutable $start, CarbonImmutable $end, array &$unavailable): array
     {
-        $activeFleet = Vehicle::query()->active()->pluck('category_id', 'id')->all();
+        $activeFleet = Vehicle::query()->active()->ofKind(BookingFlowState::kind())->pluck('category_id', 'id')->all();
         $eligible = $packages->mapWithKeys(fn (Package $package) => [$package->id => $package->eligibleVehicleIdsAmong($activeFleet)]);
 
         $vehicleId = BookingFlowState::value('vehicle_id');

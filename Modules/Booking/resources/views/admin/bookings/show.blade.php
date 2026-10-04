@@ -2,12 +2,22 @@
     <div class="admin-card">
         <p><strong>{{ __('Status') }}:</strong> {{ ucfirst(str_replace('_', ' ', $booking->status)) }}</p>
         <p><strong>{{ __('Customer') }}:</strong> <a href="{{ route('admin.customers.show', $booking->customer) }}">{{ $booking->customer->full_name }}</a> ({{ $booking->customer->email }})</p>
-        <p><strong>{{ __('Vehicle') }}:</strong> {{ $booking->vehicle->plate_no }} — {{ $booking->vehicle->name }}</p>
+        <p><strong>{{ $booking->isStay() ? __('Stay') : __('Vehicle') }}:</strong> {{ $booking->vehicle->adminLabel() }}</p>
         <p><strong>{{ __('Package') }}:</strong> {{ $booking->package?->name }}</p>
-        <p><strong>{{ __('Pickup') }}:</strong> {{ $booking->start_at->format('Y-m-d') }}</p>
-        <p><strong>{{ __('Return') }}:</strong> {{ $booking->end_at->format('Y-m-d') }}</p>
+        @if ($booking->isStay())
+            <p><strong>{{ __('Check-in') }}:</strong> {{ $booking->start_at->format('Y-m-d') }}</p>
+            <p><strong>{{ __('Check-out') }}:</strong> {{ $booking->checkOutDate()->format('Y-m-d') }} ({{ trans_choice(':count night|:count nights', $booking->lengthInDays(), ['count' => $booking->lengthInDays()]) }})</p>
+            @if ($booking->vehicle->mapUrl())
+                <p><strong>{{ __('Location') }}:</strong> <a href="{{ $booking->vehicle->mapUrl() }}" target="_blank" rel="noopener noreferrer">{{ $booking->vehicle->address ?: __('View on Google Maps') }}</a></p>
+            @endif
+        @else
+            <p><strong>{{ __('Pickup') }}:</strong> {{ $booking->start_at->format('Y-m-d') }}</p>
+            <p><strong>{{ __('Return') }}:</strong> {{ $booking->end_at->format('Y-m-d') }}</p>
+        @endif
         <p><strong>{{ __('Total') }}:</strong> {{ $booking->total_amount }} {{ $booking->currency_code }} ({{ __('deposit') }}: {{ $booking->deposit_amount }})</p>
-        <p><strong>{{ __('International Driving Permit') }}:</strong> {{ $booking->has_international_permit ? __('Yes') : __('No') }}</p>
+        @unless ($booking->isStay())
+            <p><strong>{{ __('International Driving Permit') }}:</strong> {{ $booking->has_international_permit ? __('Yes') : __('No') }}</p>
+        @endunless
         @if ($booking->special_requests)
             <p><strong>{{ __('Special requests') }}:</strong> {{ $booking->special_requests }}</p>
         @endif
@@ -58,27 +68,27 @@
             @csrf
             @method('PUT')
             <div class="admin-form-field">
-                <label for="start_date">{{ __('New pickup date') }}</label>
+                <label for="start_date">{{ $booking->isStay() ? __('New check-in date') : __('New pickup date') }}</label>
                 <input type="date" id="start_date" name="start_date" value="{{ $booking->start_at->toDateString() }}" required>
             </div>
             <div class="admin-form-field">
-                <label for="end_date">{{ __('New return date') }}</label>
-                <input type="date" id="end_date" name="end_date" value="{{ $booking->end_at->toDateString() }}" required>
+                <label for="end_date">{{ $booking->isStay() ? __('New check-out date') : __('New return date') }}</label>
+                <input type="date" id="end_date" name="end_date" value="{{ $booking->checkOutDate()->toDateString() }}" required>
             </div>
             <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Update dates') }}</button>
         </form>
     </div>
 
     <div class="admin-card">
-        <h2>{{ __('Reassign vehicle') }}</h2>
-        <form method="PUT" action="{{ route('admin.bookings.vehicle.update', $booking) }}">
+        <h2>{{ $booking->isStay() ? __('Move to another cabana / room') : __('Reassign vehicle') }}</h2>
+        <form method="POST" action="{{ route('admin.bookings.vehicle.update', $booking) }}">
             @csrf
             @method('PUT')
             <div class="admin-form-field">
-                <label for="vehicle_id">{{ __('Vehicle') }}</label>
+                <label for="vehicle_id">{{ $booking->isStay() ? __('Stay') : __('Vehicle') }}</label>
                 <select id="vehicle_id" name="vehicle_id" required>
                     @foreach ($vehicles as $vehicle)
-                        <option value="{{ $vehicle->id }}" @selected($vehicle->id === $booking->vehicle_id)>{{ $vehicle->plate_no }} — {{ $vehicle->name }}</option>
+                        <option value="{{ $vehicle->id }}" @selected($vehicle->id === $booking->vehicle_id)>{{ $vehicle->adminLabel() }}</option>
                     @endforeach
                 </select>
             </div>

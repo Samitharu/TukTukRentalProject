@@ -24,9 +24,9 @@
                 <tr>
                     <th>{{ __('Reference') }}</th>
                     <th>{{ __('Customer') }}</th>
-                    <th>{{ __('Vehicle') }}</th>
-                    <th>{{ __('Pickup') }}</th>
-                    <th>{{ __('Return') }}</th>
+                    <th>{{ __('Unit') }}</th>
+                    <th>{{ __('Pickup / check-in') }}</th>
+                    <th>{{ __('Return / check-out') }}</th>
                     <th>{{ __('Status') }}</th>
                     <th>{{ __('Total') }}</th>
                 </tr>
@@ -36,9 +36,9 @@
                     <tr>
                         <td><a href="{{ route('admin.bookings.show', $booking) }}"><code>{{ $booking->reference }}</code></a></td>
                         <td>{{ $booking->customer->full_name }}</td>
-                        <td>{{ $booking->vehicle->plate_no }}</td>
+                        <td>{{ $booking->vehicle->adminLabel() }}</td>
                         <td>{{ $booking->start_at->format('Y-m-d') }}</td>
-                        <td>{{ $booking->end_at->format('Y-m-d') }}</td>
+                        <td>{{ $booking->checkOutDate()->format('Y-m-d') }}</td>
                         <td>{{ ucfirst(str_replace('_', ' ', $booking->status)) }}</td>
                         <td>{{ $booking->total_amount }} {{ $booking->currency_code }}</td>
                     </tr>

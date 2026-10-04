@@ -6,6 +6,8 @@ namespace Modules\Package\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
+use Modules\Fleet\Models\VehicleCategory;
 use Modules\Localization\Support\TranslatableRules;
 use Modules\Package\Models\Package;
 
@@ -21,6 +23,7 @@ final class StorePackageRequest extends FormRequest
         return [
             ...TranslatableRules::forField('name', max: 150),
             ...TranslatableRules::forField('description', max: 4000, requireDefault: false),
+            'kind' => PackageKindRules::kindRule(required: true),
             'pricing_model' => ['required', Rule::in(['per_day', 'per_week', 'per_month', 'fixed_bundle', 'tiered'])],
             'min_days' => ['required', 'integer', 'min:1'],
             'max_days' => ['nullable', 'integer', 'gte:min_days'],
@@ -38,6 +41,18 @@ final class StorePackageRequest extends FormRequest
             'vehicle_ids.*' => ['integer', 'exists:vehicles,id'],
             'images' => ['nullable', 'array'],
             'images.*' => ['image', 'max:8192', 'mimes:jpg,jpeg,png,webp'],
+        ];
+    }
+
+    public function after(): array
+    {
+        return [
+            fn (Validator $validator) => PackageKindRules::validateRestrictions(
+                $validator,
+                (string) ($this->input('kind') ?: VehicleCategory::KIND_VEHICLE),
+                (array) $this->input('category_ids', []),
+                (array) $this->input('vehicle_ids', []),
+            ),
         ];
     }
 }

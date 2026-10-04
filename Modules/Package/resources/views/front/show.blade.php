@@ -35,7 +35,7 @@
                                     @if ($addon->pivot->is_included)
                                         <span class="badge">{{ __('core::front.packages_included') }}</span>
                                     @else
-                                        &mdash; {{ $addon->price }} {{ config('pricing.default_currency') }} ({{ $addon->pricing_unit === 'per_day' ? __('core::front.packages_per_day') : '' }})
+                                        &mdash; {{ $addon->price }} {{ config('pricing.default_currency') }} ({{ $addon->pricing_unit === 'per_day' ? __($package->isStay() ? 'core::front.packages_per_night' : 'core::front.packages_per_day') : '' }})
                                     @endif
                                 </li>
                             @endforeach
@@ -50,10 +50,10 @@
                             @foreach ($package->pricingTiers as $tier)
                                 <tr>
                                     <td style="padding:0.4rem 0;border-bottom:1px solid var(--color-border);">
-                                        {{ $tier->min_days }}{{ $tier->max_days ? '–'.$tier->max_days : '+' }} {{ __('core::front.packages_min_days', ['count' => '']) }}
+                                        {{ $tier->min_days }}{{ $tier->max_days ? '–'.$tier->max_days : '+' }} {{ __($package->isStay() ? 'core::front.packages_min_nights' : 'core::front.packages_min_days', ['count' => '']) }}
                                     </td>
                                     <td style="padding:0.4rem 0;border-bottom:1px solid var(--color-border);text-align:right;font-weight:700;">
-                                        {{ $tier->price }} {{ config('pricing.default_currency') }}{{ __('core::front.packages_per_day') }}
+                                        {{ $tier->price }} {{ config('pricing.default_currency') }}{{ __($package->isStay() ? 'core::front.packages_per_night' : 'core::front.packages_per_day') }}
                                     </td>
                                 </tr>
                             @endforeach
@@ -63,6 +63,25 @@
                     </div>
                 </div>
             </div>
+
+            @if ($stayUnits->isNotEmpty())
+                <h2 style="margin-top:var(--space-5);">{{ __('core::front.packages_where_you_stay') }}</h2>
+                <div class="grid grid--2">
+                    @foreach ($stayUnits as $unit)
+                        <article class="card">
+                            <div class="card__body">
+                                <h3 style="font-size:var(--font-size-lg);">
+                                    <a href="{{ route('stays.show', $unit->slugFor(app()->getLocale()) ?? $unit->id) }}">{{ $unit->name }}</a>
+                                </h3>
+                                <p class="text-muted">{{ __('core::front.stays_guests', ['count' => $unit->seats]) }}</p>
+                                @if ($unit->hasLocation())
+                                    @include('fleet::front._location', ['unit' => $unit, 'heading' => 'h4'])
+                                @endif
+                            </div>
+                        </article>
+                    @endforeach
+                </div>
+            @endif
         </div>
     </section>
 </x-core::layouts.public>

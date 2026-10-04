@@ -25,4 +25,13 @@ final class VehicleCategoryFactory extends Factory
             'is_active' => true,
         ];
     }
+
+    /** A category of cabanas/rooms, booked by the night. */
+    public function stay(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'kind' => VehicleCategory::KIND_STAY,
+            'name' => ['en' => fake()->randomElement(['Beach Cabanas', 'Garden Rooms', 'Surf Huts'])],
+        ]);
+    }
 }

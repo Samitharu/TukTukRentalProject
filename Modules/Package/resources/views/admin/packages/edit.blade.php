@@ -31,8 +31,8 @@
         <table class="admin-table">
             <thead>
                 <tr>
-                    <th>{{ __('From (days)') }}</th>
-                    <th>{{ __('To (days)') }}</th>
+                    <th>{{ __($package->isStay() ? 'From (nights)' : 'From (days)') }}</th>
+                    <th>{{ __($package->isStay() ? 'To (nights)' : 'To (days)') }}</th>
                     <th>{{ __('Price') }}</th>
                     <th></th>
                 </tr>
@@ -58,11 +58,11 @@
         <form method="POST" action="{{ route('admin.packages.pricing-tiers.store', $package) }}" style="margin-top:1rem;" novalidate>
             @csrf
             <div class="admin-form-field">
-                <label for="tier_min_days">{{ __('From (days)') }}</label>
+                <label for="tier_min_days">{{ __($package->isStay() ? 'From (nights)' : 'From (days)') }}</label>
                 <input type="number" id="tier_min_days" name="min_days" min="1" required>
             </div>
             <div class="admin-form-field">
-                <label for="tier_max_days">{{ __('To (days, blank = unlimited)') }}</label>
+                <label for="tier_max_days">{{ __($package->isStay() ? 'To (nights, blank = unlimited)' : 'To (days, blank = unlimited)') }}</label>
                 <input type="number" id="tier_max_days" name="max_days" min="1">
             </div>
             <div class="admin-form-field">

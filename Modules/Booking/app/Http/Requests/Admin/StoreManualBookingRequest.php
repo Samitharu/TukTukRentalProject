@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Modules\Booking\Http\Requests\Admin;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 use Modules\Booking\Models\Booking;
+use Modules\Fleet\Models\Vehicle;
+use Modules\Package\Models\Package;
 
 final class StoreManualBookingRequest extends FormRequest
 {
@@ -34,6 +38,36 @@ final class StoreManualBookingRequest extends FormRequest
             'addon_ids' => ['nullable', 'array'],
             'addon_ids.*' => ['integer', 'exists:addons,id'],
             'coupon_code' => ['nullable', 'string', 'max:40'],
+        ];
+    }
+
+    /**
+     * For a stay package the end date is the check-out day, so it must be
+     * at least one night after check-in; and a specific unit, if chosen,
+     * must be of the package's kind (no cabana on a tuk tuk package).
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                if ($validator->errors()->hasAny(['package_id', 'vehicle_id', 'start_date', 'end_date'])) {
+                    return;
+                }
+
+                $package = Package::query()->find($this->integer('package_id'));
+
+                if ($package?->isStay() && ! CarbonImmutable::parse($this->input('end_date'))->gt(CarbonImmutable::parse($this->input('start_date')))) {
+                    $validator->errors()->add('end_date', __('Check-out must be at least one night after check-in.'));
+                }
+
+                $vehicle = $this->filled('vehicle_id') ? Vehicle::query()->with('category')->find($this->integer('vehicle_id')) : null;
+
+                if ($package !== null && $vehicle !== null && $vehicle->kind() !== $package->kind) {
+                    $validator->errors()->add('vehicle_id', $package->isStay()
+                        ? __('This is a stay package — pick a cabana or room, not a tuk tuk.')
+                        : __('This is a tuk tuk package — pick a tuk tuk, not a cabana or room.'));
+                }
+            },
         ];
     }
 }

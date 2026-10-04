@@ -108,8 +108,18 @@
                         {{ __('core::front.booking_review_dates') }}
                         <a href="{{ route('booking.start') }}" style="font-weight:400;font-size:var(--font-size-sm);">{{ __('core::front.booking_review_edit') }}</a>
                     </h2>
-                    <p>{{ \Illuminate\Support\Carbon::parse($state['start_date'])->format('d M Y') }} &rarr; {{ \Illuminate\Support\Carbon::parse($state['end_date'])->format('d M Y') }}</p>
-                    <p class="text-muted">{{ $state['pickup_type'] === 'delivery' ? __('core::front.booking_pickup_delivery') : __('core::front.booking_pickup_office') }}</p>
+                    @if ($isStay)
+                        @php
+                            $checkIn = \Illuminate\Support\Carbon::parse($state['start_date']);
+                            $checkOut = \Illuminate\Support\Carbon::parse($state['end_date'])->addDay();
+                            $nights = (int) $checkIn->diffInDays($checkOut);
+                        @endphp
+                        <p>{{ __('core::front.booking_check_in') }}: {{ $checkIn->format('d M Y') }} &rarr; {{ __('core::front.booking_check_out') }}: {{ $checkOut->format('d M Y') }}</p>
+                        <p class="text-muted">{{ trans_choice('core::front.booking_nights', $nights, ['count' => $nights]) }}</p>
+                    @else
+                        <p>{{ \Illuminate\Support\Carbon::parse($state['start_date'])->format('d M Y') }} &rarr; {{ \Illuminate\Support\Carbon::parse($state['end_date'])->format('d M Y') }}</p>
+                        <p class="text-muted">{{ $state['pickup_type'] === 'delivery' ? __('core::front.booking_pickup_delivery') : __('core::front.booking_pickup_office') }}</p>
+                    @endif
 
                     <h2 style="font-size:var(--font-size-base);">
                         {{ __('core::front.booking_review_package') }}
@@ -128,7 +138,7 @@
                     @endif
 
                     <h2 style="font-size:var(--font-size-base);">
-                        {{ __('core::front.booking_review_driver') }}
+                        {{ __($isStay ? 'core::front.booking_review_guest' : 'core::front.booking_review_driver') }}
                         <a href="{{ route('booking.details') }}" style="font-weight:400;font-size:var(--font-size-sm);">{{ __('core::front.booking_review_edit') }}</a>
                     </h2>
                     <p>{{ $state['first_name'] }} {{ $state['last_name'] }} &middot; {{ $state['email'] }} &middot; {{ $state['phone'] }}</p>
@@ -148,7 +158,7 @@
 
             <div class="price-breakdown" style="margin-bottom:var(--space-4);">
                 <dl>
-                    <dt>{{ __('core::front.price_base_amount') }}</dt><dd x-text="money(price.base_amount) + ' {{ $currency }}'"></dd>
+                    <dt>{{ __($isStay ? 'core::front.price_accommodation' : 'core::front.price_base_amount') }}</dt><dd x-text="money(price.base_amount) + ' {{ $currency }}'"></dd>
 
                     <template x-if="price.seasonal_adjustment != 0">
                         <dt>{{ __('core::front.price_seasonal_adjustment') }}</dt>
@@ -186,7 +196,7 @@
                 </dl>
             </div>
 
-            <p class="text-muted">{{ __('core::front.booking_pay_on_pickup_notice') }}</p>
+            <p class="text-muted">{{ __($isStay ? 'core::front.booking_pay_on_arrival_notice' : 'core::front.booking_pay_on_pickup_notice') }}</p>
 
             <form method="POST" action="{{ route('booking.confirm') }}" data-confirm-booking>
                 @csrf

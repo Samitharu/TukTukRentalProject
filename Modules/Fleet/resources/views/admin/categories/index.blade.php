@@ -1,4 +1,4 @@
-<x-admin::layouts.app :title="__('Fleet Categories')">
+<x-admin::layouts.app :title="__('Unit Categories')">
     <p><a href="{{ route('admin.fleet.categories.create') }}" class="admin-btn">{{ __('Add category') }}</a></p>
 
     <div class="admin-card" style="padding:0;">
@@ -6,7 +6,8 @@
             <thead>
                 <tr>
                     <th>{{ __('Name') }}</th>
-                    <th>{{ __('Vehicles') }}</th>
+                    <th>{{ __('Type') }}</th>
+                    <th>{{ __('Units') }}</th>
                     <th>{{ __('Active') }}</th>
                     <th></th>
                 </tr>
@@ -15,6 +16,7 @@
                 @foreach ($categories as $category)
                     <tr>
                         <td>{{ $category->name }}</td>
+                        <td>{{ $category->isStay() ? __('Stay') : __('Tuk tuk') }}</td>
                         <td>{{ $category->vehicles_count }}</td>
                         <td>{{ $category->is_active ? __('Yes') : __('No') }}</td>
                         <td>

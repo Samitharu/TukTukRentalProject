@@ -6,6 +6,7 @@
             <thead>
                 <tr>
                     <th>{{ __('Name') }}</th>
+                    <th>{{ __('Type') }}</th>
                     <th>{{ __('Pricing model') }}</th>
                     <th>{{ __('Tiers') }}</th>
                     <th>{{ __('Active') }}</th>
@@ -17,6 +18,7 @@
                 @foreach ($packages as $package)
                     <tr>
                         <td>{{ $package->name }}</td>
+                        <td><span class="admin-badge {{ $package->isStay() ? 'admin-badge--stay' : '' }}">{{ $package->isStay() ? __('Stay') : __('Tuk tuk') }}</span></td>
                         <td>{{ $package->pricing_model }}</td>
                         <td>{{ $package->pricing_tiers_count }}</td>
                         <td>{{ $package->is_active ? __('Yes') : __('No') }}</td>

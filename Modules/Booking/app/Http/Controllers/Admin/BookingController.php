@@ -37,7 +37,7 @@ final class BookingController extends Controller
         $this->authorize('viewAny', Booking::class);
 
         $bookings = Booking::query()
-            ->with(['customer', 'vehicle'])
+            ->with(['customer', 'vehicle.category'])
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
             ->when($request->filled('q'), function ($q) use ($request) {
                 // Escape LIKE wildcards so "_" or "%" in the search box are
@@ -91,8 +91,8 @@ final class BookingController extends Controller
         $this->authorize('create', Booking::class);
 
         return view('booking::admin.bookings.create', [
-            'packages' => Package::query()->active()->orderBy('sort_order')->get(),
-            'vehicles' => Vehicle::query()->active()->orderBy('plate_no')->get(),
+            'packages' => Package::query()->active()->orderBy('kind')->orderBy('sort_order')->get(),
+            'vehicles' => Vehicle::query()->active()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
             'locations' => BusinessLocation::query()->active()->get(),
             'deliveryZones' => DeliveryZone::query()->active()->get(),
         ]);
@@ -105,6 +105,14 @@ final class BookingController extends Controller
 
         $start = CarbonImmutable::parse($data['start_date']);
         $end = CarbonImmutable::parse($data['end_date']);
+
+        if ($package->isStay()) {
+            // The form's end date is the check-out day; a stay is stored up
+            // to its last night (see Booking::isStay()), and has no pickup.
+            $end = $end->subDay();
+            $data = [...$data, 'pickup_type' => 'office', 'business_location_id' => null, 'delivery_zone_id' => null, 'has_international_permit' => false];
+        }
+
         // Carbon's diffInDays() returns float (fractional-day precision) —
         // cast explicitly since day counts everywhere else (pricing tiers,
         // addon per-day amounts) are int.
@@ -127,8 +135,8 @@ final class BookingController extends Controller
             $booking = $this->bookings->createManualBooking(
                 holdData: [
                     'hold_key' => (string) Str::uuid(),
-                    'start_at' => $data['start_date'],
-                    'end_at' => $data['end_date'],
+                    'start_at' => $start->toDateString(),
+                    'end_at' => $end->toDateString(),
                     'vehicle_id' => $data['vehicle_id'] ?? null,
                     'package_id' => $package->id,
                 ],
@@ -159,11 +167,13 @@ final class BookingController extends Controller
     {
         $this->authorize('view', $booking);
 
-        $booking->load(['customer', 'vehicle', 'package', 'addons.addon', 'statusHistory.changedBy', 'extraCharges']);
+        $booking->load(['customer', 'vehicle.category', 'package', 'addons.addon', 'statusHistory.changedBy', 'extraCharges']);
 
         return view('booking::admin.bookings.show', [
             'booking' => $booking,
-            'vehicles' => Vehicle::query()->active()->orderBy('plate_no')->get(),
+            // Reassign only to the same kind of unit: a tuk tuk rental can't
+            // move into a cabana (its dates mean days, not nights).
+            'vehicles' => Vehicle::query()->active()->ofKind($booking->vehicle->kind())->orderBy('plate_no')->orderBy('id')->get(),
         ]);
     }
 }

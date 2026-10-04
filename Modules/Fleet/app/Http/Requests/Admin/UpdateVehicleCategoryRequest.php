@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Modules\Fleet\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
+use Modules\Fleet\Models\VehicleCategory;
 use Modules\Localization\Support\TranslatableRules;
 
 final class UpdateVehicleCategoryRequest extends FormRequest
@@ -19,9 +22,29 @@ final class UpdateVehicleCategoryRequest extends FormRequest
         return [
             ...TranslatableRules::forField('name', max: 120),
             ...TranslatableRules::forField('description', max: 2000, requireDefault: false),
+            'kind' => ['sometimes', Rule::in(VehicleCategory::KINDS)],
             'icon' => ['nullable', 'string', 'max:40'],
             'sort_order' => ['required', 'integer', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    /**
+     * A category's units were entered (and may be booked) as that kind —
+     * flipping a tuk tuk category to "stay" would turn day rentals into
+     * night stays under existing bookings.
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                /** @var VehicleCategory $category */
+                $category = $this->route('category');
+
+                if ($this->filled('kind') && $this->input('kind') !== $category->kind && $category->vehicles()->withTrashed()->exists()) {
+                    $validator->errors()->add('kind', __('This category already has units, so its type can no longer be changed. Create a new category instead.'));
+                }
+            },
         ];
     }
 }

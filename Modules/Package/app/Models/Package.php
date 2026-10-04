@@ -17,6 +17,7 @@ use Spatie\Translatable\HasTranslations;
 
 /**
  * @property int $id
+ * @property string $kind
  * @property array<string,string> $name
  * @property array<string,string>|null $description
  * @property array<string,array<int,string>>|null $inclusions
@@ -53,7 +54,13 @@ final class Package extends Model
 
     public array $translatable = ['name', 'description', 'inclusions', 'exclusions', 'cancellation_policy'];
 
+    /** Mirrors the column default, so an unsaved/unrefreshed model has it too. */
+    protected $attributes = [
+        'kind' => VehicleCategory::KIND_VEHICLE,
+    ];
+
     protected $fillable = [
+        'kind',
         'name',
         'description',
         'inclusions',
@@ -129,9 +136,23 @@ final class Package extends Model
         return $this->belongsToMany(VehicleCategory::class, 'package_categories', 'package_id', 'category_id');
     }
 
+    /**
+     * A stay package books a cabana/room by the night; a vehicle package
+     * books a tuk tuk by the day. Same values as VehicleCategory::KINDS.
+     */
+    public function isStay(): bool
+    {
+        return $this->kind === VehicleCategory::KIND_STAY;
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeOfKind(Builder $query, string $kind): Builder
+    {
+        return $query->where('kind', $kind);
     }
 
     public function scopeCurrentlyValid(Builder $query, ?\DateTimeInterface $on = null): Builder
@@ -156,7 +177,9 @@ final class Package extends Model
     /**
      * Which specific vehicles this package can be booked with — either the
      * explicit vehicle list, or every active vehicle in the allowed
-     * categories, or (if neither is restricted) the whole active fleet.
+     * categories, or (if neither is restricted) every active unit of the
+     * package's kind — an unrestricted tuk tuk package must never
+     * auto-assign a cabana, nor a stay package a tuk tuk.
      */
     public function eligibleVehicleIds(): array
     {
@@ -174,13 +197,14 @@ final class Package extends Model
                 ->all();
         }
 
-        return Vehicle::query()->active()->pluck('id')->all();
+        return Vehicle::query()->active()->ofKind($this->kind)->pluck('id')->all();
     }
 
     /**
      * eligibleVehicleIds() without per-package queries, for listing many
      * packages at once: the same three rules, evaluated against eager-loaded
-     * `vehicles` and `categories` and a pre-fetched active fleet.
+     * `vehicles` and `categories` and a pre-fetched active fleet — which
+     * the caller must already have narrowed to this package's kind.
      *
      * @param  array<int, int>  $activeFleet  active vehicle id => category id
      * @return int[]

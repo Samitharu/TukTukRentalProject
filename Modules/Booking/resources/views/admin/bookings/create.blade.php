@@ -10,29 +10,30 @@
                 <select id="package_id" name="package_id" required>
                     <option value="">{{ __('— Select —') }}</option>
                     @foreach ($packages as $package)
-                        <option value="{{ $package->id }}" @selected(old('package_id') == $package->id)>{{ $package->name }}</option>
+                        <option value="{{ $package->id }}" @selected(old('package_id') == $package->id)>{{ $package->name }} ({{ $package->isStay() ? __('Stay') : __('Tuk tuk') }})</option>
                     @endforeach
                 </select>
             </div>
 
             <div class="admin-form-field">
-                <label for="vehicle_id">{{ __('Specific vehicle (blank = auto-assign an eligible one)') }}</label>
+                <label for="vehicle_id">{{ __('Specific unit (blank = auto-assign an eligible one)') }}</label>
                 <select id="vehicle_id" name="vehicle_id">
                     <option value="">{{ __('— Auto-assign —') }}</option>
                     @foreach ($vehicles as $vehicle)
-                        <option value="{{ $vehicle->id }}" @selected(old('vehicle_id') == $vehicle->id)>{{ $vehicle->plate_no }} — {{ $vehicle->name }}</option>
+                        <option value="{{ $vehicle->id }}" @selected(old('vehicle_id') == $vehicle->id)>{{ $vehicle->adminLabel() }} ({{ $vehicle->isStay() ? __('Stay') : __('Tuk tuk') }})</option>
                     @endforeach
                 </select>
             </div>
 
             <div class="admin-form-field">
-                <label for="start_date">{{ __('Pickup date') }}</label>
+                <label for="start_date">{{ __('Pickup date / check-in') }}</label>
                 <input type="date" id="start_date" name="start_date" value="{{ old('start_date') }}" required>
             </div>
 
             <div class="admin-form-field">
-                <label for="end_date">{{ __('Return date') }}</label>
+                <label for="end_date">{{ __('Return date / check-out') }}</label>
                 <input type="date" id="end_date" name="end_date" value="{{ old('end_date') }}" required>
+                <p class="admin-hint">{{ __('For a stay package enter the check-out day — the guest is charged per night. Pickup and permit fields below are ignored for stays.') }}</p>
             </div>
 
             <div class="admin-form-field">

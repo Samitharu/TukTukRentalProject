@@ -6,6 +6,7 @@ namespace Modules\Package\Http\Controllers\Front;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
+use Modules\Fleet\Models\Vehicle;
 use Modules\Package\Models\Package;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -46,6 +47,16 @@ final class PackageController extends Controller
 
         $package->load(['pricingTiers', 'seasons', 'addons', 'images']);
 
-        return view('package::front.show', compact('package'));
+        // "Where you'll stay": the cabanas/rooms this package can be booked
+        // into, each with its own map pin.
+        $stayUnits = $package->isStay()
+            ? Vehicle::query()
+                ->whereIn('id', $package->eligibleVehicleIds())
+                ->with(['images', 'routeSlugs' => fn ($q) => $q->where('locale', app()->getLocale())])
+                ->orderBy('id')
+                ->get()
+            : collect();
+
+        return view('package::front.show', compact('package', 'stayUnits'));
     }
 }

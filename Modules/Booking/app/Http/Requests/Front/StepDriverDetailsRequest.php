@@ -6,6 +6,7 @@ namespace Modules\Booking\Http\Requests\Front;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Modules\Booking\Support\BookingFlowState;
 use Modules\Core\Support\Countries;
 
 final class StepDriverDetailsRequest extends FormRequest
@@ -27,6 +28,28 @@ final class StepDriverDetailsRequest extends FormRequest
 
     public function rules(): array
     {
+        // Nobody drives a cabana: stays skip the licence/permit questions
+        // (the view doesn't render them either).
+        if (BookingFlowState::isStay()) {
+            return [
+                ...$this->commonRules(),
+                'has_valid_licence' => ['exclude'],
+                'has_international_permit' => ['exclude'],
+            ];
+        }
+
+        return [
+            ...$this->commonRules(),
+            // A hidden input mirrors each checkbox's name with value "0"
+            // in the view, so these are always present in the request —
+            // "accepted"/"boolean" can rely on that rather than "nullable".
+            'has_valid_licence' => ['accepted'],
+            'has_international_permit' => ['required', 'boolean'],
+        ];
+    }
+
+    private function commonRules(): array
+    {
         return [
             'first_name' => ['required', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
@@ -34,11 +57,6 @@ final class StepDriverDetailsRequest extends FormRequest
             'phone' => ['required', 'string', 'max:30'],
             'nationality' => ['required', 'string', 'size:2', Rule::in(array_keys(Countries::all()))],
             'passport_number' => ['required', 'string', 'max:40'],
-            // A hidden input mirrors each checkbox's name with value "0"
-            // in the view, so these are always present in the request —
-            // "accepted"/"boolean" can rely on that rather than "nullable".
-            'has_valid_licence' => ['accepted'],
-            'has_international_permit' => ['required', 'boolean'],
             'special_requests' => ['nullable', 'string', 'max:1000'],
             'marketing_opt_in' => ['required', 'boolean'],
         ];

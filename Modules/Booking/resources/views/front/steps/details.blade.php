@@ -4,7 +4,7 @@
             @include('booking::front.steps._indicator', ['current' => 'details'])
 
             <h1>{{ __('core::front.booking_details_title') }}</h1>
-            <p class="text-muted">{{ __('core::front.booking_details_intro') }}</p>
+            <p class="text-muted">{{ __($isStay ? 'core::front.booking_details_intro_stay' : 'core::front.booking_details_intro') }}</p>
 
             <form class="booking-panel" method="POST" action="{{ route('booking.details.store') }}" novalidate>
                 @csrf
@@ -52,6 +52,7 @@
                     </div>
                 </div>
 
+                @if (! $isStay)
                 <div class="field">
                     <label class="check">
                         <input type="hidden" name="has_valid_licence" value="0">
@@ -68,6 +69,7 @@
                         {{ __('core::front.booking_has_international_permit') }}
                     </label>
                 </div>
+                @endif
 
                 <div class="field">
                     <label for="special_requests">{{ __('core::front.booking_special_requests') }}</label>

@@ -10,6 +10,7 @@ use Illuminate\Support\Collection;
 use Modules\CMS\Models\Review;
 use Modules\CMS\Models\Testimonial;
 use Modules\Fleet\Models\Vehicle;
+use Modules\Fleet\Models\VehicleCategory;
 use Modules\Package\Models\Package;
 
 /**
@@ -36,7 +37,8 @@ final class HomeController extends Controller
             ->limit(3)
             ->get();
 
-        $vehicles = Vehicle::query()->active()->with('images')->limit(4)->get();
+        // The "Our tuk tuks" teaser — cabanas and rooms have their own page.
+        $vehicles = Vehicle::query()->active()->ofKind(VehicleCategory::KIND_VEHICLE)->with('images')->limit(4)->get();
         $customerReviews = $this->customerReviews();
 
         return view('core::front.home', compact('featuredPackages', 'vehicles', 'customerReviews'));

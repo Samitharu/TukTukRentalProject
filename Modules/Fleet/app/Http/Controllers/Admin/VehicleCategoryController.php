@@ -32,6 +32,7 @@ final class VehicleCategoryController extends Controller
     public function store(StoreVehicleCategoryRequest $request): RedirectResponse
     {
         $data = $request->validated();
+        $data['kind'] = $data['kind'] ?? VehicleCategory::KIND_VEHICLE;
         $data['is_active'] = $request->boolean('is_active', true);
 
         VehicleCategory::query()->create($data);

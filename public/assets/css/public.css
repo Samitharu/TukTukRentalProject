@@ -2215,3 +2215,47 @@ p { margin: 0 0 var(--space-3); }
     transform: none;
     box-shadow: none;
 }
+
+/* ---- Unit location (stays, tuk tuk base): map preview + Google Maps links ---- */
+
+.unit-location {
+    margin-top: var(--space-5, 2rem);
+}
+
+.unit-location__map {
+    height: 320px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    margin: var(--space-3, 0.75rem) 0;
+    z-index: 0;
+}
+
+.unit-location__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2, 0.5rem);
+}
+
+.unit-location__list {
+    display: grid;
+    gap: var(--space-3, 0.75rem);
+    list-style: none;
+    padding: 0;
+}
+
+/* Booking step 1: switch between renting a tuk tuk and booking a stay */
+.booking-kind-switch {
+    display: flex;
+    gap: var(--space-2, 0.5rem);
+    margin-bottom: var(--space-3, 1rem);
+}
+
+.booking-kind-switch .btn {
+    min-height: 36px;
+    padding: 0.4rem 1rem;
+}
+
+.booking-kind-switch [aria-current="true"] {
+    background: var(--color-primary-500);
+    color: #fff;
+}

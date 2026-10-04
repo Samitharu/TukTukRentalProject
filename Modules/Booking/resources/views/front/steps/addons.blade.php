@@ -30,7 +30,7 @@
                             <div>
                                 <strong>{{ $addon->name }}</strong>
                                 <p class="text-muted" style="margin:0;font-size:var(--font-size-sm);">
-                                    {{ $addon->price }} {{ config('pricing.default_currency') }}{{ $addon->pricing_unit === 'per_day' ? ' '.__('core::front.packages_per_day') : '' }}
+                                    {{ $addon->price }} {{ config('pricing.default_currency') }}{{ $addon->pricing_unit === 'per_day' ? ' '.__($package->isStay() ? 'core::front.packages_per_night' : 'core::front.packages_per_day') : '' }}
                                 </p>
                             </div>
                             <input

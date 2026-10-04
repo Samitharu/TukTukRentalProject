@@ -12,14 +12,22 @@
                     <p style="font-size:var(--font-size-2xl);font-weight:800;letter-spacing:0.05em;">{{ $booking->reference }}</p>
 
                     <dl style="display:grid;grid-template-columns:auto 1fr;gap:0.5rem 1rem;margin:0;">
-                        <dt class="text-muted">{{ __('core::front.booking_review_dates') }}</dt>
-                        <dd>{{ $booking->start_at->format('d M Y') }} &rarr; {{ $booking->end_at->format('d M Y') }}</dd>
+                        @if ($booking->isStay())
+                            <dt class="text-muted">{{ __('core::front.booking_check_in') }}</dt>
+                            <dd>{{ $booking->start_at->format('d M Y') }}</dd>
+
+                            <dt class="text-muted">{{ __('core::front.booking_check_out') }}</dt>
+                            <dd>{{ $booking->checkOutDate()->format('d M Y') }} ({{ trans_choice('core::front.booking_nights', $booking->lengthInDays(), ['count' => $booking->lengthInDays()]) }})</dd>
+                        @else
+                            <dt class="text-muted">{{ __('core::front.booking_review_dates') }}</dt>
+                            <dd>{{ $booking->start_at->format('d M Y') }} &rarr; {{ $booking->end_at->format('d M Y') }}</dd>
+                        @endif
 
                         <dt class="text-muted">{{ __('core::front.booking_review_package') }}</dt>
                         <dd>{{ $booking->package?->name }}</dd>
 
-                        <dt class="text-muted">{{ __('core::front.fleet_title') }}</dt>
-                        <dd>{{ $booking->vehicle->name }} ({{ $booking->vehicle->plate_no }})</dd>
+                        <dt class="text-muted">{{ $booking->isStay() ? __('core::front.booking_status_unit') : __('core::front.fleet_title') }}</dt>
+                        <dd>{{ $booking->vehicle->name }}@if ($booking->vehicle->plate_no) ({{ $booking->vehicle->plate_no }})@endif</dd>
 
                         <dt class="text-muted">{{ __('core::front.price_total') }}</dt>
                         <dd>{{ $booking->total_amount }} {{ $booking->currency_code }}</dd>
@@ -32,7 +40,15 @@
                 </div>
             </div>
 
-            <p>{{ __('core::front.booking_confirmation_next_steps') }}</p>
+            <p>{{ __($booking->isStay() ? 'core::front.booking_confirmation_next_steps_stay' : 'core::front.booking_confirmation_next_steps') }}</p>
+
+            @if ($booking->isStay() && $booking->vehicle->hasLocation())
+                <div class="card" style="margin-bottom:var(--space-4);">
+                    <div class="card__body">
+                        @include('fleet::front._location', ['unit' => $booking->vehicle])
+                    </div>
+                </div>
+            @endif
 
             @if (session('review_submitted') || $review || $canReview)
             <div id="review" class="card review-card">

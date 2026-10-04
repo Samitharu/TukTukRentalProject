@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Booking\Support;
 
 use Illuminate\Support\Facades\Session;
+use Modules\Fleet\Models\VehicleCategory;
 
 /**
  * The public multi-step booking wizard's state lives in the session
@@ -45,5 +46,26 @@ final class BookingFlowState
     public static function hasPackageOrVehicle(): bool
     {
         return self::value('package_id') !== null || self::value('vehicle_id') !== null;
+    }
+
+    /**
+     * What is being booked: a tuk tuk ('vehicle', the default) or a stay
+     * ('stay'). Set once at the start of the flow from the package or unit
+     * the customer came from (see BookingFlowController::start()).
+     */
+    public static function kind(): string
+    {
+        return self::value('kind') === VehicleCategory::KIND_STAY ? VehicleCategory::KIND_STAY : VehicleCategory::KIND_VEHICLE;
+    }
+
+    /**
+     * For a stay, `end_date` in this state is the LAST NIGHT (check-out
+     * minus one day) — the same day-inclusive range a rental uses, so
+     * pricing, availability and the reservation slots need no special
+     * case. Only the dates form and the displays convert to check-out.
+     */
+    public static function isStay(): bool
+    {
+        return self::kind() === VehicleCategory::KIND_STAY;
     }
 }

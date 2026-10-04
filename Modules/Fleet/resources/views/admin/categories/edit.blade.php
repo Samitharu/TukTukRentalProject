@@ -7,6 +7,8 @@
             <x-admin::translatable-field name="name" :label="__('Name')" :value="$category->getTranslations('name')" :required="true" />
             <x-admin::translatable-field name="description" :label="__('Description')" :value="$category->getTranslations('description')" :textarea="true" />
 
+            @include('fleet::admin.categories._kind-field', ['current' => old('kind', $category->kind)])
+
             <div class="admin-form-field">
                 <label for="icon">{{ __('Icon (optional keyword)') }}</label>
                 <input type="text" id="icon" name="icon" value="{{ old('icon', $category->icon) }}">

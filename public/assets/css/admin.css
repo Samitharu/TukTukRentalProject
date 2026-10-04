@@ -639,3 +639,66 @@ a {
         margin-top: 2rem;
     }
 }
+
+/* ---- Unit form: per-kind sections and the Google Maps location picker ---- */
+
+[hidden] {
+    display: none !important;
+}
+
+.admin-hint {
+    color: var(--admin-text-muted);
+    font-size: 0.85em;
+    margin: var(--admin-space-1) 0 0;
+}
+
+.admin-location {
+    border: 1px solid var(--admin-border);
+    border-radius: var(--admin-radius);
+    padding: var(--admin-space-3);
+}
+
+.admin-location legend {
+    font-weight: 600;
+    padding: 0 var(--admin-space-2);
+}
+
+.admin-location__map {
+    height: 320px;
+    border-radius: var(--admin-radius);
+    border: 1px solid var(--admin-border);
+    margin-top: var(--admin-space-2);
+    z-index: 0;
+}
+
+.admin-location__coords {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--admin-space-3);
+    margin-top: var(--admin-space-3);
+}
+
+.admin-location__status {
+    color: var(--admin-success-text);
+    font-size: 0.85em;
+    min-height: 1.2em;
+    margin: var(--admin-space-1) 0 0;
+}
+
+.admin-location__status--warn {
+    color: var(--admin-danger);
+}
+
+.admin-badge {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.8em;
+    background: var(--admin-success-bg);
+    color: var(--admin-success-text);
+}
+
+.admin-badge--stay {
+    background: #fdf3dc;
+    color: #7a5a12;
+}

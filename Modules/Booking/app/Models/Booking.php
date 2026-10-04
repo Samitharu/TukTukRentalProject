@@ -149,6 +149,32 @@ final class Booking extends Model
         return $this->morphMany(VehicleReservationSlot::class, 'holdable');
     }
 
+    /**
+     * A cabana/room booking rather than a tuk tuk rental.
+     *
+     * Stays are stored in the same day-granular shape as rentals: start_at
+     * is the check-in day and end_at the LAST NIGHT (check-out minus one) —
+     * exactly the days reserved in vehicle_reservation_slots, so the next
+     * guest can check in on this guest's check-out day. Show the customer
+     * checkOutDate(), never end_at directly.
+     */
+    public function isStay(): bool
+    {
+        return $this->vehicle?->isStay() ?? false;
+    }
+
+    /** Return day for a rental; the morning after the last night for a stay. */
+    public function checkOutDate(): \Illuminate\Support\Carbon
+    {
+        return $this->isStay() ? $this->end_at->copy()->addDay() : $this->end_at;
+    }
+
+    /** Rental days (pickup and return inclusive) or nights stayed. */
+    public function lengthInDays(): int
+    {
+        return (int) $this->start_at->copy()->startOfDay()->diffInDays($this->end_at->copy()->startOfDay()) + 1;
+    }
+
     public function scopeOverlapping(Builder $query, int $vehicleId, \DateTimeInterface $start, \DateTimeInterface $end): Builder
     {
         return $query

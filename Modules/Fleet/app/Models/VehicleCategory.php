@@ -13,6 +13,7 @@ use Spatie\Translatable\HasTranslations;
 
 /**
  * @property int $id
+ * @property string $kind
  * @property array<string,string> $name
  * @property array<string,string>|null $description
  * @property string|null $icon
@@ -26,9 +27,24 @@ final class VehicleCategory extends Model
     use HasTranslatableSlug;
     use HasTranslations;
 
+    /** Tuk tuks: rented by the day, picked up or delivered. */
+    public const string KIND_VEHICLE = 'vehicle';
+
+    /** Cabanas and rooms: booked by the night at their own location. */
+    public const string KIND_STAY = 'stay';
+
+    /** @var string[] */
+    public const array KINDS = [self::KIND_VEHICLE, self::KIND_STAY];
+
     public array $translatable = ['name', 'description'];
 
+    /** Mirrors the column default, so an unsaved/unrefreshed model has it too. */
+    protected $attributes = [
+        'kind' => self::KIND_VEHICLE,
+    ];
+
     protected $fillable = [
+        'kind',
         'name',
         'description',
         'icon',
@@ -54,8 +70,18 @@ final class VehicleCategory extends Model
         return $this->hasMany(Vehicle::class, 'category_id');
     }
 
+    public function isStay(): bool
+    {
+        return $this->kind === self::KIND_STAY;
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeOfKind(Builder $query, string $kind): Builder
+    {
+        return $query->where('kind', $kind);
     }
 }

@@ -36,14 +36,15 @@ final class PackageController extends Controller
         $this->authorize('create', Package::class);
 
         return view('package::admin.packages.create', [
-            'categories' => VehicleCategory::query()->active()->orderBy('sort_order')->get(),
-            'vehicles' => Vehicle::query()->active()->orderBy('plate_no')->get(),
+            'categories' => VehicleCategory::query()->active()->orderBy('kind')->orderBy('sort_order')->get(),
+            'vehicles' => Vehicle::query()->active()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
         ]);
     }
 
     public function store(StorePackageRequest $request): RedirectResponse
     {
         $data = $request->safe()->except(['category_ids', 'vehicle_ids', 'images']);
+        $data['kind'] = $data['kind'] ?? VehicleCategory::KIND_VEHICLE;
         $data['deposit_is_percent'] = $request->boolean('deposit_is_percent');
         $data['is_active'] = $request->boolean('is_active', true);
         $data['is_featured'] = $request->boolean('is_featured');
@@ -67,8 +68,8 @@ final class PackageController extends Controller
 
         return view('package::admin.packages.edit', [
             'package' => $package,
-            'categories' => VehicleCategory::query()->active()->orderBy('sort_order')->get(),
-            'vehicles' => Vehicle::query()->active()->orderBy('plate_no')->get(),
+            'categories' => VehicleCategory::query()->active()->orderBy('kind')->orderBy('sort_order')->get(),
+            'vehicles' => Vehicle::query()->active()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
             'addons' => Addon::query()->active()->orderBy('sort_order')->get(),
             'selectedCategoryIds' => $package->categories()->pluck('vehicle_categories.id')->all(),
             'selectedVehicleIds' => $package->vehicles()->pluck('vehicles.id')->all(),

@@ -32,7 +32,7 @@ final class CustomerController extends Controller
     {
         $this->authorize('view', $customer);
 
-        $customer->load('bookings');
+        $customer->load('bookings.vehicle.category');
 
         return view('customer::admin.customers.show', compact('customer'));
     }

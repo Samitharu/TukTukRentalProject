@@ -6,7 +6,9 @@
     $currency = $booking->currency_code;
     $money = fn ($value) => number_format((float) $value, 2).' '.$currency;
     $balance = max(0, (float) $booking->total_amount - (float) $booking->amount_paid);
-    $days = $p['days'] ?? ((int) $booking->start_at->diffInDays($booking->end_at) + 1);
+    $isStay = $booking->isStay();
+    // Rental days, or nights for a stay (end_at is its last night).
+    $days = $p['days'] ?? $booking->lengthInDays();
     $pickup = $booking->pickup_type === 'delivery'
         ? __('core::front.booking_pickup_delivery').($booking->deliveryZone ? ' — '.$booking->deliveryZone->name : '')
         : __('core::front.booking_pickup_office').($booking->businessLocation ? ' — '.$booking->businessLocation->name : '');
@@ -96,23 +98,39 @@
             </td>
             <td style="width:4%;"></td>
             <td style="width:48%;vertical-align:top;">
-                <h2>{{ __('core::front.receipt_rental') }}</h2>
-                <table class="kv">
-                    <tr><td class="k">{{ __('core::front.booking_review_dates') }}</td><td>{{ $booking->start_at->format('d M Y') }} → {{ $booking->end_at->format('d M Y') }}</td></tr>
-                    <tr><td class="k">{{ __('core::front.receipt_days') }}</td><td>{{ $days }}</td></tr>
-                    @if ($booking->package)
-                        <tr><td class="k">{{ __('core::front.booking_review_package') }}</td><td>{{ $booking->package->name }}</td></tr>
-                    @endif
-                    <tr><td class="k">{{ __('core::front.receipt_vehicle') }}</td><td>{{ $booking->vehicle?->name }} ({{ $booking->vehicle?->plate_no }})</td></tr>
-                    <tr><td class="k">{{ __('core::front.receipt_pickup') }}</td><td>{{ $pickup }}</td></tr>
-                </table>
+                @if ($isStay)
+                    <h2>{{ __('core::front.receipt_stay') }}</h2>
+                    <table class="kv">
+                        <tr><td class="k">{{ __('core::front.booking_check_in') }}</td><td>{{ $booking->start_at->format('d M Y') }}</td></tr>
+                        <tr><td class="k">{{ __('core::front.booking_check_out') }}</td><td>{{ $booking->checkOutDate()->format('d M Y') }}</td></tr>
+                        <tr><td class="k">{{ __('core::front.receipt_nights') }}</td><td>{{ $days }}</td></tr>
+                        @if ($booking->package)
+                            <tr><td class="k">{{ __('core::front.booking_review_package') }}</td><td>{{ $booking->package->name }}</td></tr>
+                        @endif
+                        <tr><td class="k">{{ __('core::front.receipt_unit') }}</td><td>{{ $booking->vehicle?->name }}</td></tr>
+                        @if ($booking->vehicle?->address || $booking->vehicle?->hasCoordinates())
+                            <tr><td class="k">{{ __('core::front.receipt_location') }}</td><td>{{ $booking->vehicle->address }}@if ($booking->vehicle->hasCoordinates())<br><span class="muted">{{ $booking->vehicle->lat }}, {{ $booking->vehicle->lng }}</span>@endif</td></tr>
+                        @endif
+                    </table>
+                @else
+                    <h2>{{ __('core::front.receipt_rental') }}</h2>
+                    <table class="kv">
+                        <tr><td class="k">{{ __('core::front.booking_review_dates') }}</td><td>{{ $booking->start_at->format('d M Y') }} → {{ $booking->end_at->format('d M Y') }}</td></tr>
+                        <tr><td class="k">{{ __('core::front.receipt_days') }}</td><td>{{ $days }}</td></tr>
+                        @if ($booking->package)
+                            <tr><td class="k">{{ __('core::front.booking_review_package') }}</td><td>{{ $booking->package->name }}</td></tr>
+                        @endif
+                        <tr><td class="k">{{ __('core::front.receipt_vehicle') }}</td><td>{{ $booking->vehicle?->name }} ({{ $booking->vehicle?->plate_no }})</td></tr>
+                        <tr><td class="k">{{ __('core::front.receipt_pickup') }}</td><td>{{ $pickup }}</td></tr>
+                    </table>
+                @endif
             </td>
         </tr>
     </table>
 
     <h2>{{ __('core::front.receipt_charges') }}</h2>
     <table class="lines">
-        <tr><td>{{ __('core::front.price_base_amount') }}</td><td class="amt">{{ $money($p['base_amount'] ?? $booking->total_amount) }}</td></tr>
+        <tr><td>{{ __($isStay ? 'core::front.price_accommodation' : 'core::front.price_base_amount') }}</td><td class="amt">{{ $money($p['base_amount'] ?? $booking->total_amount) }}</td></tr>
 
         @if ((float) ($p['seasonal_adjustment'] ?? 0) != 0)
             <tr><td>{{ __('core::front.price_seasonal_adjustment') }}</td><td class="amt">{{ $money($p['seasonal_adjustment']) }}</td></tr>
@@ -144,11 +162,11 @@
     </table>
 
     <table class="balance" style="margin-top:8px;">
-        <tr><td>{{ __('core::front.receipt_balance_due') }}</td><td style="text-align:right;">{{ $money($balance) }}</td></tr>
+        <tr><td>{{ __($isStay ? 'core::front.receipt_balance_due_stay' : 'core::front.receipt_balance_due') }}</td><td style="text-align:right;">{{ $money($balance) }}</td></tr>
     </table>
 
     <div class="footer">
-        {{ __('core::front.receipt_footer') }}<br>
+        {{ __($isStay ? 'core::front.receipt_footer_stay' : 'core::front.receipt_footer') }}<br>
         {{ config('app.name') }} · {{ config('core.business.phone') }} · {{ config('core.business.email') }}
     </div>
 </body>

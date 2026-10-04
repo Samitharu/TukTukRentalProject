@@ -1,10 +1,20 @@
-<x-core::layouts.public :title="__('core::front.booking_dates_title').' · '.config('app.name')">
+@php
+    // A stay's state holds its last night; the form shows the check-out day.
+    $storedEnd = $state['end_date'] ?? null;
+    $endValue = $isStay && $storedEnd ? \Illuminate\Support\Carbon::parse($storedEnd)->addDay()->toDateString() : $storedEnd;
+@endphp
+<x-core::layouts.public :title="__($isStay ? 'core::front.booking_stay_dates_title' : 'core::front.booking_dates_title').' · '.config('app.name')">
     <section class="section booking-flow">
         <div class="container" style="max-width:40rem;">
             @include('booking::front.steps._indicator', ['current' => 'dates'])
 
-            <h1>{{ __('core::front.booking_dates_title') }}</h1>
-            <p class="text-muted">{{ __('core::front.booking_dates_intro') }}</p>
+            <div class="booking-kind-switch">
+                <a href="{{ route('booking.start', ['kind' => 'vehicle']) }}" class="btn btn--secondary" @if (! $isStay) aria-current="true" @endif>{{ __('core::front.nav_fleet') }}</a>
+                <a href="{{ route('booking.start', ['kind' => 'stay']) }}" class="btn btn--secondary" @if ($isStay) aria-current="true" @endif>{{ __('core::front.nav_stays') }}</a>
+            </div>
+
+            <h1>{{ __($isStay ? 'core::front.booking_stay_dates_title' : 'core::front.booking_dates_title') }}</h1>
+            <p class="text-muted">{{ __($isStay ? 'core::front.booking_stay_dates_intro' : 'core::front.booking_dates_intro') }}</p>
 
             <form
                 class="booking-panel"
@@ -17,17 +27,19 @@
 
                 <div class="grid grid--2">
                     <div class="field">
-                        <label for="start_date">{{ __('core::front.booking_start_date') }}</label>
+                        <label for="start_date">{{ __($isStay ? 'core::front.booking_check_in' : 'core::front.booking_start_date') }}</label>
                         <input type="date" id="start_date" name="start_date" min="{{ now()->toDateString() }}" value="{{ old('start_date', $state['start_date'] ?? '') }}" required>
                         @error('start_date')<p class="field-error">{{ $message }}</p>@enderror
                     </div>
 
                     <div class="field">
-                        <label for="end_date">{{ __('core::front.booking_end_date') }}</label>
-                        <input type="date" id="end_date" name="end_date" min="{{ now()->toDateString() }}" value="{{ old('end_date', $state['end_date'] ?? '') }}" required>
+                        <label for="end_date">{{ __($isStay ? 'core::front.booking_check_out' : 'core::front.booking_end_date') }}</label>
+                        <input type="date" id="end_date" name="end_date" min="{{ $isStay ? now()->addDay()->toDateString() : now()->toDateString() }}" value="{{ old('end_date', $endValue ?? '') }}" required>
                         @error('end_date')<p class="field-error">{{ $message }}</p>@enderror
                     </div>
                 </div>
+
+                @if (! $isStay)
 
                 <fieldset class="field choice-group">
                     <legend>{{ __('core::front.booking_pickup_type') }}</legend>
@@ -65,6 +77,7 @@
                     </select>
                     @error('delivery_zone_id')<p class="field-error">{{ $message }}</p>@enderror
                 </div>
+                @endif
 
                 <button type="submit" class="btn btn--primary btn--block">{{ __('core::front.booking_continue') }}</button>
             </form>

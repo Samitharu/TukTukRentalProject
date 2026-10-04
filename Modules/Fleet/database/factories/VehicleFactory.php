@@ -42,4 +42,25 @@ final class VehicleFactory extends Factory
     {
         return $this->state(fn (array $attributes) => ['status' => Vehicle::STATUS_RETIRED]);
     }
+
+    /** A cabana/room at its own location — no plate, gearbox or fuel. */
+    public function stay(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'category_id' => VehicleCategory::factory()->stay(),
+            'name' => ['en' => 'Cabana '.fake()->unique()->numberBetween(1, 999)],
+            'plate_no' => null,
+            'model' => null,
+            'year' => null,
+            'colour' => null,
+            'seats' => 2,
+            'transmission' => null,
+            'fuel_type' => null,
+            'features' => ['wifi', 'sea_view'],
+            'address' => 'Main Point, Arugam Bay',
+            'google_maps_url' => 'https://www.google.com/maps/place/Arugam+Bay/@6.8406,81.8368,17z',
+            'lat' => 6.8406,
+            'lng' => 81.8368,
+        ]);
+    }
 }

@@ -9,7 +9,7 @@
                 <select id="vehicle_id" name="vehicle_id">
                     <option value="">{{ __('— Whole business —') }}</option>
                     @foreach ($vehicles as $vehicle)
-                        <option value="{{ $vehicle->id }}">{{ $vehicle->plate_no }} — {{ $vehicle->name }}</option>
+                        <option value="{{ $vehicle->id }}">{{ $vehicle->adminLabel() }}</option>
                     @endforeach
                 </select>
             </div>
@@ -47,7 +47,7 @@
             <tbody>
                 @foreach ($blackouts as $blackout)
                     <tr>
-                        <td>{{ $blackout->vehicle?->plate_no ?? __('Whole business') }}</td>
+                        <td>{{ $blackout->vehicle?->adminLabel() ?? __('Whole business') }}</td>
                         <td>{{ $blackout->starts_on->format('Y-m-d') }}</td>
                         <td>{{ $blackout->ends_on->format('Y-m-d') }}</td>
                         <td>{{ $blackout->reason }}</td>

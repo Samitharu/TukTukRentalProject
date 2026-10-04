@@ -16,12 +16,12 @@
 
                 <dl class="booking-status-details">
                     <div>
-                        <dt>{{ __('core::front.booking_status_dates') }}</dt>
-                        <dd>{{ $booking->start_at->format('d M Y') }} &ndash; {{ $booking->end_at->format('d M Y') }}</dd>
+                        <dt>{{ __($booking->isStay() ? 'core::front.booking_status_dates_stay' : 'core::front.booking_status_dates') }}</dt>
+                        <dd>{{ $booking->start_at->format('d M Y') }} &ndash; {{ $booking->checkOutDate()->format('d M Y') }}</dd>
                     </div>
                     @if ($booking->vehicle)
                         <div>
-                            <dt>{{ __('core::front.booking_status_vehicle') }}</dt>
+                            <dt>{{ __($booking->isStay() ? 'core::front.booking_status_unit' : 'core::front.booking_status_vehicle') }}</dt>
                             <dd>{{ $booking->vehicle->name }}</dd>
                         </div>
                     @endif

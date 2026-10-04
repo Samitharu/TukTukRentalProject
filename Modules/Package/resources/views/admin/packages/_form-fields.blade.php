@@ -6,6 +6,15 @@
 <x-admin::translatable-field name="description" :label="__('Description')" :value="$package?->getTranslations('description') ?? []" :textarea="true" />
 
 <div class="admin-form-field">
+    <label for="kind">{{ __('Package type') }}</label>
+    <select id="kind" name="kind" required>
+        <option value="vehicle" @selected(old('kind', $package?->kind ?? 'vehicle') === 'vehicle')>{{ __('Tuk tuk rental — priced and booked by the day') }}</option>
+        <option value="stay" @selected(old('kind', $package?->kind) === 'stay')>{{ __('Stay package (cabana, room, surf & stay…) — priced and booked by the night') }}</option>
+    </select>
+    <p class="admin-hint">{{ __('For a stay package, "days" below mean nights. Add surf lessons, boards, transfers etc. as add-ons (mark them "included" to bundle them in the price).') }}</p>
+</div>
+
+<div class="admin-form-field">
     <label for="pricing_model">{{ __('Pricing model') }}</label>
     <select id="pricing_model" name="pricing_model" required>
         @foreach (['per_day' => __('Per day'), 'per_week' => __('Per week'), 'per_month' => __('Per month'), 'fixed_bundle' => __('Fixed bundle'), 'tiered' => __('Tiered by day count')] as $value => $label)
@@ -15,12 +24,12 @@
 </div>
 
 <div class="admin-form-field">
-    <label for="min_days">{{ __('Minimum rental days') }}</label>
+    <label for="min_days">{{ __('Minimum days (nights for a stay)') }}</label>
     <input type="number" id="min_days" name="min_days" value="{{ old('min_days', $package?->min_days ?? 1) }}" min="1" required>
 </div>
 
 <div class="admin-form-field">
-    <label for="max_days">{{ __('Maximum rental days (blank = unlimited)') }}</label>
+    <label for="max_days">{{ __('Maximum days / nights (blank = unlimited)') }}</label>
     <input type="number" id="max_days" name="max_days" value="{{ old('max_days', $package?->max_days) }}" min="1">
 </div>
 
@@ -62,21 +71,21 @@
 </div>
 
 <fieldset class="admin-form-field">
-    <legend style="font-weight:600;margin-bottom:0.5rem;">{{ __('Restrict to vehicle categories (leave empty = any category)') }}</legend>
+    <legend style="font-weight:600;margin-bottom:0.5rem;">{{ __('Restrict to categories (leave empty = any category of the package type)') }}</legend>
     @foreach ($categories as $category)
         <label style="display:block;font-weight:400;">
             <input type="checkbox" name="category_ids[]" value="{{ $category->id }}" @checked(in_array($category->id, old('category_ids', $selectedCategoryIds ?? []), true))>
-            {{ $category->name }}
+            {{ $category->name }} <span class="admin-badge {{ $category->isStay() ? 'admin-badge--stay' : '' }}">{{ $category->isStay() ? __('Stay') : __('Tuk tuk') }}</span>
         </label>
     @endforeach
 </fieldset>
 
 <fieldset class="admin-form-field">
-    <legend style="font-weight:600;margin-bottom:0.5rem;">{{ __('Restrict to specific vehicles (leave empty = any eligible vehicle)') }}</legend>
+    <legend style="font-weight:600;margin-bottom:0.5rem;">{{ __('Restrict to specific units (leave empty = any eligible unit) — e.g. the cabanas this surf package is sold with') }}</legend>
     @foreach ($vehicles as $vehicle)
         <label style="display:block;font-weight:400;">
             <input type="checkbox" name="vehicle_ids[]" value="{{ $vehicle->id }}" @checked(in_array($vehicle->id, old('vehicle_ids', $selectedVehicleIds ?? []), true))>
-            {{ $vehicle->plate_no }} — {{ $vehicle->name }}
+            {{ $vehicle->adminLabel() }} <span class="admin-badge {{ $vehicle->isStay() ? 'admin-badge--stay' : '' }}">{{ $vehicle->isStay() ? __('Stay') : __('Tuk tuk') }}</span>
         </label>
     @endforeach
 </fieldset>

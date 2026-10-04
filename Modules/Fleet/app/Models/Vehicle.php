@@ -14,19 +14,28 @@ use Modules\Localization\Support\HasTranslatableSlug;
 use Spatie\Translatable\HasTranslations;
 
 /**
+ * A bookable unit. Historically only tuk tuks (hence the name and table),
+ * now also stays — cabanas and rooms — distinguished by their category's
+ * `kind`. Both kinds share the same one-unit-per-date reservation engine;
+ * vehicle-only columns (plate, transmission, fuel) are null for stays.
+ *
  * @property int $id
  * @property int $category_id
  * @property int|null $base_location_id
  * @property array<string,string> $name
- * @property string $plate_no
+ * @property string|null $plate_no
  * @property string|null $model
  * @property int|null $year
  * @property string|null $colour
  * @property int $seats
- * @property string $transmission
- * @property string $fuel_type
+ * @property string|null $transmission
+ * @property string|null $fuel_type
  * @property array<int,string>|null $features
  * @property array<string,string>|null $description
+ * @property string|null $address
+ * @property string|null $google_maps_url
+ * @property float|null $lat
+ * @property float|null $lng
  * @property string $status
  */
 final class Vehicle extends Model
@@ -58,6 +67,10 @@ final class Vehicle extends Model
         'fuel_type',
         'features',
         'description',
+        'address',
+        'google_maps_url',
+        'lat',
+        'lng',
         'status',
     ];
 
@@ -67,6 +80,8 @@ final class Vehicle extends Model
             'features' => 'array',
             'year' => 'integer',
             'seats' => 'integer',
+            'lat' => 'decimal:7',
+            'lng' => 'decimal:7',
         ];
     }
 
@@ -95,6 +110,61 @@ final class Vehicle extends Model
         return $this->images->firstWhere('is_primary', true) ?? $this->images->first();
     }
 
+    public function isStay(): bool
+    {
+        return $this->category?->isStay() ?? false;
+    }
+
+    public function kind(): string
+    {
+        return $this->category?->kind ?? VehicleCategory::KIND_VEHICLE;
+    }
+
+    /**
+     * How the unit is shown in admin pick-lists: plate first for tuk tuks
+     * (that's how staff tell them apart), just the name for stays.
+     */
+    public function adminLabel(): string
+    {
+        return $this->plate_no !== null && $this->plate_no !== ''
+            ? $this->plate_no.' — '.$this->name
+            : (string) $this->name;
+    }
+
+    public function hasCoordinates(): bool
+    {
+        return $this->lat !== null && $this->lng !== null;
+    }
+
+    public function hasLocation(): bool
+    {
+        return $this->hasCoordinates() || filled($this->google_maps_url);
+    }
+
+    /**
+     * Opens the place in Google Maps: the admin's own link when there is
+     * one (it may carry the business listing, reviews, photos), otherwise
+     * a search for the pinned coordinates.
+     */
+    public function mapUrl(): ?string
+    {
+        if (filled($this->google_maps_url)) {
+            return $this->google_maps_url;
+        }
+
+        return $this->hasCoordinates()
+            ? 'https://www.google.com/maps/search/?api=1&query='.$this->lat.','.$this->lng
+            : null;
+    }
+
+    /** Turn-by-turn directions from wherever the customer is now. */
+    public function directionsUrl(): ?string
+    {
+        return $this->hasCoordinates()
+            ? 'https://www.google.com/maps/dir/?api=1&destination='.$this->lat.','.$this->lng
+            : null;
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('status', self::STATUS_ACTIVE);
@@ -103,5 +173,10 @@ final class Vehicle extends Model
     public function scopeInCategory(Builder $query, int $categoryId): Builder
     {
         return $query->where('category_id', $categoryId);
+    }
+
+    public function scopeOfKind(Builder $query, string $kind): Builder
+    {
+        return $query->whereIn('category_id', VehicleCategory::query()->select('id')->where('kind', $kind));
     }
 }

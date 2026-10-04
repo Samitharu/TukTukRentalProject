@@ -19,10 +19,10 @@
                             @if ($package->pricingTiers->isNotEmpty())
                                 <p>
                                     <strong>{{ __('core::front.packages_from') }} {{ $package->pricingTiers->first()->price }} {{ config('pricing.default_currency') }}</strong>
-                                    {{ __('core::front.packages_per_day') }}
+                                    {{ __($package->isStay() ? 'core::front.packages_per_night' : 'core::front.packages_per_day') }}
                                 </p>
                             @endif
-                            <p class="text-muted" style="font-size:var(--font-size-sm);">{{ __('core::front.packages_min_days', ['count' => $package->min_days]) }}</p>
+                            <p class="text-muted" style="font-size:var(--font-size-sm);">{{ __($package->isStay() ? 'core::front.packages_min_nights' : 'core::front.packages_min_days', ['count' => $package->min_days]) }}</p>
                             <a href="{{ route('packages.show', $package->slugFor(app()->getLocale()) ?? $package->id) }}" class="btn btn--secondary">{{ __('core::front.packages_view_details') }}</a>
                         </div>
                     </article>
