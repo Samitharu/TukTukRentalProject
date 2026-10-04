@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Modules\Admin\Http\Requests\Admin\Auth\LoginRequest;
 use Modules\Admin\Models\BlockedIp;
 use Modules\Admin\Models\LoginAttempt;
@@ -41,7 +42,20 @@ final class LoginController extends Controller
         $credentials = $request->only('email', 'password');
         $user = User::query()->where('email', $email)->first();
 
-        $passed = $user !== null && $user->is_active && Auth::attempt($credentials);
+        if ($user === null) {
+            // Spend the same ~one bcrypt hash an existing account costs, so
+            // response time doesn't reveal which emails have accounts.
+            Hash::make((string) $request->string('password'));
+        }
+
+        // Password is checked before is_active for the same reason: an
+        // inactive account must not answer measurably faster than a wrong
+        // password does.
+        $passed = $user !== null && Auth::validate($credentials) && $user->is_active;
+
+        if ($passed) {
+            Auth::login($user);
+        }
 
         LoginAttempt::query()->create([
             'email' => $email,

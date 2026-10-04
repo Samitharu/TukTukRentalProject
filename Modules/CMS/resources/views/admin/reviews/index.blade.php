@@ -24,4 +24,6 @@
             </tbody>
         </table>
     </div>
+
+    {{ $reviews->links() }}
 </x-admin::layouts.app>

@@ -15,7 +15,8 @@ final class ReviewController extends Controller
     {
         $this->authorize('cms.view');
 
-        $reviews = Review::query()->orderByDesc('id')->get();
+        // Grows with every completed rental — paginate rather than load all.
+        $reviews = Review::query()->orderByDesc('id')->paginate(25);
 
         return view('cms::admin.reviews.index', compact('reviews'));
     }

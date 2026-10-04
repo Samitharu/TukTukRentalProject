@@ -35,7 +35,10 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Off: nothing uses signed temporary URLs for the private disk,
+            // and enabling it registers public GET + PUT /storage/{path}
+            // endpoints (signature-checked, but still needless surface).
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],

@@ -70,9 +70,13 @@
                     <div class="muted">{{ __('core::front.booking_confirmation_reference') }}</div>
                     <div class="ref">{{ $booking->reference }}</div>
                 </td>
-                <td style="text-align:right;vertical-align:middle;">
-                    <span class="muted">{{ __('core::front.receipt_status') }}</span>
-                    <span class="status">{{ str_replace('_', ' ', $booking->status) }}</span>
+                <td style="text-align:right;vertical-align:middle;width:112px;">
+                    <div><span class="muted">{{ __('core::front.receipt_status') }}</span></div>
+                    <span class="status">{{ __('core::front.booking_status_'.$booking->status) }}</span>
+                    <div style="margin-top:8px;">
+                        <img src="data:image/svg+xml;base64,{{ $statusQrCode }}" alt="" width="72" height="72">
+                    </div>
+                    <div class="muted" style="font-size:8px;">{{ __('core::front.booking_status_scan_prompt') }}</div>
                 </td>
             </tr>
         </table>

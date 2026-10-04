@@ -5,9 +5,15 @@ declare(strict_types=1);
 namespace Modules\Booking\Http\Controllers\Front;
 
 use App\Http\Controllers\Controller;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Writer;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,12 +21,15 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Str;
 use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\DeliveryZone;
+use Modules\Availability\Services\AvailabilityService;
+use Modules\Booking\Exceptions\CouponUnavailableException;
 use Modules\Booking\Exceptions\NoVehicleAvailableException;
 use Modules\Booking\Http\Requests\Front\StepAddonsRequest;
 use Modules\Booking\Http\Requests\Front\StepDatesRequest;
 use Modules\Booking\Http\Requests\Front\StepDriverDetailsRequest;
 use Modules\Booking\Http\Requests\Front\StepPackageRequest;
 use Modules\Booking\Models\Booking;
+use Modules\Booking\Models\BookingHold;
 use Modules\Booking\Services\BookingService;
 use Modules\Booking\Support\BookingFlowState;
 use Modules\Booking\Support\BookingReference;
@@ -56,6 +65,7 @@ final class BookingFlowController extends Controller
     public function __construct(
         private readonly BookingService $bookings,
         private readonly PricingService $pricing,
+        private readonly AvailabilityService $availability,
     ) {
     }
 
@@ -78,7 +88,7 @@ final class BookingFlowController extends Controller
 
     public function storeDates(StepDatesRequest $request): RedirectResponse
     {
-        BookingFlowState::put($request->validated());
+        BookingFlowState::put([...$request->validated(), 'hold_key' => null]);
 
         return redirect()->route('booking.package');
     }
@@ -96,17 +106,22 @@ final class BookingFlowController extends Controller
             ->currentlyValid()
             ->where('min_days', '<=', $days)
             ->where(fn ($q) => $q->whereNull('max_days')->orWhere('max_days', '>=', $days))
-            ->with(['pricingTiers', 'images'])
+            ->with(['pricingTiers', 'images', 'vehicles:id,status', 'categories:id'])
             ->orderBy('sort_order')
             ->get();
 
         $vehicleId = BookingFlowState::value('vehicle_id');
+        [$start, $end] = $this->datesFromState();
+        $unavailable = [];
+        $freeCounts = $this->freeVehicleCounts($packages, $start, $end, $unavailable);
 
         return view('booking::front.steps.package', [
             'state' => BookingFlowState::get(),
             'packages' => $packages,
             'days' => $days,
+            'freeCounts' => $freeCounts,
             'preselectedVehicle' => $vehicleId !== null ? Vehicle::query()->find($vehicleId) : null,
+            'preselectedVehicleBooked' => $vehicleId !== null && in_array((int) $vehicleId, $unavailable, true),
         ]);
     }
 
@@ -123,16 +138,26 @@ final class BookingFlowController extends Controller
             return back()->withErrors(['package_id' => __('core::front.booking_package_not_eligible')]);
         }
 
+        [$start, $end] = $this->datesFromState();
+        $eligibleIds = $package->eligibleVehicleIds();
+        $unavailable = $this->availability->unavailableVehicleIds($eligibleIds, $start, $end);
+
+        if (array_diff($eligibleIds, $unavailable) === []) {
+            return back()->withErrors(['package_id' => __('core::front.booking_package_fully_booked_error')]);
+        }
+
         $vehicleId = BookingFlowState::value('vehicle_id');
 
-        if ($vehicleId !== null && ! in_array((int) $vehicleId, $package->eligibleVehicleIds(), true)) {
+        if ($vehicleId !== null
+            && (! in_array((int) $vehicleId, $eligibleIds, true) || in_array((int) $vehicleId, $unavailable, true))) {
             // The tuk tuk they picked from the fleet page isn't covered by
-            // this package — drop it rather than silently ignoring it, so
-            // BookingService falls back to auto-assigning an eligible one.
+            // this package, or is already booked for these dates — drop it
+            // (the package step told them so), and BookingService falls
+            // back to auto-assigning a free, eligible one.
             BookingFlowState::put(['vehicle_id' => null]);
         }
 
-        BookingFlowState::put(['package_id' => $package->id]);
+        BookingFlowState::put(['package_id' => $package->id, 'hold_key' => null]);
 
         return redirect()->route('booking.addons');
     }
@@ -198,6 +223,17 @@ final class BookingFlowController extends Controller
             return redirect()->route('booking.start');
         }
 
+        if ($redirect = $this->invalidFlowRedirect()) {
+            return $redirect;
+        }
+
+        // One idempotency key per checkout, created before the confirm form
+        // is shown: a double-clicked "Confirm" sends it twice, and both
+        // requests then resolve to the same booking (see confirm()).
+        if (! is_string(BookingFlowState::value('hold_key'))) {
+            BookingFlowState::put(['hold_key' => (string) Str::uuid()]);
+        }
+
         $state = BookingFlowState::get();
 
         return view('booking::front.steps.review', [
@@ -247,8 +283,23 @@ final class BookingFlowController extends Controller
             'terms_accepted' => ['accepted'],
         ]);
 
+        // The session may be stale (dates now in the past, package since
+        // deactivated) or crafted (?package= on the start URL skips the
+        // package step's own checks) — re-validate before booking anything.
+        if ($redirect = $this->invalidFlowRedirect()) {
+            return $redirect;
+        }
+
         $state = BookingFlowState::get();
         $price = $this->calculatePrice($state);
+        $holdKey = is_string($state['hold_key'] ?? null) ? $state['hold_key'] : (string) Str::uuid();
+
+        // The review page showed a discounted total; if the coupon stopped
+        // applying since (limit reached, expired), never book the higher
+        // price silently — send them back to see the updated total.
+        if (! empty($state['coupon_code']) && $price->couponCode === null) {
+            return $this->couponNoLongerValid();
+        }
 
         $addonSelections = array_map(
             fn (int $addonId, int $qty) => ['addon_id' => $addonId, 'quantity' => $qty],
@@ -256,34 +307,54 @@ final class BookingFlowController extends Controller
             array_values($state['addons'] ?? []),
         );
 
+        $customerData = [
+            'email' => $state['email'],
+            'full_name' => trim($state['first_name'].' '.$state['last_name']),
+            'phone' => $state['phone'] ?? null,
+            'nationality' => $state['nationality'] ?? null,
+            'passport_number' => $state['passport_number'] ?? null,
+            'locale_preference' => app()->getLocale(),
+            'pickup_type' => $state['pickup_type'],
+            'business_location_id' => $state['business_location_id'] ?? null,
+            'delivery_zone_id' => $state['delivery_zone_id'] ?? null,
+            'has_international_permit' => (bool) ($state['has_international_permit'] ?? false),
+            'special_requests' => $state['special_requests'] ?? null,
+        ];
+
         try {
             $booking = $this->bookings->createManualBooking(
                 holdData: [
-                    'hold_key' => (string) Str::uuid(),
+                    'hold_key' => $holdKey,
                     'start_at' => $state['start_date'],
                     'end_at' => $state['end_date'],
                     'vehicle_id' => $state['vehicle_id'] ?? null,
                     'package_id' => $state['package_id'],
                     'customer_session_id' => $request->session()->getId(),
                 ],
-                customerData: [
-                    'email' => $state['email'],
-                    'full_name' => trim($state['first_name'].' '.$state['last_name']),
-                    'phone' => $state['phone'] ?? null,
-                    'nationality' => $state['nationality'] ?? null,
-                    'passport_number' => $state['passport_number'] ?? null,
-                    'locale_preference' => app()->getLocale(),
-                    'pickup_type' => $state['pickup_type'],
-                    'business_location_id' => $state['business_location_id'] ?? null,
-                    'delivery_zone_id' => $state['delivery_zone_id'] ?? null,
-                    'has_international_permit' => (bool) ($state['has_international_permit'] ?? false),
-                    'special_requests' => $state['special_requests'] ?? null,
-                ],
+                customerData: $customerData,
                 price: $price,
                 addonSelections: $addonSelections,
             );
-        } catch (NoVehicleAvailableException $exception) {
-            return redirect()->route('booking.package')->withErrors(['package_id' => $exception->getMessage()]);
+        } catch (NoVehicleAvailableException|UniqueConstraintViolationException $exception) {
+            // A double-clicked "Confirm": the other request (same hold key)
+            // already holds — or has already booked — the vehicle, so this
+            // one lost the race to *itself*. confirmHold() is idempotent and
+            // waits on that hold's row lock, so it returns the very same
+            // booking instead of an error or a second booking.
+            $ownHold = BookingHold::query()->where('hold_key', $holdKey)->first();
+
+            if ($ownHold === null) {
+                if ($exception instanceof UniqueConstraintViolationException) {
+                    throw $exception;
+                }
+
+                return redirect()->route('booking.package')
+                    ->withErrors(['package_id' => __('core::front.booking_no_vehicle_available')]);
+            }
+
+            $booking = $this->bookings->confirmHold($ownHold, $customerData, $price, $addonSelections);
+        } catch (CouponUnavailableException) {
+            return $this->couponNoLongerValid();
         }
 
         BookingFlowState::clear();
@@ -303,6 +374,13 @@ final class BookingFlowController extends Controller
         ]);
     }
 
+    public function status(string $locale, string $reference): View
+    {
+        $booking = $this->findBookingOrFail($reference, ['vehicle', 'package']);
+
+        return view('booking::front.steps.status', ['booking' => $booking]);
+    }
+
     /**
      * Downloadable PDF receipt. Reachable by anyone holding the reference,
      * exactly like the confirmation page itself — the non-sequential
@@ -311,8 +389,11 @@ final class BookingFlowController extends Controller
     public function receipt(string $locale, string $reference): Response
     {
         $booking = $this->findBookingOrFail($reference, ['customer', 'vehicle', 'package', 'businessLocation', 'deliveryZone']);
+        $statusUrl = route('booking.status', ['locale' => $locale, 'reference' => $booking->reference]);
+        $statusQrCode = base64_encode((new Writer(new ImageRenderer(new RendererStyle(240, 2), new SvgImageBackEnd())))
+            ->writeString($statusUrl));
 
-        return Pdf::loadView('booking::pdf.receipt', ['booking' => $booking])
+        return Pdf::loadView('booking::pdf.receipt', ['booking' => $booking, 'statusQrCode' => $statusQrCode])
             ->setPaper('a4')
             ->download('receipt-'.$booking->reference.'.pdf');
     }
@@ -336,6 +417,49 @@ final class BookingFlowController extends Controller
             return redirect()->route('booking.confirmation', ['reference' => $booking->reference]);
         }
 
+        $this->recordReview($booking, $data);
+
+        return redirect()
+            ->to(route('booking.confirmation', ['reference' => $booking->reference]).'#review')
+            ->with('review_submitted', true);
+    }
+
+    public function storeHomepageFeedback(Request $request, string $locale): RedirectResponse
+    {
+        $data = $request->validate([
+            'reference' => ['required', 'string', 'max:20'],
+            'rating' => ['required', 'integer', 'between:1,5'],
+            'comment' => ['nullable', 'string', 'max:500'],
+        ]);
+        $reference = strtoupper(trim($data['reference']));
+        $homeUrl = route('home', ['locale' => $locale]).'#feedback';
+
+        if (! BookingReference::looksValid($reference)) {
+            return redirect()->to($homeUrl)
+                ->withErrors(['reference' => __('core::front.review_booking_unavailable')])
+                ->withInput();
+        }
+
+        $booking = Booking::query()->with('customer')->where('reference', $reference)->first();
+
+        if (! $booking
+            || ! in_array($booking->status, self::REVIEWABLE_STATUSES, true)
+            || Review::query()->where('booking_id', $booking->id)->exists()) {
+            return redirect()->to($homeUrl)
+                ->withErrors(['reference' => __('core::front.review_booking_unavailable')])
+                ->withInput();
+        }
+
+        $this->recordReview($booking, $data);
+
+        return redirect()->to($homeUrl)->with('review_submitted', true);
+    }
+
+    /**
+     * @param  array{rating: int|string, comment?: string|null}  $data
+     */
+    private function recordReview(Booking $booking, array $data): void
+    {
         // Public display name: first name + last initial, never the full
         // name a customer typed for their rental paperwork.
         $nameParts = preg_split('/\s+/', trim((string) $booking->customer?->full_name)) ?: [];
@@ -351,10 +475,6 @@ final class BookingFlowController extends Controller
             'content' => trim((string) ($data['comment'] ?? '')),
             'is_approved' => false,
         ]);
-
-        return redirect()
-            ->to(route('booking.confirmation', ['reference' => $booking->reference]).'#review')
-            ->with('review_submitted', true);
     }
 
     /**
@@ -363,11 +483,89 @@ final class BookingFlowController extends Controller
     private function findBookingOrFail(string $reference, array $with = []): Booking
     {
         if (! BookingReference::looksValid($reference)) {
-            throw new NotFoundHttpException;
+            throw new NotFoundHttpException();
         }
 
         return Booking::query()->where('reference', $reference)->with($with)->first()
-            ?? throw new NotFoundHttpException;
+            ?? throw new NotFoundHttpException();
+    }
+
+    private function couponNoLongerValid(): RedirectResponse
+    {
+        BookingFlowState::put(['coupon_code' => null]);
+
+        return redirect()->route('booking.review')
+            ->withErrors(['coupon_code' => __('core::front.booking_coupon_no_longer_valid')]);
+    }
+
+    /**
+     * Server-side re-validation of everything earlier steps accepted, run
+     * at review and again at confirm. Returns where to send the customer
+     * (with a translated message) when something no longer holds, or null.
+     */
+    private function invalidFlowRedirect(): ?RedirectResponse
+    {
+        [$start, $end] = $this->datesFromState();
+        $days = $this->daysFromState();
+
+        if ($start->lt(CarbonImmutable::today())
+            || $start->gt(CarbonImmutable::today()->addDays((int) config('availability.maximum_advance_days')))
+            || $end->lt($start)
+            || $days > (int) config('booking.max_rental_days')) {
+            return redirect()->route('booking.start')
+                ->withErrors(['start_date' => __('core::front.booking_dates_no_longer_valid')]);
+        }
+
+        $package = Package::query()->active()->currentlyValid()->find(BookingFlowState::value('package_id'));
+
+        if ($package === null || $days < $package->min_days || ($package->max_days !== null && $days > $package->max_days)) {
+            BookingFlowState::put(['package_id' => null, 'hold_key' => null]);
+
+            return redirect()->route('booking.package')
+                ->withErrors(['package_id' => __('core::front.booking_package_not_eligible')]);
+        }
+
+        $vehicleId = BookingFlowState::value('vehicle_id');
+
+        if ($vehicleId !== null && ! in_array((int) $vehicleId, $package->eligibleVehicleIds(), true)) {
+            // Same fallback as storePackage(): auto-assign an eligible one.
+            BookingFlowState::put(['vehicle_id' => null]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Free eligible vehicles per package for the selected dates, for the
+     * package step's "fully booked" / "only N left" labels. Expects the
+     * packages' `vehicles` and `categories` eager-loaded: the whole list
+     * costs a fixed handful of queries however many packages there are.
+     *
+     * @param  Collection<int, Package>  $packages
+     * @param  int[]  $unavailable  filled with every busy vehicle id seen
+     * @return array<int, int>  package id => free vehicle count
+     */
+    private function freeVehicleCounts(Collection $packages, CarbonImmutable $start, CarbonImmutable $end, array &$unavailable): array
+    {
+        $activeFleet = Vehicle::query()->active()->pluck('category_id', 'id')->all();
+        $eligible = $packages->mapWithKeys(fn (Package $package) => [$package->id => $package->eligibleVehicleIdsAmong($activeFleet)]);
+
+        $vehicleId = BookingFlowState::value('vehicle_id');
+        $allIds = $eligible->flatten()->push(...($vehicleId !== null ? [(int) $vehicleId] : []))->unique()->values()->all();
+        $unavailable = $this->availability->unavailableVehicleIds($allIds, $start, $end);
+
+        return $eligible->map(fn (array $ids) => count(array_diff($ids, $unavailable)))->all();
+    }
+
+    /**
+     * @return array{0: CarbonImmutable, 1: CarbonImmutable}
+     */
+    private function datesFromState(): array
+    {
+        return [
+            CarbonImmutable::parse(BookingFlowState::value('start_date'))->startOfDay(),
+            CarbonImmutable::parse(BookingFlowState::value('end_date'))->startOfDay(),
+        ];
     }
 
     private function readyForReview(): bool

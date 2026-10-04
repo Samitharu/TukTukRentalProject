@@ -13,7 +13,11 @@ final class BlogController extends Controller
 {
     public function index(): View
     {
-        $posts = BlogPost::query()->published()->orderByDesc('published_at')->paginate(9);
+        $posts = BlogPost::query()
+            ->published()
+            ->with(['routeSlugs' => fn ($q) => $q->where('locale', app()->getLocale())])
+            ->orderByDesc('published_at')
+            ->paginate(9);
 
         return view('cms::front.blog.index', compact('posts'));
     }

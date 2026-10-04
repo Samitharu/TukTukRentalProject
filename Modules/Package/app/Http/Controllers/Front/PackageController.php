@@ -16,7 +16,8 @@ final class PackageController extends Controller
         $packages = Package::query()
             ->active()
             ->currentlyValid()
-            ->with(['pricingTiers', 'images'])
+            // routeSlugs: avoids one slugFor() query per package card.
+            ->with(['pricingTiers', 'images', 'routeSlugs' => fn ($q) => $q->where('locale', app()->getLocale())])
             ->orderBy('sort_order')
             ->get();
 
@@ -28,7 +29,7 @@ final class PackageController extends Controller
         $packages = Package::query()
             ->active()
             ->currentlyValid()
-            ->with('pricingTiers')
+            ->with(['pricingTiers', 'routeSlugs' => fn ($q) => $q->where('locale', app()->getLocale())])
             ->orderBy('sort_order')
             ->get();
 

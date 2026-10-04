@@ -53,7 +53,9 @@ final class AvailabilityBlackout extends Model
     {
         return $query
             ->where(fn ($q) => $q->whereNull('vehicle_id')->when($vehicleId, fn ($q2) => $q2->orWhere('vehicle_id', $vehicleId)))
-            ->where('starts_on', '<=', $end)
-            ->where('ends_on', '>=', $start);
+            // DATE columns: compare as 'Y-m-d' — a 'Y-m-d H:i:s' string
+            // misorders against them on drivers that compare as text.
+            ->where('starts_on', '<=', $end->format('Y-m-d'))
+            ->where('ends_on', '>=', $start->format('Y-m-d'));
     }
 }

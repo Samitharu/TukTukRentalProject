@@ -35,20 +35,28 @@
             <p>{{ __('core::front.booking_confirmation_next_steps') }}</p>
 
             @if (session('review_submitted') || $review || $canReview)
-            <div id="review" class="card review-card" style="margin-bottom:var(--space-4);">
+            <div id="review" class="card review-card">
                 <div class="card__body">
                     @if (session('review_submitted'))
-                        <div class="alert alert--success" style="margin:0;">{{ __('core::front.review_thanks') }}</div>
+                        <div class="review-card__success" role="status">
+                            <span class="review-card__success-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                            <p>{{ __('core::front.review_thanks') }}</p>
+                        </div>
                     @elseif ($review)
-                        <p style="margin:0;">
+                        <div class="review-card__existing">
                             <span class="stars-static" aria-hidden="true">{{ str_repeat('★', $review->rating) }}<span>{{ str_repeat('★', 5 - $review->rating) }}</span></span>
-                            {{ __('core::front.review_already', ['rating' => $review->rating]) }}
-                        </p>
+                            <p>{{ __('core::front.review_already', ['rating' => $review->rating]) }}</p>
+                        </div>
                     @elseif ($canReview)
-                        <h2 style="font-size:var(--font-size-xl);margin-bottom:var(--space-1);">{{ __('core::front.review_title') }}</h2>
-                        <p class="text-muted">{{ __('core::front.review_intro') }}</p>
+                        <div class="review-card__heading">
+                            <span class="review-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m12 3 2.75 5.58 6.16.9-4.45 4.34 1.05 6.13L12 17.06l-5.51 2.89 1.05-6.13-4.45-4.34 6.16-.9L12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+                            <div>
+                                <h2>{{ __('core::front.review_title') }}</h2>
+                                <p>{{ __('core::front.review_intro') }}</p>
+                            </div>
+                        </div>
 
-                        <form method="POST" action="{{ route('booking.feedback.store', ['reference' => $booking->reference]) }}">
+                        <form method="POST" action="{{ route('booking.feedback.store', ['reference' => $booking->reference]) }}" class="review-form">
                             @csrf
 
                             <fieldset class="field star-rating">
@@ -67,9 +75,9 @@
                                 @error('rating')<p class="field-error">{{ $message }}</p>@enderror
                             </fieldset>
 
-                            <div class="field">
+                            <div class="field review-form__comment">
                                 <label for="comment">{{ __('core::front.review_comment_label') }}</label>
-                                <textarea id="comment" name="comment" maxlength="500" rows="3" placeholder="{{ __('core::front.review_comment_placeholder') }}" style="min-height:6rem;">{{ old('comment') }}</textarea>
+                                <textarea id="comment" name="comment" maxlength="500" rows="4" placeholder="{{ __('core::front.review_comment_placeholder') }}">{{ old('comment') }}</textarea>
                                 @error('comment')<p class="field-error">{{ $message }}</p>@enderror
                             </div>
 

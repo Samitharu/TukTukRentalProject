@@ -188,6 +188,35 @@ it('returns 404 for a receipt with an unknown reference', function (): void {
     $this->get('/en/booking/confirmation/MTR-ZZZZZZZZ/receipt')->assertNotFound();
 });
 
+it('shows a limited public booking status page for a valid reference', function (): void {
+    $booking = completeBookingFlow($this);
+
+    $this->get("/en/booking/status/{$booking->reference}")
+        ->assertOk()
+        ->assertSee(__('core::front.booking_status_confirmed'))
+        ->assertSee($booking->reference)
+        ->assertDontSee('jane.traveller@example.test');
+});
+
+it('lets a customer submit a booking-linked review from the homepage', function (): void {
+    $booking = completeBookingFlow($this);
+
+    $this->get('/en')->assertOk()->assertSee('id="feedback"', false);
+
+    $response = $this->post('/en/booking/feedback', [
+        'reference' => strtolower($booking->reference),
+        'rating' => '5',
+        'comment' => 'A lovely trip around the island.',
+    ]);
+
+    expect($response->headers->get('Location'))->toContain('/en#feedback');
+
+    $review = Review::query()->where('booking_id', $booking->id)->sole();
+    expect($review->rating)->toBe(5)
+        ->and($review->content)->toBe('A lovely trip around the island.')
+        ->and($review->is_approved)->toBeFalse();
+});
+
 it('stores a star rating and comment as an unapproved review, once per booking', function (): void {
     $booking = completeBookingFlow($this);
 

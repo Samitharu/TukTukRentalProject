@@ -17,7 +17,9 @@ final class FleetController extends Controller
     {
         $vehicles = Vehicle::query()
             ->active()
-            ->with(['images', 'category'])
+            // routeSlugs: the card links call slugFor() — one query per
+            // vehicle without this (N+1).
+            ->with(['images', 'category', 'routeSlugs' => fn ($q) => $q->where('locale', app()->getLocale())])
             ->when($request->filled('category'), fn ($q) => $q->whereHas(
                 'category',
                 fn ($q2) => $q2->where('id', $request->integer('category')),

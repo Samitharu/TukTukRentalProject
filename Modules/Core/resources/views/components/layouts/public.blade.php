@@ -9,6 +9,13 @@
     <x-slot:styles>
         <link rel="stylesheet" href="{{ asset_v('assets/css/tokens.css') }}" nonce="{{ csp_nonce() }}">
         <link rel="stylesheet" href="{{ asset_v('assets/css/public.css') }}" nonce="{{ csp_nonce() }}">
+        {{-- Hold the first paint until the whole <main> has been parsed
+             (the footer is the next element). Without it the browser can
+             snapshot a half-parsed page for the cross-document view
+             transition — header only — and the content pops in after the
+             fade, which is what made page changes only *sometimes* smooth.
+             The server sends the full HTML at once, so this costs nothing. --}}
+        <link rel="expect" href="#site-footer" blocking="render">
         {{ $styles ?? '' }}
     </x-slot:styles>
 
@@ -88,7 +95,27 @@
             {{ $slot }}
         </main>
 
-        <footer class="site-footer">
+        {{--
+            Fades in content photos that are still downloading, instead of
+            letting them pop in after the page transition has finished.
+            Runs before the footer is parsed (the render-blocking target
+            above), so images are marked before the first paint; images
+            that are already cached are left untouched.
+        --}}
+        <script nonce="{{ csp_nonce() }}">
+            (function () {
+                document.querySelectorAll('#main-content img').forEach(function (img) {
+                    if (img.complete) return;
+
+                    img.classList.add('img-fade');
+                    function reveal() { img.classList.add('is-loaded'); }
+                    img.addEventListener('load', reveal, { once: true });
+                    img.addEventListener('error', reveal, { once: true });
+                });
+            })();
+        </script>
+
+        <footer id="site-footer" class="site-footer">
             <div class="container site-footer__grid">
                 <div>
                     <h3>{{ config('app.name') }}</h3>

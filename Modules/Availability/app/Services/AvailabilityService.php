@@ -61,17 +61,79 @@ final class AvailabilityService
             ->values();
     }
 
+    /**
+     * Of $vehicleIds, the ones that are NOT free for the whole range — the
+     * same three rules as isRangeFree(), but 3-4 queries for the whole list
+     * instead of 3 per vehicle. Advisory only (e.g. the public package step
+     * flagging fully-booked packages): every write still re-checks with
+     * isRangeFree() under the vehicle lock.
+     *
+     * @param  int[]  $vehicleIds
+     * @return int[]
+     */
+    public function unavailableVehicleIds(array $vehicleIds, CarbonImmutable $start, CarbonImmutable $end): array
+    {
+        if ($vehicleIds === []) {
+            return [];
+        }
+
+        $fleetWideBlackout = AvailabilityBlackout::query()
+            ->whereNull('vehicle_id')
+            ->where('starts_on', '<=', $end->toDateString())
+            ->where('ends_on', '>=', $start->toDateString())
+            ->exists();
+
+        if ($fleetWideBlackout) {
+            return array_values(array_map('intval', $vehicleIds));
+        }
+
+        $bufferDays = (int) config('availability.buffer_days');
+
+        $reserved = VehicleReservationSlot::query()
+            ->whereIn('vehicle_id', $vehicleIds)
+            ->whereBetween('slot_date', [
+                $start->subDays($bufferDays)->toDateString(),
+                $end->addDays($bufferDays)->toDateString(),
+            ])
+            ->distinct()
+            ->pluck('vehicle_id');
+
+        $blackedOut = AvailabilityBlackout::query()
+            ->whereIn('vehicle_id', $vehicleIds)
+            ->where('starts_on', '<=', $end->toDateString())
+            ->where('ends_on', '>=', $start->toDateString())
+            ->pluck('vehicle_id');
+
+        $inMaintenance = VehicleMaintenanceLog::query()
+            ->whereIn('vehicle_id', $vehicleIds)
+            ->where('starts_at', '<=', $end->endOfDay())
+            ->where('ends_at', '>=', $start->startOfDay())
+            ->pluck('vehicle_id');
+
+        return $reserved->concat($blackedOut)->concat($inMaintenance)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     public function hasBlackoutConflict(int $vehicleId, CarbonImmutable $start, CarbonImmutable $end): bool
     {
         return AvailabilityBlackout::query()->overlapping($vehicleId, $start, $end)->exists();
     }
 
+    /**
+     * Maintenance logs are DATETIME ranges while rentals are whole calendar
+     * days (the return day is reserved in full), so the rental side is
+     * widened to [start 00:00, end 23:59:59] — otherwise maintenance that
+     * starts at, say, 09:00 on the return day was not seen as a conflict.
+     */
     public function hasMaintenanceConflict(int $vehicleId, CarbonImmutable $start, CarbonImmutable $end): bool
     {
         return VehicleMaintenanceLog::query()
             ->where('vehicle_id', $vehicleId)
-            ->where('starts_at', '<=', $end)
-            ->where('ends_at', '>=', $start)
+            ->where('starts_at', '<=', $end->endOfDay())
+            ->where('ends_at', '>=', $start->startOfDay())
             ->exists();
     }
 
@@ -151,9 +213,25 @@ final class AvailabilityService
 
     public function releaseSlots(Model $holdable): void
     {
+        $this->releaseSlotsForHoldables($holdable->getMorphClass(), [$holdable->getKey()]);
+    }
+
+    /**
+     * releaseSlots() for many holdables of one type in a single DELETE
+     * (served by the holdable_type/holdable_id index) — for bulk sweeps
+     * such as releasing a backlog of expired holds.
+     *
+     * @param  array<int, int|string>  $holdableIds
+     */
+    public function releaseSlotsForHoldables(string $morphClass, array $holdableIds): void
+    {
+        if ($holdableIds === []) {
+            return;
+        }
+
         VehicleReservationSlot::query()
-            ->where('holdable_type', $holdable->getMorphClass())
-            ->where('holdable_id', $holdable->getKey())
+            ->where('holdable_type', $morphClass)
+            ->whereIn('holdable_id', $holdableIds)
             ->delete();
     }
 

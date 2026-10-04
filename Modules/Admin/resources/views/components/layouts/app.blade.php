@@ -5,7 +5,14 @@
 
     <div class="admin-shell">
         <aside class="admin-sidebar">
-            <a href="{{ route('admin.dashboard') }}" class="admin-sidebar__brand">{{ config('app.name') }}</a>
+            <a href="{{ route('admin.dashboard') }}" class="admin-sidebar__brand">
+                <span class="admin-sidebar__brand-mark" aria-hidden="true">{{ mb_substr(config('app.name'), 0, 1) }}</span>
+                <span class="admin-sidebar__brand-copy">
+                    <strong>{{ config('app.name') }}</strong>
+                    <small>{{ __('Admin workspace') }}</small>
+                </span>
+            </a>
+            <p class="admin-sidebar__label">{{ __('Workspace') }}</p>
             <ul class="admin-nav">
                 <li><a href="{{ route('admin.dashboard') }}" @if(request()->routeIs('admin.dashboard')) aria-current="page" @endif>{{ __('Dashboard') }}</a></li>
                 @can('viewAny', \Modules\Booking\Models\Booking::class)
@@ -47,15 +54,22 @@
                     <li><a href="{{ route('admin.branding.edit') }}" @if(request()->routeIs('admin.branding.*')) aria-current="page" @endif>{{ __('Branding') }}</a></li>
                 @endcan
             </ul>
+            <a href="{{ route('home', ['locale' => app()->getLocale()]) }}" class="admin-sidebar__website">
+                <span>{{ __('View website') }}</span>
+                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="M11.5 3.5h5v5M16.25 3.75 9 11M15.5 11v4.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1H10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
         </aside>
 
         <div class="admin-main">
             <div class="admin-topbar">
                 <h1>{{ $title ?? __('Dashboard') }}</h1>
-                <form method="POST" action="{{ route('admin.logout') }}">
-                    @csrf
-                    <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Sign out') }}</button>
-                </form>
+                <div class="admin-topbar__actions">
+                    <a href="{{ route('home', ['locale' => app()->getLocale()]) }}" class="admin-topbar__site-link">{{ __('View website') }}</a>
+                    <form method="POST" action="{{ route('admin.logout') }}">
+                        @csrf
+                        <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Sign out') }}</button>
+                    </form>
+                </div>
             </div>
 
             @if (session('status'))

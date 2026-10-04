@@ -65,6 +65,21 @@
                     },
                 }));
             });
+
+            // Double-submit guard: disable "Confirm" once the form really
+            // submits (the browser's own required/checkbox validation has
+            // passed). The server is idempotent anyway — see
+            // BookingFlowController::confirm() — this just stops the
+            // customer wondering whether the first click did anything.
+            document.addEventListener('submit', function (event) {
+                var form = event.target.closest('[data-confirm-booking]');
+                if (!form) return;
+
+                var button = form.querySelector('button[type="submit"]');
+                button.disabled = true;
+                button.setAttribute('aria-busy', 'true');
+                button.textContent = button.getAttribute('data-busy-text');
+            });
         </script>
     </x-slot:scripts>
 
@@ -81,6 +96,10 @@
             @include('booking::front.steps._indicator', ['current' => 'review'])
 
             <h1>{{ __('core::front.booking_review_title') }}</h1>
+
+            @error('coupon_code')
+                <div class="alert alert--warning" role="alert">{{ $message }}</div>
+            @enderror
             <p class="text-muted">{{ __('core::front.booking_review_intro') }}</p>
 
             <div class="card" style="margin-bottom:var(--space-4);">
@@ -169,7 +188,7 @@
 
             <p class="text-muted">{{ __('core::front.booking_pay_on_pickup_notice') }}</p>
 
-            <form method="POST" action="{{ route('booking.confirm') }}">
+            <form method="POST" action="{{ route('booking.confirm') }}" data-confirm-booking>
                 @csrf
 
                 <div class="field">
@@ -183,11 +202,11 @@
                     @error('terms_accepted')<p class="field-error">{{ $message }}</p>@enderror
                 </div>
 
-                @error('package_id')<p class="field-error">{{ $message }}</p>@enderror
+                @error('package_id')<div class="alert alert--error" role="alert">{{ $message }}</div>@enderror
 
                 <div style="display:flex;gap:var(--space-3);margin-top:var(--space-4);">
                     <a href="{{ route('booking.details') }}" class="btn btn--secondary">{{ __('core::front.booking_back') }}</a>
-                    <button type="submit" class="btn btn--primary" style="flex:1;">{{ __('core::front.booking_confirm_button') }}</button>
+                    <button type="submit" class="btn btn--primary" style="flex:1;" data-busy-text="{{ __('core::front.booking_confirming') }}">{{ __('core::front.booking_confirm_button') }}</button>
                 </div>
             </form>
         </div>

@@ -9,13 +9,16 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\DeliveryZone;
+use Modules\Booking\Exceptions\CouponUnavailableException;
 use Modules\Booking\Exceptions\NoVehicleAvailableException;
 use Modules\Booking\Http\Requests\Admin\StoreManualBookingRequest;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Services\BookingService;
+use Modules\Customer\Models\Customer;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Package\Models\Package;
 use Modules\Pricing\Models\Coupon;
@@ -37,12 +40,37 @@ final class BookingController extends Controller
             ->with(['customer', 'vehicle'])
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
             ->when($request->filled('q'), function ($q) use ($request) {
-                $term = $request->string('q');
-                $q->where(fn ($q2) => $q2
-                    ->where('reference', 'like', "%{$term}%")
-                    ->orWhereHas('customer', fn ($q3) => $q3
-                        ->where('full_name', 'like', "%{$term}%")
-                        ->orWhere('email', 'like', "%{$term}%")));
+                // Escape LIKE wildcards so "_" or "%" in the search box are
+                // matched literally rather than as "any character(s)".
+                $term = addcslashes(trim((string) $request->string('q')), '%_\\');
+
+                // Matching customers are looked up once, then bookings are
+                // filtered by their ids (indexed). The previous
+                // orWhereHas() ran a correlated customers subquery for
+                // every booking row — ~0.8 s at 120k bookings. Capped so a
+                // one-letter search can't build a 60k-id IN() list.
+                $customerIds = Customer::query()
+                    ->where(fn ($c) => $c->where('full_name', 'like', "%{$term}%")->orWhere('email', 'like', "%{$term}%"))
+                    ->limit(1000)
+                    ->pluck('id');
+
+                // Adaptive: a specific term (a name, an email) matches few
+                // bookings — filter by that id list (primary key). A broad
+                // term ("a") matches thousands — there a plain OR is faster,
+                // since MySQL walks created_at newest-first and stops at the
+                // first 20 hits, while an id list would mean sorting them all.
+                $matchIds = DB::query()
+                    ->fromSub(
+                        Booking::query()->select('id')->where('reference', 'like', "%{$term}%")
+                            ->union(Booking::query()->select('id')->whereIn('customer_id', $customerIds)),
+                        'search_matches',
+                    )
+                    ->limit(2001)
+                    ->pluck('id');
+
+                $matchIds->count() <= 2000
+                    ? $q->whereIn('bookings.id', $matchIds)
+                    : $q->where(fn ($q2) => $q2->where('reference', 'like', "%{$term}%")->orWhereIn('customer_id', $customerIds));
             })
             ->orderByDesc('created_at')
             ->paginate(20)
@@ -120,6 +148,8 @@ final class BookingController extends Controller
             );
         } catch (NoVehicleAvailableException $exception) {
             return back()->withInput()->withErrors(['vehicle_id' => $exception->getMessage()]);
+        } catch (CouponUnavailableException) {
+            return back()->withInput()->withErrors(['coupon_code' => __('That coupon has reached its usage limit.')]);
         }
 
         return redirect()->route('admin.bookings.show', $booking)->with('status', __('Booking :reference created.', ['reference' => $booking->reference]));

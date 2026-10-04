@@ -161,7 +161,10 @@ final class Package extends Model
     public function eligibleVehicleIds(): array
     {
         if ($this->isRestrictedToSpecificVehicles()) {
-            return $this->vehicles()->pluck('vehicles.id')->all();
+            // Same active-only rule as the two branches below: a vehicle
+            // attached to the package but since retired or sent to the
+            // workshop must not be auto-assigned to a customer.
+            return $this->vehicles()->where('vehicles.status', Vehicle::STATUS_ACTIVE)->pluck('vehicles.id')->all();
         }
 
         if ($this->isRestrictedToCategories()) {
@@ -172,5 +175,33 @@ final class Package extends Model
         }
 
         return Vehicle::query()->active()->pluck('id')->all();
+    }
+
+    /**
+     * eligibleVehicleIds() without per-package queries, for listing many
+     * packages at once: the same three rules, evaluated against eager-loaded
+     * `vehicles` and `categories` and a pre-fetched active fleet.
+     *
+     * @param  array<int, int>  $activeFleet  active vehicle id => category id
+     * @return int[]
+     */
+    public function eligibleVehicleIdsAmong(array $activeFleet): array
+    {
+        if ($this->vehicles->isNotEmpty()) {
+            return $this->vehicles
+                ->where('status', Vehicle::STATUS_ACTIVE)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+        }
+
+        if ($this->categories->isNotEmpty()) {
+            $categoryIds = $this->categories->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+            return array_keys(array_filter($activeFleet, fn ($categoryId) => in_array((int) $categoryId, $categoryIds, true)));
+        }
+
+        return array_keys($activeFleet);
     }
 }
