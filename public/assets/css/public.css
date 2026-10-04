@@ -91,7 +91,8 @@ p { margin: 0 0 var(--space-3); }
     gap: 0.8rem;
     padding-block: 0.65rem;
     min-height: 62px;
-    max-width: 1480px;
+    /* Same width as every page section (.container), so the logo lines up
+       with the content below it instead of sitting further left. */
 }
 
 .site-header__brand {
@@ -215,9 +216,17 @@ p { margin: 0 0 var(--space-3); }
     background: var(--color-accent-400);
 }
 
-@media (min-width: 64rem) {
+/* The full nav (seven links + language switcher + Book Now) only fits
+   from ~75rem; below that the hamburger menu takes over, rather than the
+   link row silently scrolling links out of view. Icons come back once
+   there is room for them too. */
+@media (min-width: 75rem) {
     .site-nav { display: block; }
     .nav-toggle { display: none; }
+}
+
+@media (max-width: 89.99rem) {
+    .site-nav__icon { display: none; }
 }
 
 .site-header__actions {
@@ -289,7 +298,7 @@ p { margin: 0 0 var(--space-3); }
     font-weight: 600;
 }
 
-@media (min-width: 64rem) {
+@media (min-width: 75rem) {
     .site-nav--mobile { display: none; }
 }
 
@@ -731,10 +740,16 @@ p { margin: 0 0 var(--space-3); }
         align-items: center;
     }
 
+    /* The photo starts where the text column ends, measured on the
+       centred .container rather than the window: a plain "60% of the
+       window" photo slid under the headline on wide screens. */
     .hero__photo {
+        --hero-photo-start: max(40%, calc(50% - var(--container-max) / 2 + var(--container-max) * 0.45));
         position: absolute;
-        inset: 0 0 0 auto;
-        width: 60%;
+        top: 0;
+        right: 0;
+        /* An <img> doesn't stretch between left/right — size it explicitly. */
+        width: calc(100% - var(--hero-photo-start));
         height: 100%;
         margin: 0;
         object-position: left center;
@@ -744,7 +759,15 @@ p { margin: 0 0 var(--space-3); }
         mask-image: linear-gradient(to right, transparent 0%, #000 30%);
     }
 
-    .hero__content { max-width: 46%; }
+    .hero__content { max-width: 42%; }
+}
+
+/* With a wide enough photo, crop from both sides: the left edge fades out
+   anyway, and the right side often carries a caption (e.g. the bundled
+   photo's "Small Ride Big Adventures") that shouldn't be cut off. Narrower
+   strips keep the left anchor so the tuk tuk itself stays whole. */
+@media (min-width: 75rem) {
+    .hero__photo { object-position: 65% center; }
 }
 
 /* Decorative handwritten caption over the hero photo — plain CSS, no
