@@ -9,6 +9,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 use Modules\Booking\Models\Booking;
+use Modules\Booking\Support\HourlySchedule;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Package\Models\Package;
 
@@ -26,6 +27,8 @@ final class StoreManualBookingRequest extends FormRequest
             'vehicle_id' => ['nullable', 'integer', 'exists:vehicles,id'],
             'start_date' => ['required', 'date', 'after_or_equal:today'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'start_time' => ['nullable', 'string'],
+            'hours' => ['nullable', 'integer'],
             'pickup_type' => ['required', Rule::in(['office', 'delivery'])],
             'business_location_id' => ['nullable', 'integer', 'exists:business_locations,id'],
             'delivery_zone_id' => ['nullable', 'integer', 'exists:delivery_zones,id'],
@@ -55,6 +58,24 @@ final class StoreManualBookingRequest extends FormRequest
                 }
 
                 $package = Package::query()->find($this->integer('package_id'));
+
+                if ($package?->isActivity()) {
+                    $validator->errors()->add('package_id', __('Activity packages are booked by message for now, not as a rental.'));
+
+                    return;
+                }
+
+                if ($package?->isHourly()) {
+                    if ($this->input('end_date') !== $this->input('start_date')) {
+                        $validator->errors()->add('end_date', __('An hourly rental starts and ends on the same day.'));
+                    }
+
+                    $problem = HourlySchedule::problem($package, (string) $this->input('start_date'), $this->input('start_time'), $this->input('hours'));
+
+                    if ($problem !== null) {
+                        $validator->errors()->add('start_time', $problem);
+                    }
+                }
 
                 if ($package?->isStay() && ! CarbonImmutable::parse($this->input('end_date'))->gt(CarbonImmutable::parse($this->input('start_date')))) {
                     $validator->errors()->add('end_date', __('Check-out must be at least one night after check-in.'));

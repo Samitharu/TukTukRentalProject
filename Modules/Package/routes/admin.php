@@ -8,6 +8,7 @@ use Modules\Package\Http\Controllers\Admin\PackageAddonController;
 use Modules\Package\Http\Controllers\Admin\PackageController;
 use Modules\Package\Http\Controllers\Admin\PackagePricingTierController;
 use Modules\Package\Http\Controllers\Admin\PackageSeasonController;
+use Modules\Package\Http\Controllers\Admin\ProductCategoryController;
 
 // Prefixed with config('admin.path') and named 'admin.' by
 // Modules\Package\Providers\RouteServiceProvider::mapAdminRoutes().
@@ -27,6 +28,15 @@ Route::prefix('packages')->name('packages.')->group(function (): void {
     Route::delete('/{package}/seasons/{season}', [PackageSeasonController::class, 'destroy'])->name('seasons.destroy');
 
     Route::put('/{package}/addons', [PackageAddonController::class, 'update'])->name('addons.update');
+});
+
+Route::prefix('package-categories')->name('package-categories.')->group(function (): void {
+    Route::get('/', [ProductCategoryController::class, 'index'])->name('index');
+    Route::get('/create', [ProductCategoryController::class, 'create'])->name('create');
+    Route::post('/', [ProductCategoryController::class, 'store'])->name('store');
+    Route::get('/{category}/edit', [ProductCategoryController::class, 'edit'])->name('edit');
+    Route::put('/{category}', [ProductCategoryController::class, 'update'])->name('update');
+    Route::delete('/{category}', [ProductCategoryController::class, 'destroy'])->name('destroy');
 });
 
 Route::prefix('addons')->name('addons.')->group(function (): void {

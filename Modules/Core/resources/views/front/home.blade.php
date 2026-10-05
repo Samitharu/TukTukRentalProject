@@ -89,7 +89,7 @@
                                 <span class="package-feature__price">
                                     {{ __('core::front.packages_from') }}
                                     <strong>{{ optional($package->pricingTiers->first())->price }} {{ config('pricing.default_currency') }}</strong>
-                                    {{ __($package->isStay() ? 'core::front.packages_per_night' : 'core::front.packages_per_day') }}
+                                    {{ __($package->priceSuffixKey()) }}
                                 </span>
                                 <a href="{{ route('packages.show', $package->slugFor(app()->getLocale()) ?? $package->id) }}" class="btn btn--secondary">
                                     {{ __('core::front.packages_view_details') }}

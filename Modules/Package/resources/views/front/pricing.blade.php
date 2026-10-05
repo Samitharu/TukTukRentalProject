@@ -11,7 +11,7 @@
                 <div class="card" style="margin-bottom:var(--space-4);">
                     <div class="card__body">
                         <h2 style="font-size:var(--font-size-lg);">{{ $package->name }}</h2>
-                        <p class="text-muted" style="font-size:var(--font-size-sm);">{{ __($package->isStay() ? 'core::front.packages_min_nights' : 'core::front.packages_min_days', ['count' => $package->min_days]) }}</p>
+                        @include('package::front._package-terms', ['package' => $package])
 
                         @if ($package->pricingTiers->isEmpty())
                             <p class="text-muted">{{ __('core::front.fleet_no_vehicles') }}</p>
@@ -27,10 +27,10 @@
                                     @foreach ($package->pricingTiers as $tier)
                                         <tr>
                                             <td style="padding:0.4rem 0;border-bottom:1px solid var(--color-border);">
-                                                {{ $tier->min_days }}{{ $tier->max_days ? '–'.$tier->max_days : '+' }} {{ __($package->isStay() ? 'core::front.packages_min_nights' : 'core::front.packages_min_days', ['count' => '']) }}
+                                                {{ $tier->min_days }}{{ $tier->max_days ? '–'.$tier->max_days : '+' }} {{ __('core::front.packages_unit_'.$package->tierUnit()) }}
                                             </td>
                                             <td style="padding:0.4rem 0;border-bottom:1px solid var(--color-border);text-align:right;font-weight:700;">
-                                                {{ $tier->price }} {{ $currency }}{{ __($package->isStay() ? 'core::front.packages_per_night' : 'core::front.packages_per_day') }}
+                                                {{ $tier->price }} {{ $currency }} {{ __($package->priceSuffixKey()) }}
                                             </td>
                                         </tr>
                                     @endforeach

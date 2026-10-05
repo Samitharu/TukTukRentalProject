@@ -36,6 +36,10 @@ use Modules\Package\Models\Package;
  * @property string $currency_code
  * @property float $deposit_amount
  * @property float $amount_paid
+ * @property int|null $included_km
+ * @property float|null $extra_km_rate
+ * @property int|null $odometer_start
+ * @property int|null $odometer_end
  * @property string|null $idempotency_key
  */
 final class Booking extends Model
@@ -87,6 +91,10 @@ final class Booking extends Model
         'currency_code',
         'deposit_amount',
         'amount_paid',
+        'included_km',
+        'extra_km_rate',
+        'odometer_start',
+        'odometer_end',
         'locale_at_booking',
         'idempotency_key',
     ];
@@ -101,6 +109,10 @@ final class Booking extends Model
             'total_amount' => 'decimal:2',
             'deposit_amount' => 'decimal:2',
             'amount_paid' => 'decimal:2',
+            'included_km' => 'integer',
+            'extra_km_rate' => 'decimal:2',
+            'odometer_start' => 'integer',
+            'odometer_end' => 'integer',
         ];
     }
 
@@ -167,6 +179,58 @@ final class Booking extends Model
     public function checkOutDate(): \Illuminate\Support\Carbon
     {
         return $this->isStay() ? $this->end_at->copy()->addDay() : $this->end_at;
+    }
+
+    /**
+     * Hours booked, for an hourly package (a single-day rental whose
+     * start_at/end_at carry real times); null for every other booking.
+     * Read from the price snapshot, so a later package edit can't change it.
+     */
+    public function hours(): ?int
+    {
+        $hours = $this->price_breakdown['hours'] ?? null;
+
+        return $hours !== null ? (int) $hours : null;
+    }
+
+    public function isHourly(): bool
+    {
+        return $this->hours() !== null;
+    }
+
+    /**
+     * A rental's period for display: "10 Oct 2026 → 13 Oct 2026", or for
+     * an hourly rental "10 Oct 2026, 09:00–13:00 (4 hours)". Stays show
+     * check-in/check-out instead (see checkOutDate()).
+     */
+    public function rentalPeriod(string $dateFormat = 'd M Y'): string
+    {
+        if ($this->isHourly()) {
+            return $this->start_at->format($dateFormat).', '.$this->start_at->format('H:i').'–'.$this->end_at->format('H:i')
+                .' ('.trans_choice('core::front.booking_hours_count', (int) $this->hours(), ['count' => $this->hours()]).')';
+        }
+
+        return $this->start_at->format($dateFormat).' → '.$this->end_at->format($dateFormat);
+    }
+
+    /** A km allowance with a per-km charge beyond it was part of the booking. */
+    public function hasKmAllowance(): bool
+    {
+        return $this->included_km !== null && $this->extra_km_rate !== null;
+    }
+
+    public function kmDriven(): ?int
+    {
+        return $this->odometer_start !== null && $this->odometer_end !== null
+            ? max($this->odometer_end - $this->odometer_start, 0)
+            : null;
+    }
+
+    public function extraKm(): int
+    {
+        $driven = $this->kmDriven();
+
+        return $driven !== null && $this->included_km !== null ? max($driven - $this->included_km, 0) : 0;
     }
 
     /** Rental days (pickup and return inclusive) or nights stayed. */

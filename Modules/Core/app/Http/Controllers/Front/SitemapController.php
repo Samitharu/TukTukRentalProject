@@ -13,6 +13,7 @@ use Modules\CMS\Models\Page;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Localization\Models\Locale;
 use Modules\Package\Models\Package;
+use Modules\Package\Models\ProductCategory;
 
 /**
  * /sitemap.xml and /robots.txt. Same deliberate cross-module reach as
@@ -75,7 +76,9 @@ final class SitemapController extends Controller
         $records = [
             ...Vehicle::query()->active()->with(['category', 'routeSlugs'])->get()
                 ->map(fn (Vehicle $unit) => [$unit, $unit->isStay() ? 'stays.show' : 'fleet.show']),
-            ...Package::query()->active()->currentlyValid()->with('routeSlugs')->get()
+            ...ProductCategory::query()->active()->with('routeSlugs')->get()
+                ->map(fn (ProductCategory $category) => [$category, 'packages.category']),
+            ...Package::query()->active()->currentlyValid()->inVisibleCategory()->with('routeSlugs')->get()
                 ->map(fn (Package $package) => [$package, 'packages.show']),
             ...BlogPost::query()->published()->with('routeSlugs')->get()
                 ->map(fn (BlogPost $post) => [$post, 'blog.show']),

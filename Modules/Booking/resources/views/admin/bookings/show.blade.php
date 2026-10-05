@@ -10,11 +10,22 @@
             @if ($booking->vehicle->mapUrl())
                 <p><strong>{{ __('Location') }}:</strong> <a href="{{ $booking->vehicle->mapUrl() }}" target="_blank" rel="noopener noreferrer">{{ $booking->vehicle->address ?: __('View on Google Maps') }}</a></p>
             @endif
+        @elseif ($booking->isHourly())
+            <p><strong>{{ __('Hourly rental') }}:</strong> {{ $booking->rentalPeriod('Y-m-d') }} — {{ __('tuk tuk blocked for the whole day') }}</p>
         @else
             <p><strong>{{ __('Pickup') }}:</strong> {{ $booking->start_at->format('Y-m-d') }}</p>
             <p><strong>{{ __('Return') }}:</strong> {{ $booking->end_at->format('Y-m-d') }}</p>
         @endif
         <p><strong>{{ __('Total') }}:</strong> {{ $booking->total_amount }} {{ $booking->currency_code }} ({{ __('deposit') }}: {{ $booking->deposit_amount }})</p>
+        @if ($booking->extraCharges->isNotEmpty())
+            <p><strong>{{ __('Extra charges') }}:</strong></p>
+            <ul>
+                @foreach ($booking->extraCharges as $charge)
+                    <li>{{ ucfirst(str_replace('_', ' ', $charge->type)) }} — {{ $charge->amount }} {{ $booking->currency_code }}@if ($charge->notes) ({{ $charge->notes }})@endif</li>
+                @endforeach
+            </ul>
+            <p><strong>{{ __('Total incl. extra charges') }}:</strong> {{ number_format((float) $booking->total_amount + (float) $booking->extraCharges->sum('amount'), 2, '.', '') }} {{ $booking->currency_code }}</p>
+        @endif
         @unless ($booking->isStay())
             <p><strong>{{ __('International Driving Permit') }}:</strong> {{ $booking->has_international_permit ? __('Yes') : __('No') }}</p>
         @endunless
@@ -62,11 +73,52 @@
         </div>
     @endif
 
+    @if ($booking->hasKmAllowance())
+        <div class="admin-card">
+            <h2>{{ __('Odometer') }}</h2>
+            <p class="admin-hint" style="margin-top:0;">
+                {{ __(':km km included, then :rate :currency per extra km.', ['km' => number_format($booking->included_km), 'rate' => $booking->extra_km_rate, 'currency' => $booking->currency_code]) }}
+                @if ($booking->kmDriven() !== null)
+                    <strong>{{ __('Driven: :km km', ['km' => number_format($booking->kmDriven())]) }}{{ $booking->extraKm() > 0 ? ' — '.__(':km km over', ['km' => number_format($booking->extraKm())]) : '' }}</strong>
+                @endif
+            </p>
+            <form method="POST" action="{{ route('admin.bookings.odometer.update', $booking) }}">
+                @csrf
+                @method('PUT')
+                <div class="admin-location__coords">
+                    <div class="admin-form-field">
+                        <label for="odometer_start">{{ __('Reading at pickup (km)') }}</label>
+                        <input type="number" id="odometer_start" name="odometer_start" value="{{ old('odometer_start', $booking->odometer_start) }}" min="0">
+                    </div>
+                    <div class="admin-form-field">
+                        <label for="odometer_end">{{ __('Reading at return (km)') }}</label>
+                        <input type="number" id="odometer_end" name="odometer_end" value="{{ old('odometer_end', $booking->odometer_end) }}" min="0">
+                    </div>
+                </div>
+                <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Save readings') }}</button>
+            </form>
+        </div>
+    @endif
+
     <div class="admin-card">
         <h2>{{ __('Change dates') }}</h2>
         <form method="POST" action="{{ route('admin.bookings.dates.update', $booking) }}">
             @csrf
             @method('PUT')
+            @if ($booking->isHourly())
+                <div class="admin-form-field">
+                    <label for="start_date">{{ __('New date') }}</label>
+                    <input type="date" id="start_date" name="start_date" value="{{ $booking->start_at->toDateString() }}" required>
+                </div>
+                <div class="admin-form-field">
+                    <label for="start_time">{{ __('New start time (keeps the :hours booked)', ['hours' => trans_choice('core::front.booking_hours_count', $booking->hours(), ['count' => $booking->hours()])]) }}</label>
+                    <select id="start_time" name="start_time" required>
+                        @foreach ($hourlyStartTimes as $time)
+                            <option value="{{ $time }}" @selected($booking->start_at->format('H:i') === $time)>{{ $time }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @else
             <div class="admin-form-field">
                 <label for="start_date">{{ $booking->isStay() ? __('New check-in date') : __('New pickup date') }}</label>
                 <input type="date" id="start_date" name="start_date" value="{{ $booking->start_at->toDateString() }}" required>
@@ -75,6 +127,7 @@
                 <label for="end_date">{{ $booking->isStay() ? __('New check-out date') : __('New return date') }}</label>
                 <input type="date" id="end_date" name="end_date" value="{{ $booking->checkOutDate()->toDateString() }}" required>
             </div>
+            @endif
             <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Update dates') }}</button>
         </form>
     </div>

@@ -7,8 +7,10 @@ namespace Modules\Package\Providers;
 use Illuminate\Support\Facades\Gate;
 use Modules\Package\Models\Addon;
 use Modules\Package\Models\Package;
+use Modules\Package\Models\ProductCategory;
 use Modules\Package\Policies\AddonPolicy;
 use Modules\Package\Policies\PackagePolicy;
+use Modules\Package\Policies\ProductCategoryPolicy;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 class PackageServiceProvider extends ModuleServiceProvider
@@ -31,5 +33,6 @@ class PackageServiceProvider extends ModuleServiceProvider
 
         Gate::policy(Package::class, PackagePolicy::class);
         Gate::policy(Addon::class, AddonPolicy::class);
+        Gate::policy(ProductCategory::class, ProductCategoryPolicy::class);
     }
 }

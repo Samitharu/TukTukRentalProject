@@ -11,6 +11,7 @@ use Modules\Booking\Exceptions\NoVehicleAvailableException;
 use Modules\Booking\Http\Requests\Admin\CancelBookingRequest;
 use Modules\Booking\Http\Requests\Admin\ChangeDatesRequest;
 use Modules\Booking\Http\Requests\Admin\ReassignVehicleRequest;
+use Modules\Booking\Http\Requests\Admin\RecordOdometerRequest;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Services\BookingService;
 
@@ -92,5 +93,19 @@ final class BookingActionController extends Controller
         }
 
         return back()->with('status', __('Vehicle reassigned.'));
+    }
+
+    public function recordOdometer(RecordOdometerRequest $request, Booking $booking): RedirectResponse
+    {
+        $booking = $this->bookings->recordOdometer(
+            $booking,
+            $request->filled('odometer_start') ? $request->integer('odometer_start') : null,
+            $request->filled('odometer_end') ? $request->integer('odometer_end') : null,
+            $request->user(),
+        );
+
+        return back()->with('status', $booking->extraKm() > 0
+            ? __('Odometer saved — :km extra km charged.', ['km' => $booking->extraKm()])
+            : __('Odometer saved.'));
     }
 }

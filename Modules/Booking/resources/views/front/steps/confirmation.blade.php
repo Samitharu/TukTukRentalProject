@@ -20,7 +20,7 @@
                             <dd>{{ $booking->checkOutDate()->format('d M Y') }} ({{ trans_choice('core::front.booking_nights', $booking->lengthInDays(), ['count' => $booking->lengthInDays()]) }})</dd>
                         @else
                             <dt class="text-muted">{{ __('core::front.booking_review_dates') }}</dt>
-                            <dd>{{ $booking->start_at->format('d M Y') }} &rarr; {{ $booking->end_at->format('d M Y') }}</dd>
+                            <dd>{{ $booking->rentalPeriod() }}</dd>
                         @endif
 
                         <dt class="text-muted">{{ __('core::front.booking_review_package') }}</dt>

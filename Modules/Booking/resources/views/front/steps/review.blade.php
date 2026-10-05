@@ -116,6 +116,9 @@
                         @endphp
                         <p>{{ __('core::front.booking_check_in') }}: {{ $checkIn->format('d M Y') }} &rarr; {{ __('core::front.booking_check_out') }}: {{ $checkOut->format('d M Y') }}</p>
                         <p class="text-muted">{{ trans_choice('core::front.booking_nights', $nights, ['count' => $nights]) }}</p>
+                    @elseif ($hourlyRange)
+                        <p>{{ $hourlyRange[0]->format('d M Y') }}, {{ $hourlyRange[0]->format('H:i') }}&ndash;{{ $hourlyRange[1]->format('H:i') }} ({{ trans_choice('core::front.booking_hours_count', (int) $state['hours'], ['count' => (int) $state['hours']]) }})</p>
+                        <p class="text-muted">{{ $state['pickup_type'] === 'delivery' ? __('core::front.booking_pickup_delivery') : __('core::front.booking_pickup_office') }}</p>
                     @else
                         <p>{{ \Illuminate\Support\Carbon::parse($state['start_date'])->format('d M Y') }} &rarr; {{ \Illuminate\Support\Carbon::parse($state['end_date'])->format('d M Y') }}</p>
                         <p class="text-muted">{{ $state['pickup_type'] === 'delivery' ? __('core::front.booking_pickup_delivery') : __('core::front.booking_pickup_office') }}</p>
@@ -126,6 +129,7 @@
                         <a href="{{ route('booking.package') }}" style="font-weight:400;font-size:var(--font-size-sm);">{{ __('core::front.booking_review_edit') }}</a>
                     </h2>
                     <p>{{ $package->name }}</p>
+                    @include('package::front._km-allowance', ['package' => $package])
 
                     @if (!empty($state['addons']))
                         <h2 style="font-size:var(--font-size-base);">

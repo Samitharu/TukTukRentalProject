@@ -32,6 +32,7 @@ final class HomeController extends Controller
         $featuredPackages = Package::query()
             ->active()
             ->currentlyValid()
+            ->inVisibleCategory()
             ->where('is_featured', true)
             ->with(['images', 'routeSlugs' => fn ($q) => $q->where('locale', app()->getLocale())])
             ->orderBy('sort_order')

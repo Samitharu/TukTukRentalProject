@@ -18,6 +18,7 @@ use Modules\Booking\Exceptions\NoVehicleAvailableException;
 use Modules\Booking\Http\Requests\Admin\StoreManualBookingRequest;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Services\BookingService;
+use Modules\Booking\Support\HourlySchedule;
 use Modules\Customer\Models\Customer;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Package\Models\Package;
@@ -91,7 +92,8 @@ final class BookingController extends Controller
         $this->authorize('create', Booking::class);
 
         return view('booking::admin.bookings.create', [
-            'packages' => Package::query()->active()->orderBy('kind')->orderBy('sort_order')->get(),
+            'packages' => Package::query()->active()->bookable()->orderBy('kind')->orderBy('sort_order')->get(),
+            'hourlyStartTimes' => HourlySchedule::startTimes(new Package(['min_hours' => 1])),
             'vehicles' => Vehicle::query()->active()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
             'locations' => BusinessLocation::query()->active()->get(),
             'deliveryZones' => DeliveryZone::query()->active()->get(),
@@ -117,6 +119,12 @@ final class BookingController extends Controller
         // cast explicitly since day counts everywhere else (pricing tiers,
         // addon per-day amounts) are int.
         $days = (int) $start->diffInDays($end) + 1;
+        $hours = $package->isHourly() ? (int) $data['hours'] : null;
+
+        // An hourly rental is one day; it keeps its real start/return times.
+        [$startAt, $endAt] = $hours !== null
+            ? array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), HourlySchedule::range($start->toDateString(), $data['start_time'], $hours))
+            : [$start->toDateString(), $end->toDateString()];
 
         $addonIds = $data['addon_ids'] ?? [];
         $addonSelections = array_fill_keys($addonIds, 1);
@@ -129,14 +137,14 @@ final class BookingController extends Controller
             ? DeliveryZone::query()->find($data['delivery_zone_id'])
             : null;
 
-        $price = $this->pricing->calculate($package, $start, $days, $addonSelections, $coupon, $deliveryZone);
+        $price = $this->pricing->calculate($package, $start, $days, $addonSelections, $coupon, $deliveryZone, hours: $hours);
 
         try {
             $booking = $this->bookings->createManualBooking(
                 holdData: [
                     'hold_key' => (string) Str::uuid(),
-                    'start_at' => $start->toDateString(),
-                    'end_at' => $end->toDateString(),
+                    'start_at' => $startAt,
+                    'end_at' => $endAt,
                     'vehicle_id' => $data['vehicle_id'] ?? null,
                     'package_id' => $package->id,
                 ],
@@ -168,12 +176,14 @@ final class BookingController extends Controller
         $this->authorize('view', $booking);
 
         $booking->load(['customer', 'vehicle.category', 'package', 'addons.addon', 'statusHistory.changedBy', 'extraCharges']);
+        $hourlyPackage = $booking->isHourly() ? ($booking->package ?? new Package(['min_hours' => 1])) : null;
 
         return view('booking::admin.bookings.show', [
             'booking' => $booking,
             // Reassign only to the same kind of unit: a tuk tuk rental can't
             // move into a cabana (its dates mean days, not nights).
             'vehicles' => Vehicle::query()->active()->ofKind($booking->vehicle->kind())->orderBy('plate_no')->orderBy('id')->get(),
+            'hourlyStartTimes' => $hourlyPackage !== null ? HourlySchedule::startTimes($hourlyPackage) : [],
         ]);
     }
 }

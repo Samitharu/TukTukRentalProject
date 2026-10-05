@@ -17,7 +17,7 @@ final class PackagePricingTierValidator
      * @param array<int, array{min_days: int, max_days: int|null}> $tiers
      * @return string[] Human-readable problems; empty array means valid.
      */
-    public function validate(array $tiers): array
+    public function validate(array $tiers, string $unit = 'days'): array
     {
         if ($tiers === []) {
             return ['At least one pricing tier is required.'];
@@ -28,12 +28,12 @@ final class PackagePricingTierValidator
 
         $openEndedCount = $sorted->filter(fn (array $tier) => $tier['max_days'] === null)->count();
         if ($openEndedCount > 1) {
-            $errors[] = 'Only the last tier may be open-ended (no maximum days).';
+            $errors[] = 'Only the last tier may be open-ended (no maximum).';
         }
 
         foreach ($sorted as $index => $tier) {
             if ($tier['max_days'] !== null && $tier['max_days'] < $tier['min_days']) {
-                $errors[] = "Tier starting at {$tier['min_days']} days has a maximum below its minimum.";
+                $errors[] = "Tier starting at {$tier['min_days']} {$unit} has a maximum below its minimum.";
 
                 continue;
             }
@@ -45,7 +45,7 @@ final class PackagePricingTierValidator
             }
 
             if ($tier['max_days'] === null) {
-                $errors[] = "Tier starting at {$tier['min_days']} days is open-ended but is not the last tier.";
+                $errors[] = "Tier starting at {$tier['min_days']} {$unit} is open-ended but is not the last tier.";
 
                 continue;
             }
@@ -54,8 +54,8 @@ final class PackagePricingTierValidator
 
             if ($next['min_days'] !== $expectedNextMin) {
                 $errors[] = $next['min_days'] > $expectedNextMin
-                    ? "There is a gap between {$tier['max_days']} and {$next['min_days']} days."
-                    : "Tiers ending at {$tier['max_days']} days and starting at {$next['min_days']} days overlap.";
+                    ? "There is a gap between {$tier['max_days']} and {$next['min_days']} {$unit}."
+                    : "Tiers ending at {$tier['max_days']} {$unit} and starting at {$next['min_days']} {$unit} overlap.";
             }
         }
 

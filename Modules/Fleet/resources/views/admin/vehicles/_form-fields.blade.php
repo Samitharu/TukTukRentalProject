@@ -24,7 +24,7 @@
             </option>
         @endforeach
     </select>
-    <p class="admin-hint">{{ __('Cabanas and rooms go in a category of type "Stay" — create one under Unit Categories first.') }}</p>
+    <p class="admin-hint">{{ __('Cabanas and rooms go in a category of type "Stay" — create one under Unit Types first.') }}</p>
 </div>
 
 <div data-unit-kind="vehicle" @if ($selectedKind !== 'vehicle') hidden @endif>

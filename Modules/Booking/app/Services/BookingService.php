@@ -15,6 +15,7 @@ use Modules\Booking\Exceptions\CouponUnavailableException;
 use Modules\Booking\Exceptions\HoldExpiredException;
 use Modules\Booking\Exceptions\NoVehicleAvailableException;
 use Modules\Booking\Models\Booking;
+use Modules\Booking\Models\BookingExtraCharge;
 use Modules\Booking\Models\BookingHold;
 use Modules\Booking\Models\BookingStatusHistory;
 use Modules\Booking\Support\BookingReference;
@@ -183,6 +184,7 @@ final class BookingService
                 'total_amount' => $price->total,
                 'currency_code' => $price->currencyCode,
                 'deposit_amount' => $price->depositAmount,
+                ...$this->kmAllowanceSnapshot($hold->package_id, $price->days),
                 'locale_at_booking' => app()->getLocale(),
                 'idempotency_key' => $hold->hold_key,
             ]);
@@ -277,15 +279,55 @@ final class BookingService
 
             $this->availability->releaseSlots($booking);
 
-            if (! $this->availability->isRangeFree($booking->vehicle_id, $newStart, $newEnd)) {
+            // Slots are whole days; an hourly booking's range carries times
+            // (stored on the booking as-is), so reserve by its calendar days.
+            $slotStart = $newStart->startOfDay();
+            $slotEnd = $newEnd->startOfDay();
+
+            if (! $this->availability->isRangeFree($booking->vehicle_id, $slotStart, $slotEnd)) {
                 throw NoVehicleAvailableException::make();
             }
 
-            $this->availability->reserveSlots($booking->vehicle_id, $newStart, $newEnd, $booking);
+            $this->availability->reserveSlots($booking->vehicle_id, $slotStart, $slotEnd, $booking);
 
             $booking->update(['start_at' => $newStart, 'end_at' => $newEnd]);
 
             $this->recordHistory($booking, $booking->status, $booking->status, $admin, 'Dates changed.');
+
+            return $booking;
+        });
+    }
+
+    /**
+     * Records the odometer at pickup and return and keeps the booking's
+     * single "extra km" charge in step with it: km driven beyond the
+     * allowance snapshotted at booking time, at the snapshotted rate.
+     * Re-entering readings recalculates (or removes) that charge.
+     */
+    public function recordOdometer(Booking $booking, ?int $start, ?int $end, ?User $admin = null): Booking
+    {
+        return $this->transaction(function () use ($booking, $start, $end, $admin) {
+            /** @var Booking $booking */
+            $booking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+            $booking->update(['odometer_start' => $start, 'odometer_end' => $end]);
+
+            $extraKm = $booking->extraKm();
+            $charge = $booking->extraCharges()->where('type', BookingExtraCharge::TYPE_EXTRA_KM)->first();
+
+            if ($extraKm === 0 || ! $booking->hasKmAllowance()) {
+                $charge?->delete();
+
+                return $booking;
+            }
+
+            $booking->extraCharges()->updateOrCreate(
+                ['type' => BookingExtraCharge::TYPE_EXTRA_KM],
+                [
+                    'amount' => round($extraKm * (float) $booking->extra_km_rate, 2),
+                    'notes' => "{$extraKm} km over the {$booking->included_km} km included",
+                    'created_by' => $admin?->id,
+                ],
+            );
 
             return $booking;
         });
@@ -379,6 +421,23 @@ final class BookingService
      * @param  Closure(): T  $callback
      * @return T
      */
+    /**
+     * The package's km terms frozen onto the booking: the total allowance
+     * for this booking's length, and the per-km rate beyond it.
+     *
+     * @return array{included_km: int|null, extra_km_rate: float|null}
+     */
+    private function kmAllowanceSnapshot(?int $packageId, int $days): array
+    {
+        $package = $packageId !== null ? Package::query()->find($packageId) : null;
+
+        if ($package === null || ! $package->hasKmAllowance()) {
+            return ['included_km' => null, 'extra_km_rate' => null];
+        }
+
+        return ['included_km' => $package->includedKmFor($days), 'extra_km_rate' => (float) $package->extra_km_rate];
+    }
+
     private function transaction(Closure $callback): mixed
     {
         $connection = DB::connection();

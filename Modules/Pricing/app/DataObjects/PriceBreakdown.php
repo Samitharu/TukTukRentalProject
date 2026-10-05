@@ -28,6 +28,8 @@ final readonly class PriceBreakdown
         public float $couponDiscount,
         public float $total,
         public float $depositAmount,
+        // Set only for an hourly package: the hours priced (days is then 1).
+        public ?int $hours = null,
     ) {
     }
 
@@ -46,6 +48,7 @@ final readonly class PriceBreakdown
         return [
             'currency_code' => $this->currencyCode,
             'days' => $this->days,
+            'hours' => $this->hours,
             'base_amount' => $this->baseAmount,
             'seasonal_adjustment' => $this->seasonalAdjustment,
             'addon_lines' => $this->addonLines,

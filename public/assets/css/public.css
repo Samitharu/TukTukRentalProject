@@ -2282,3 +2282,80 @@ p { margin: 0 0 var(--space-3); }
     background: var(--color-primary-500);
     color: #fff;
 }
+
+/* ---------- Package categories (tabs, grouped listing, category hero) ---------- */
+
+.category-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-4);
+}
+
+.category-tabs__tab {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target-min);
+    padding: 0 var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-weight: 600;
+    text-decoration: none;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.category-tabs__tab:hover { border-color: var(--color-primary-300); }
+
+.category-tabs__tab[aria-current="page"] {
+    background: var(--color-primary-500);
+    border-color: var(--color-primary-500);
+    color: #fff;
+}
+
+.package-category + .package-category { margin-top: var(--space-5); }
+
+.package-category__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.package-category__head h2 { margin: 0; }
+
+.package-category-hero {
+    display: grid;
+    gap: var(--space-4);
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.package-category-hero__image {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+}
+
+@media (min-width: 48rem) {
+    .package-category-hero:has(.package-category-hero__image) { grid-template-columns: 2fr 3fr; }
+}
+
+/* Small print under a package price: hours window, km allowance. */
+.package-terms { font-size: var(--font-size-sm); }
+.package-terms p { margin-bottom: var(--space-2); }
+.km-allowance { font-size: var(--font-size-sm); color: var(--color-text-muted); }
+
+/* Hourly package card on the booking package step: start time + length. */
+.hourly-picker {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.hourly-picker select { width: 100%; min-height: var(--touch-target-min); }

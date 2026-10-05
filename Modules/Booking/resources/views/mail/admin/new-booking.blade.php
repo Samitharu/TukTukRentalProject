@@ -5,7 +5,11 @@
 @if ($booking->isStay())
 **{{ $booking->reference }}** — {{ __('Check-in') }} {{ $booking->start_at->format('D j M Y') }} → {{ __('check-out') }} {{ $booking->checkOutDate()->format('D j M Y') }} ({{ trans_choice(':count night|:count nights', $days, ['count' => $days]) }})
 @else
+@if ($booking->isHourly())
+**{{ $booking->reference }}** — {{ $booking->rentalPeriod('D j M Y') }}
+@else
 **{{ $booking->reference }}** — {{ $booking->start_at->format('D j M Y') }} → {{ $booking->end_at->format('D j M Y') }} ({{ trans_choice(':count day|:count days', $days, ['count' => $days]) }})
+@endif
 @endif
 
 <x-mail::table>

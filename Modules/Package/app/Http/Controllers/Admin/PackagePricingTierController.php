@@ -24,7 +24,7 @@ final class PackagePricingTierController extends Controller
             ->map(fn ($tier) => ['min_days' => (int) $tier->min_days, 'max_days' => $tier->max_days !== null ? (int) $tier->max_days : null])
             ->all();
 
-        $errors = $this->validator->validate($proposed);
+        $errors = $this->validator->validate($proposed, $package->tierUnit());
 
         if ($errors !== []) {
             return back()->withErrors(['min_days' => implode(' ', $errors)])->withInput();

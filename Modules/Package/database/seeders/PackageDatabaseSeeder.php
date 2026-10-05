@@ -8,6 +8,7 @@ use Illuminate\Database\Seeder;
 use Modules\Fleet\Models\VehicleCategory;
 use Modules\Package\Models\Addon;
 use Modules\Package\Models\Package;
+use Modules\Package\Support\DefaultProductCategories;
 
 class PackageDatabaseSeeder extends Seeder
 {
@@ -52,5 +53,9 @@ class PackageDatabaseSeeder extends Seeder
             $helmet->id => ['is_included' => true],
             $simCard->id => ['is_included' => false],
         ]);
+
+        // Tuk Tuk Rental / Stays / Surfing / Kitesurfing, and any package
+        // still without a category moved into the one for its kind.
+        DefaultProductCategories::install();
     }
 }

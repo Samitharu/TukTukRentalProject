@@ -17,7 +17,7 @@
                 <dl class="booking-status-details">
                     <div>
                         <dt>{{ __($booking->isStay() ? 'core::front.booking_status_dates_stay' : 'core::front.booking_status_dates') }}</dt>
-                        <dd>{{ $booking->start_at->format('d M Y') }} &ndash; {{ $booking->checkOutDate()->format('d M Y') }}</dd>
+                        <dd>{{ $booking->isStay() ? $booking->start_at->format('d M Y').' – '.$booking->checkOutDate()->format('d M Y') : $booking->rentalPeriod() }}</dd>
                     </div>
                     @if ($booking->vehicle)
                         <div>

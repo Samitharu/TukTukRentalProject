@@ -115,8 +115,13 @@
                 @else
                     <h2>{{ __('core::front.receipt_rental') }}</h2>
                     <table class="kv">
-                        <tr><td class="k">{{ __('core::front.booking_review_dates') }}</td><td>{{ $booking->start_at->format('d M Y') }} → {{ $booking->end_at->format('d M Y') }}</td></tr>
-                        <tr><td class="k">{{ __('core::front.receipt_days') }}</td><td>{{ $days }}</td></tr>
+                        <tr><td class="k">{{ __('core::front.booking_review_dates') }}</td><td>{{ $booking->rentalPeriod() }}</td></tr>
+                        @unless ($booking->isHourly())
+                            <tr><td class="k">{{ __('core::front.receipt_days') }}</td><td>{{ $days }}</td></tr>
+                        @endunless
+                        @if ($booking->included_km !== null)
+                            <tr><td class="k">{{ __('core::front.receipt_km_included') }}</td><td>{{ number_format($booking->included_km) }} km</td></tr>
+                        @endif
                         @if ($booking->package)
                             <tr><td class="k">{{ __('core::front.booking_review_package') }}</td><td>{{ $booking->package->name }}</td></tr>
                         @endif

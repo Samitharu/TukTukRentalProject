@@ -702,3 +702,8 @@ a {
     background: #fdf3dc;
     color: #7a5a12;
 }
+
+.admin-badge--activity {
+    background: #e2f0fb;
+    color: #1d5a85;
+}

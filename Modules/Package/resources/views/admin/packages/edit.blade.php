@@ -31,8 +31,8 @@
         <table class="admin-table">
             <thead>
                 <tr>
-                    <th>{{ __($package->isStay() ? 'From (nights)' : 'From (days)') }}</th>
-                    <th>{{ __($package->isStay() ? 'To (nights)' : 'To (days)') }}</th>
+                    <th>{{ __('From (:unit)', ['unit' => __($package->tierUnit())]) }}</th>
+                    <th>{{ __('To (:unit)', ['unit' => __($package->tierUnit())]) }}</th>
                     <th>{{ __('Price') }}</th>
                     <th></th>
                 </tr>
@@ -58,15 +58,15 @@
         <form method="POST" action="{{ route('admin.packages.pricing-tiers.store', $package) }}" style="margin-top:1rem;" novalidate>
             @csrf
             <div class="admin-form-field">
-                <label for="tier_min_days">{{ __($package->isStay() ? 'From (nights)' : 'From (days)') }}</label>
+                <label for="tier_min_days">{{ __('From (:unit)', ['unit' => __($package->tierUnit())]) }}</label>
                 <input type="number" id="tier_min_days" name="min_days" min="1" required>
             </div>
             <div class="admin-form-field">
-                <label for="tier_max_days">{{ __($package->isStay() ? 'To (nights, blank = unlimited)' : 'To (days, blank = unlimited)') }}</label>
+                <label for="tier_max_days">{{ __('To (:unit, blank = unlimited)', ['unit' => __($package->tierUnit())]) }}</label>
                 <input type="number" id="tier_max_days" name="max_days" min="1">
             </div>
             <div class="admin-form-field">
-                <label for="tier_price">{{ __('Price for this tier') }}</label>
+                <label for="tier_price">{{ $package->tierPriceUnit() === null ? __('Total price for this tier') : __('Price per :unit for this tier', ['unit' => __($package->tierPriceUnit())]) }}</label>
                 <input type="number" id="tier_price" name="price" min="0" step="0.01" required>
             </div>
             <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Add tier') }}</button>

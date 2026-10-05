@@ -7,6 +7,7 @@ namespace Modules\Package\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Fleet\Models\VehicleCategory;
 use Modules\Package\Http\Requests\Admin\StorePackageRequest;
@@ -14,6 +15,7 @@ use Modules\Package\Http\Requests\Admin\UpdatePackageRequest;
 use Modules\Package\Models\Addon;
 use Modules\Package\Models\Package;
 use Modules\Package\Models\PackageImage;
+use Modules\Package\Models\ProductCategory;
 use Modules\Package\Services\PackageImageService;
 
 final class PackageController extends Controller
@@ -22,20 +24,31 @@ final class PackageController extends Controller
     {
     }
 
-    public function index(): View
+    public function index(Request $request): View
     {
         $this->authorize('viewAny', Package::class);
 
-        $packages = Package::query()->withCount('pricingTiers')->orderBy('sort_order')->get();
+        $packages = Package::query()
+            ->with('productCategory')
+            ->withCount('pricingTiers')
+            ->when($request->filled('category'), fn ($q) => $q->where('product_category_id', $request->integer('category')))
+            ->orderBy('sort_order')
+            ->get();
 
-        return view('package::admin.packages.index', compact('packages'));
+        return view('package::admin.packages.index', [
+            'packages' => $packages,
+            'productCategories' => ProductCategory::query()->orderBy('sort_order')->orderBy('id')->get(),
+            'selectedCategoryId' => $request->integer('category') ?: null,
+        ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         $this->authorize('create', Package::class);
 
         return view('package::admin.packages.create', [
+            'productCategories' => ProductCategory::query()->orderBy('sort_order')->orderBy('id')->get(),
+            'preselectedCategoryId' => $request->integer('category') ?: null,
             'categories' => VehicleCategory::query()->active()->orderBy('kind')->orderBy('sort_order')->get(),
             'vehicles' => Vehicle::query()->active()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
         ]);
@@ -43,11 +56,8 @@ final class PackageController extends Controller
 
     public function store(StorePackageRequest $request): RedirectResponse
     {
-        $data = $request->safe()->except(['category_ids', 'vehicle_ids', 'images']);
-        $data['kind'] = $data['kind'] ?? VehicleCategory::KIND_VEHICLE;
-        $data['deposit_is_percent'] = $request->boolean('deposit_is_percent');
+        $data = $this->packageData($request);
         $data['is_active'] = $request->boolean('is_active', true);
-        $data['is_featured'] = $request->boolean('is_featured');
 
         $package = Package::query()->create($data);
         $package->categories()->sync($request->input('category_ids', []));
@@ -68,6 +78,7 @@ final class PackageController extends Controller
 
         return view('package::admin.packages.edit', [
             'package' => $package,
+            'productCategories' => ProductCategory::query()->orderBy('sort_order')->orderBy('id')->get(),
             'categories' => VehicleCategory::query()->active()->orderBy('kind')->orderBy('sort_order')->get(),
             'vehicles' => Vehicle::query()->active()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
             'addons' => Addon::query()->active()->orderBy('sort_order')->get(),
@@ -80,10 +91,8 @@ final class PackageController extends Controller
 
     public function update(UpdatePackageRequest $request, Package $package): RedirectResponse
     {
-        $data = $request->safe()->except(['category_ids', 'vehicle_ids', 'images']);
-        $data['deposit_is_percent'] = $request->boolean('deposit_is_percent');
+        $data = $this->packageData($request);
         $data['is_active'] = $request->boolean('is_active');
-        $data['is_featured'] = $request->boolean('is_featured');
 
         $package->update($data);
         $package->categories()->sync($request->input('category_ids', []));
@@ -94,6 +103,29 @@ final class PackageController extends Controller
         }
 
         return redirect()->route('admin.packages.edit', $package)->with('status', __('Package updated.'));
+    }
+
+    /**
+     * The validated form fields as package attributes. `kind` is never
+     * taken from the form: the package's category sets it (Package::booted()).
+     *
+     * @return array<string, mixed>
+     */
+    private function packageData(StorePackageRequest|UpdatePackageRequest $request): array
+    {
+        $data = $request->safe()->except(['category_ids', 'vehicle_ids', 'images']);
+        $data['deposit_is_percent'] = $request->boolean('deposit_is_percent');
+        $data['is_featured'] = $request->boolean('is_featured');
+        $data['included_km_per_day'] = $request->boolean('included_km_per_day', true);
+        // Hidden on the form for hourly / per-person packages.
+        $data['min_days'] = $data['min_days'] ?? 1;
+
+        if (($data['pricing_model'] ?? null) !== Package::MODEL_PER_HOUR) {
+            $data['min_hours'] = null;
+            $data['max_hours'] = null;
+        }
+
+        return $data;
     }
 
     public function destroy(Package $package): RedirectResponse

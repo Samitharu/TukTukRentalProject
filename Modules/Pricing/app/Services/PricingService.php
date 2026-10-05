@@ -35,11 +35,16 @@ final class PricingService
         ?Coupon $coupon = null,
         ?DeliveryZone $deliveryZone = null,
         ?string $currencyCode = null,
+        ?int $hours = null,
     ): PriceBreakdown {
+        // An hourly package is a single-day rental priced by the hour;
+        // add-ons and coupons see it as the one day it is.
+        $hours = $package->isHourly() ? max($hours ?? (int) $package->min_hours, 1) : null;
+
         $endDate = $startDate->addDays(max($days - 1, 0));
         $currencyCode ??= config('pricing.default_currency');
 
-        $baseAmount = $this->calculateBaseAmount($package, $days);
+        $baseAmount = $this->calculateBaseAmount($package, $days, $hours);
         $seasonalAdjustment = $this->calculateSeasonalAdjustment($package, $startDate, $endDate, $baseAmount);
         [$addonLines, $addonsTotal] = $this->calculateAddons($package, $addonSelections, $days);
         $deliveryFee = (float) ($deliveryZone?->extra_fee ?? 0);
@@ -68,6 +73,7 @@ final class PricingService
             couponDiscount: $couponDiscount,
             total: $total,
             depositAmount: $depositAmount,
+            hours: $hours,
         );
 
         return $currencyCode === config('pricing.default_currency')
@@ -75,8 +81,13 @@ final class PricingService
             : $this->convert($breakdown, $currencyCode);
     }
 
-    private function calculateBaseAmount(Package $package, int $days): float
+    private function calculateBaseAmount(Package $package, int $days, ?int $hours): float
     {
+        if ($hours !== null) {
+            // Tiers count hours here: e.g. 1-3 h at 8/h, 4+ h at 6/h.
+            return round($this->rateFor($package, $hours) * $hours, 2);
+        }
+
         if ($package->pricing_model === Package::MODEL_FIXED_BUNDLE) {
             $tier = $package->pricingTiers()->where('min_days', '<=', $days)
                 ->where(fn ($q) => $q->whereNull('max_days')->orWhere('max_days', '>=', $days))
@@ -95,11 +106,15 @@ final class PricingService
         return round($rate * $units, 2);
     }
 
-    private function rateFor(Package $package, int $days): float
+    /**
+     * The rate of the tier covering $units — days for most packages, hours
+     * for an hourly one (tier columns are named for the original, day case).
+     */
+    private function rateFor(Package $package, int $units): float
     {
         $tier = $package->pricingTiers()
-            ->where('min_days', '<=', $days)
-            ->where(fn ($q) => $q->whereNull('max_days')->orWhere('max_days', '>=', $days))
+            ->where('min_days', '<=', $units)
+            ->where(fn ($q) => $q->whereNull('max_days')->orWhere('max_days', '>=', $units))
             ->first();
 
         return (float) ($tier?->price ?? 0);
@@ -199,6 +214,7 @@ final class PricingService
             couponDiscount: $round($breakdown->couponDiscount),
             total: $round($breakdown->total),
             depositAmount: $round($breakdown->depositAmount),
+            hours: $breakdown->hours,
         );
     }
 }

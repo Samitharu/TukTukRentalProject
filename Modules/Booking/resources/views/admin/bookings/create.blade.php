@@ -10,7 +10,7 @@
                 <select id="package_id" name="package_id" required>
                     <option value="">{{ __('— Select —') }}</option>
                     @foreach ($packages as $package)
-                        <option value="{{ $package->id }}" @selected(old('package_id') == $package->id)>{{ $package->name }} ({{ $package->isStay() ? __('Stay') : __('Tuk tuk') }})</option>
+                        <option value="{{ $package->id }}" @selected(old('package_id') == $package->id)>{{ $package->name }} ({{ $package->isStay() ? __('Stay') : ($package->isHourly() ? __('Tuk tuk, hourly :min–:max h', ['min' => $package->min_hours, 'max' => $package->max_hours ?? '…']) : __('Tuk tuk')) }})</option>
                     @endforeach
                 </select>
             </div>
@@ -35,6 +35,26 @@
                 <input type="date" id="end_date" name="end_date" value="{{ old('end_date') }}" required>
                 <p class="admin-hint">{{ __('For a stay package enter the check-out day — the guest is charged per night. Pickup and permit fields below are ignored for stays.') }}</p>
             </div>
+
+            <fieldset class="admin-form-field admin-location">
+                <legend>{{ __('Hourly packages only') }}</legend>
+                <p class="admin-hint" style="margin-top:0;">{{ __('Use the same date for pickup and return. The tuk tuk is blocked for the whole day.') }}</p>
+                <div class="admin-location__coords">
+                    <div>
+                        <label for="start_time">{{ __('Start time') }}</label>
+                        <select id="start_time" name="start_time">
+                            <option value="">{{ __('— Not hourly —') }}</option>
+                            @foreach ($hourlyStartTimes as $time)
+                                <option value="{{ $time }}" @selected(old('start_time') === $time)>{{ $time }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label for="hours">{{ __('Hours') }}</label>
+                        <input type="number" id="hours" name="hours" value="{{ old('hours') }}" min="1" max="24">
+                    </div>
+                </div>
+            </fieldset>
 
             <div class="admin-form-field">
                 <label for="pickup_type">{{ __('Pickup type') }}</label>

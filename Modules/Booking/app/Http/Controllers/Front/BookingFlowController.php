@@ -33,6 +33,7 @@ use Modules\Booking\Models\BookingHold;
 use Modules\Booking\Services\BookingService;
 use Modules\Booking\Support\BookingFlowState;
 use Modules\Booking\Support\BookingReference;
+use Modules\Booking\Support\HourlySchedule;
 use Modules\CMS\Models\Review;
 use Modules\Core\Support\Countries;
 use Modules\Fleet\Models\Vehicle;
@@ -74,7 +75,8 @@ final class BookingFlowController extends Controller
     {
         $this->switchKindFor($request);
 
-        if ($request->filled('package')) {
+        // Activity packages (surfing…) are booked by message, not here.
+        if ($request->filled('package') && Package::query()->bookable()->inVisibleCategory()->whereKey($request->integer('package'))->exists()) {
             BookingFlowState::put(['package_id' => $request->integer('package')]);
         }
 
@@ -108,6 +110,7 @@ final class BookingFlowController extends Controller
         $packages = Package::query()
             ->active()
             ->currentlyValid()
+            ->inVisibleCategory()
             ->ofKind(BookingFlowState::kind())
             ->where('min_days', '<=', $days)
             ->where(fn ($q) => $q->whereNull('max_days')->orWhere('max_days', '>=', $days))
@@ -126,6 +129,8 @@ final class BookingFlowController extends Controller
             'packages' => $packages,
             'days' => $days,
             'freeCounts' => $freeCounts,
+            'hourlyStartTimes' => $packages->filter->isHourly()->mapWithKeys(fn (Package $p) => [$p->id => HourlySchedule::startTimes($p)])->all(),
+            'hourlyLengths' => $packages->filter->isHourly()->mapWithKeys(fn (Package $p) => [$p->id => HourlySchedule::lengths($p)])->all(),
             'preselectedVehicle' => $vehicleId !== null ? Vehicle::query()->find($vehicleId) : null,
             'preselectedVehicleBooked' => $vehicleId !== null && in_array((int) $vehicleId, $unavailable, true),
         ]);
@@ -137,7 +142,7 @@ final class BookingFlowController extends Controller
             return redirect()->route('booking.start');
         }
 
-        $package = Package::query()->active()->currentlyValid()->ofKind(BookingFlowState::kind())->findOrFail($request->validated('package_id'));
+        $package = Package::query()->active()->currentlyValid()->inVisibleCategory()->ofKind(BookingFlowState::kind())->findOrFail($request->validated('package_id'));
         $days = $this->daysFromState();
 
         if ($days < $package->min_days || ($package->max_days !== null && $days > $package->max_days)) {
@@ -163,7 +168,14 @@ final class BookingFlowController extends Controller
             BookingFlowState::put(['vehicle_id' => null]);
         }
 
-        BookingFlowState::put(['package_id' => $package->id, 'hold_key' => null]);
+        [$startTime, $hours] = $package->isHourly() ? $request->hourlyChoice() : [null, null];
+
+        BookingFlowState::put([
+            'package_id' => $package->id,
+            'start_time' => $startTime,
+            'hours' => $hours !== null ? (int) $hours : null,
+            'hold_key' => null,
+        ]);
 
         return redirect()->route('booking.addons');
     }
@@ -243,10 +255,13 @@ final class BookingFlowController extends Controller
 
         $state = BookingFlowState::get();
 
+        $package = Package::query()->findOrFail($state['package_id']);
+
         return view('booking::front.steps.review', [
             'state' => $state,
             'isStay' => BookingFlowState::isStay(),
-            'package' => Package::query()->findOrFail($state['package_id']),
+            'package' => $package,
+            'hourlyRange' => $package->isHourly() ? HourlySchedule::range($state['start_date'], $state['start_time'], (int) $state['hours']) : null,
             'price' => $this->calculatePrice($state),
         ]);
     }
@@ -302,6 +317,12 @@ final class BookingFlowController extends Controller
         $price = $this->calculatePrice($state);
         $holdKey = is_string($state['hold_key'] ?? null) ? $state['hold_key'] : (string) Str::uuid();
 
+        // An hourly rental keeps its real times on the booking; slots are
+        // still reserved by whole day (BookingService::createHold()).
+        [$startAt, $endAt] = $price->hours !== null
+            ? array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), HourlySchedule::range($state['start_date'], $state['start_time'], $price->hours))
+            : [$state['start_date'], $state['end_date']];
+
         // The review page showed a discounted total; if the coupon stopped
         // applying since (limit reached, expired), never book the higher
         // price silently — send them back to see the updated total.
@@ -333,8 +354,8 @@ final class BookingFlowController extends Controller
             $booking = $this->bookings->createManualBooking(
                 holdData: [
                     'hold_key' => $holdKey,
-                    'start_at' => $state['start_date'],
-                    'end_at' => $state['end_date'],
+                    'start_at' => $startAt,
+                    'end_at' => $endAt,
                     'vehicle_id' => $state['vehicle_id'] ?? null,
                     'package_id' => $state['package_id'],
                     'customer_session_id' => $request->session()->getId(),
@@ -557,13 +578,23 @@ final class BookingFlowController extends Controller
                 ->withErrors(['start_date' => __('core::front.booking_dates_no_longer_valid')]);
         }
 
-        $package = Package::query()->active()->currentlyValid()->ofKind(BookingFlowState::kind())->find(BookingFlowState::value('package_id'));
+        $package = Package::query()->active()->currentlyValid()->inVisibleCategory()->ofKind(BookingFlowState::kind())->find(BookingFlowState::value('package_id'));
 
         if ($package === null || $days < $package->min_days || ($package->max_days !== null && $days > $package->max_days)) {
             BookingFlowState::put(['package_id' => null, 'hold_key' => null]);
 
             return redirect()->route('booking.package')
                 ->withErrors(['package_id' => $this->notEligibleMessage()]);
+        }
+
+        if ($package->isHourly()) {
+            $problem = HourlySchedule::problem($package, $start->toDateString(), BookingFlowState::value('start_time'), BookingFlowState::value('hours'));
+
+            if ($problem !== null) {
+                BookingFlowState::put(['hold_key' => null]);
+
+                return redirect()->route('booking.package')->withErrors(['package_id' => $problem]);
+            }
         }
 
         $vehicleId = BookingFlowState::value('vehicle_id');
@@ -642,6 +673,9 @@ final class BookingFlowController extends Controller
             ? DeliveryZone::query()->find($state['delivery_zone_id'])
             : null;
 
-        return $this->pricing->calculate($package, $start, $days, $addonSelections, $coupon, $deliveryZone);
+        return $this->pricing->calculate(
+            $package, $start, $days, $addonSelections, $coupon, $deliveryZone,
+            hours: $package->isHourly() ? (int) ($state['hours'] ?? 0) : null,
+        );
     }
 }

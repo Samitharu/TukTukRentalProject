@@ -7,6 +7,7 @@ use Modules\Fleet\Models\Vehicle;
 use Modules\Fleet\Models\VehicleCategory;
 use Modules\Localization\Models\Locale;
 use Modules\Package\Models\Package;
+use Modules\Package\Models\ProductCategory;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function (): void {
@@ -22,7 +23,8 @@ function packagePayload(array $overrides = []): array
 {
     return array_merge([
         'name' => ['en' => 'Surf & Stay'],
-        'kind' => 'stay',
+        // The "Stays" category the migration creates — it makes the package a stay.
+        'product_category_id' => ProductCategory::query()->where('kind', 'stay')->value('id'),
         'pricing_model' => 'per_day',
         'min_days' => 2,
         'sort_order' => 0,

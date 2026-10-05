@@ -15,6 +15,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 final class BookingExtraCharge extends Model
 {
+    /** Km beyond the booking's allowance — kept in step with the odometer by BookingService::recordOdometer(). */
+    public const string TYPE_EXTRA_KM = 'extra_km';
+
     protected $fillable = [
         'booking_id',
         'type',

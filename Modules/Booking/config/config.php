@@ -13,6 +13,14 @@ return [
     // per day) a single request can make the database write.
     'max_rental_days' => (int) env('BOOKING_MAX_RENTAL_DAYS', 180),
 
+    // Hourly tuk tuk rentals: the earliest hour a rental may start and the
+    // hour it must be back by (24h clock, whole hours). The tuk tuk is
+    // reserved for the whole day either way.
+    'hourly' => [
+        'first_start_hour' => (int) env('BOOKING_HOURLY_FIRST_START', 6),
+        'last_return_hour' => (int) env('BOOKING_HOURLY_LAST_RETURN', 22),
+    ],
+
     // Who receives the "new booking placed" email (comma-separated). Falls
     // back to the business contact address when unset or left empty.
     'admin_notification_emails' => array_values(array_filter(array_map(

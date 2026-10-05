@@ -59,7 +59,23 @@
                                     <h2 style="font-size:var(--font-size-lg);">{{ $package->name }}</h2>
                                     <p class="text-muted">{{ \Illuminate\Support\Str::limit(strip_tags((string) $package->description), 110) }}</p>
                                     @if ($package->pricingTiers->isNotEmpty())
-                                        <p><strong>{{ __('core::front.packages_from') }} {{ $package->pricingTiers->first()->price }} {{ config('pricing.default_currency') }}</strong> {{ __($package->isStay() ? 'core::front.packages_per_night' : 'core::front.packages_per_day') }}</p>
+                                        <p><strong>{{ __('core::front.packages_from') }} {{ $package->pricingTiers->first()->price }} {{ config('pricing.default_currency') }}</strong> {{ __($package->priceSuffixKey()) }}</p>
+                                    @endif
+                                    @include('package::front._km-allowance', ['package' => $package])
+                                    @if ($package->isHourly() && $free > 0)
+                                        @php $chosen = old('hourly.'.$package->id, ($state['package_id'] ?? null) == $package->id ? ['start_time' => $state['start_time'] ?? null, 'hours' => $state['hours'] ?? null] : []); @endphp
+                                        <div class="hourly-picker">
+                                            <select name="hourly[{{ $package->id }}][start_time]" aria-label="{{ __('core::front.booking_start_time') }}">
+                                                @foreach ($hourlyStartTimes[$package->id] ?? [] as $time)
+                                                    <option value="{{ $time }}" @selected(($chosen['start_time'] ?? '09:00') === $time)>{{ __('core::front.booking_start_time') }}: {{ $time }}</option>
+                                                @endforeach
+                                            </select>
+                                            <select name="hourly[{{ $package->id }}][hours]" aria-label="{{ __('core::front.booking_hours') }}">
+                                                @foreach ($hourlyLengths[$package->id] ?? [] as $length)
+                                                    <option value="{{ $length }}" @selected((int) ($chosen['hours'] ?? 0) === $length)>{{ trans_choice('core::front.booking_hours_count', $length, ['count' => $length]) }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     @endif
                                 </div>
                             </label>

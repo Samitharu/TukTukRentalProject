@@ -1,4 +1,4 @@
-<x-admin::layouts.app :title="__('Unit Categories')">
+<x-admin::layouts.app :title="__('Unit Types')">
     <p><a href="{{ route('admin.fleet.categories.create') }}" class="admin-btn">{{ __('Add category') }}</a></p>
 
     <div class="admin-card" style="padding:0;">
