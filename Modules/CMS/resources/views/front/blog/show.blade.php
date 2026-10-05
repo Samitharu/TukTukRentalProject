@@ -1,4 +1,4 @@
-<x-core::layouts.public :title="$post->title.' · '.config('app.name')" :description="\Illuminate\Support\Str::limit(strip_tags((string) ($post->excerpt ?: $post->body)), 160)">
+<x-core::layouts.public :title="$post->title.' · '.config('app.name')" :description="$post->excerpt ?: $post->body" :alternates="$alternates" :schema="$schema" :image="$image" type="article">
     <section class="section">
         <div class="container" style="max-width:42rem;">
             <p><a href="{{ route('blog.index') }}">&larr; {{ __('core::front.blog_back_to_list') }}</a></p>

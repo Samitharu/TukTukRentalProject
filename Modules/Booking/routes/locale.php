@@ -11,7 +11,8 @@ use Modules\Booking\Http\Controllers\Front\BookingFlowController;
 // driver), and confirmation pages show customer details, so neither may be
 // hammered without limit. Infrastructure-level protection (CDN/WAF rate
 // limiting) is still what stops a real DDoS.
-Route::prefix('booking')->name('booking.')->group(function (): void {
+// noindex: confirmation/status/receipt URLs carry the booking reference.
+Route::prefix('booking')->name('booking.')->middleware('noindex')->group(function (): void {
     Route::get('start', [BookingFlowController::class, 'start'])->name('start');
     Route::post('start', [BookingFlowController::class, 'storeDates'])->middleware('throttle:30,1')->name('start.store');
 

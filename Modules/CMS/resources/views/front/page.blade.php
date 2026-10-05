@@ -1,4 +1,4 @@
-<x-core::layouts.public :title="$page->title.' · '.config('app.name')" :description="\Illuminate\Support\Str::limit(strip_tags((string) $page->content), 160)">
+<x-core::layouts.public :title="$page->title.' · '.config('app.name')" :description="$page->content" :alternates="$alternates" :schema="$schema">
     <section class="section">
         <div class="container" style="max-width:42rem;">
             <h1>{{ $page->title }}</h1>

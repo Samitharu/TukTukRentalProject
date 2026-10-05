@@ -8,6 +8,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Modules\Admin\Http\Middleware\EnforceTwoFactor;
 use Modules\Admin\Http\Middleware\EnsureAdminSessionIsFresh;
 use Modules\Admin\Http\Middleware\RestrictAdminIpAllowlist;
+use Modules\Core\Http\Middleware\NoIndex;
 use Modules\Core\Http\Middleware\SecurityHeaders;
 use Modules\Core\Http\Middleware\ThrottleRequestsPerRoute;
 use Modules\Localization\Http\Middleware\SetLocale;
@@ -25,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
             // Per-route counters for `throttle:N,M` — see the class docblock.
             'throttle' => ThrottleRequestsPerRoute::class,
             'locale' => SetLocale::class,
+            'noindex' => NoIndex::class,
             'admin.ip' => RestrictAdminIpAllowlist::class,
             'admin.session' => EnsureAdminSessionIsFresh::class,
             'admin.2fa' => EnforceTwoFactor::class,
@@ -32,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->group('admin', [
             'web',
+            'noindex',
             'admin.ip',
             'auth',
             'admin.session',

@@ -9,6 +9,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Modules\CMS\Models\Review;
 use Modules\CMS\Models\Testimonial;
+use Modules\Core\Support\Seo;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Fleet\Models\VehicleCategory;
 use Modules\Package\Models\Package;
@@ -41,7 +42,9 @@ final class HomeController extends Controller
         $vehicles = Vehicle::query()->active()->ofKind(VehicleCategory::KIND_VEHICLE)->with('images')->limit(4)->get();
         $customerReviews = $this->customerReviews();
 
-        return view('core::front.home', compact('featuredPackages', 'vehicles', 'customerReviews'));
+        $schema = [Seo::website(), Seo::organization()];
+
+        return view('core::front.home', compact('featuredPackages', 'vehicles', 'customerReviews', 'schema'));
     }
 
     /**

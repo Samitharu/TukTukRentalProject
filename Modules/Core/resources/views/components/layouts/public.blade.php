@@ -5,8 +5,20 @@
 @endphp
 {{-- The public design is light-only: the hero photo, dark headline and
      mint backgrounds don't survive the dark-mode tokens. --}}
-<x-core::layouts.master :title="$title ?? config('app.name')" :description="$description ?? null" theme="light">
+{{-- SEO: pages may pass canonical, alternates, image, type, schema and
+     robots alongside title/description — see <x-core::seo-head>. --}}
+<x-core::layouts.master :title="$title ?? config('app.name')" theme="light">
     <x-slot:styles>
+        <x-core::seo-head
+            :title="$title ?? config('app.name')"
+            :description="$description ?? null"
+            :canonical="$canonical ?? null"
+            :alternates="$alternates ?? null"
+            :image="$image ?? null"
+            :type="$type ?? 'website'"
+            :schema="$schema ?? []"
+            :robots="$robots ?? null"
+        />
         <link rel="stylesheet" href="{{ asset_v('assets/css/tokens.css') }}" nonce="{{ csp_nonce() }}">
         <link rel="stylesheet" href="{{ asset_v('assets/css/public.css') }}" nonce="{{ csp_nonce() }}">
         {{-- Hold the first paint until the whole <main> has been parsed
@@ -65,7 +77,7 @@
                 </nav>
 
                 <div class="site-header__actions">
-                    <x-localization::switcher />
+                    <x-localization::switcher :alternates="$alternates ?? null" />
                     <a href="{{ route('booking.start') }}" class="btn btn--primary site-header__book-btn">
                         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18"><rect x="3.5" y="5" width="17" height="15" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 9.5h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                         {{ __('core::front.book_now') }}
@@ -153,6 +165,8 @@
             </div>
             <div class="container text-center" style="margin-top:2rem;color:var(--color-ink-300);font-size:var(--font-size-sm);">
                 &copy; {{ now()->year }} {{ config('app.name') }}. {{ __('core::front.all_rights_reserved') }}
+                <br>
+                {{ __('core::front.footer_developed_by', ['company' => 'Saheli Software Solutions']) }}
             </div>
         </footer>
 

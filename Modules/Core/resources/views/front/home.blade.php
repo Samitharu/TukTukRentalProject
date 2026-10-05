@@ -19,7 +19,7 @@
         1
     );
 @endphp
-<x-core::layouts.public :title="config('app.name')" :description="__('core::front.home_hero_lead')">
+<x-core::layouts.public :title="config('app.name').' · '.__('core::front.seo_home_title')" :description="__('core::front.home_hero_lead')" :schema="$schema">
     {{-- Falls back to the bundled photo until a hero image is uploaded in
          the control panel. The uploaded image should be a photo without
          text: the headline and badges are rendered as real HTML on top. --}}

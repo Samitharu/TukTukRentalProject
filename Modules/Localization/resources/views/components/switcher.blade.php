@@ -1,3 +1,7 @@
+{{-- $alternates (locale => URL), when the page provides it, gives the
+     right translated slug per language; otherwise only the /{locale}
+     segment is swapped, which is correct for pages without a slug. --}}
+@props(['alternates' => null])
 @php
     $segments = explode('/', trim(request()->path(), '/'));
     $currentCode = app()->getLocale();
@@ -36,6 +40,12 @@
                 $targetPath = '/'.implode('/', $targetSegments);
                 $query = request()->getQueryString();
                 $href = $targetPath.($query ? '?'.$query : '');
+
+                if (is_array($alternates)) {
+                    // A record with no slug in that language: its home page
+                    // rather than a URL that would 404.
+                    $href = $alternates[$locale->code] ?? route('home', ['locale' => $locale->code]);
+                }
             @endphp
             <li role="option" aria-selected="{{ $locale->code === $currentCode ? 'true' : 'false' }}">
                 <a href="{{ $href }}" hreflang="{{ $locale->code }}" {{ $locale->code === $currentCode ? 'aria-current=true' : '' }}>

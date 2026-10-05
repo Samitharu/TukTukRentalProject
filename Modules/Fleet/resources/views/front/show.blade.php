@@ -1,4 +1,4 @@
-<x-core::layouts.public :title="$vehicle->name.' · '.config('app.name')" :description="strip_tags((string) $vehicle->description)">
+<x-core::layouts.public :title="$vehicle->name.' · '.config('app.name')" :description="$vehicle->description" :alternates="$alternates" :schema="$schema" :image="$image">
     <section class="section">
         <div class="container">
             <div class="grid grid--2">

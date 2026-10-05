@@ -1,4 +1,4 @@
-<x-core::layouts.public :title="__('core::front.faq_title').' · '.config('app.name')">
+<x-core::layouts.public :title="__('core::front.faq_title').' · '.config('app.name')" :description="__('core::front.faq_meta_description')" :schema="$schema">
     <section class="section">
         <div class="container" style="max-width:42rem;">
             <h1>{{ __('core::front.faq_title') }}</h1>

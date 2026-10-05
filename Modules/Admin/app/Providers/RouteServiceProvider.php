@@ -29,7 +29,7 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected function mapGuestAdminRoutes(): void
     {
-        Route::middleware(['web', 'admin.ip'])
+        Route::middleware(['web', 'noindex', 'admin.ip'])
             ->prefix(config('admin.path'))
             ->name('admin.')
             ->group(function (): void {

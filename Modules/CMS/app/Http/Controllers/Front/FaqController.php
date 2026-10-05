@@ -12,8 +12,23 @@ final class FaqController extends Controller
 {
     public function index(): View
     {
-        $faqs = Faq::query()->active()->orderBy('sort_order')->get()->groupBy('category');
+        $faqs = Faq::query()->active()->orderBy('sort_order')->get();
 
-        return view('cms::front.faq', compact('faqs'));
+        // schema.org FAQPage: every question with its answer, so search
+        // engines can match the page to the exact question asked.
+        $schema = $faqs->isEmpty() ? [] : [[
+            '@context' => 'https://schema.org',
+            '@type' => 'FAQPage',
+            'mainEntity' => $faqs->map(fn (Faq $faq) => [
+                '@type' => 'Question',
+                'name' => (string) $faq->question,
+                'acceptedAnswer' => ['@type' => 'Answer', 'text' => trim(strip_tags((string) $faq->answer))],
+            ])->values()->all(),
+        ]];
+
+        return view('cms::front.faq', [
+            'faqs' => $faqs->groupBy('category'),
+            'schema' => $schema,
+        ]);
     }
 }

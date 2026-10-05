@@ -9,6 +9,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Modules\Core\Support\Seo;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Fleet\Models\VehicleCategory;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -54,13 +55,54 @@ final class FleetController extends Controller
             throw new NotFoundHttpException();
         }
 
-        $vehicle->load('images', 'category');
+        $vehicle->load('images', 'category', 'routeSlugs');
 
         if ($vehicle->kind() !== $kind) {
             return redirect()->route($vehicle->isStay() ? 'stays.show' : 'fleet.show', $slug, 301);
         }
 
-        return view('fleet::front.show', compact('vehicle'));
+        $isStay = $vehicle->isStay();
+        $image = Seo::storageImage($vehicle->primaryImage()?->path);
+
+        return view('fleet::front.show', [
+            'vehicle' => $vehicle,
+            'image' => $image,
+            'alternates' => Seo::alternatesForModel($vehicle, $isStay ? 'stays.show' : 'fleet.show'),
+            'schema' => array_filter([
+                $isStay ? $this->accommodationSchema($vehicle, $image) : null,
+                Seo::breadcrumbs([
+                    [__('core::front.nav_home'), route('home')],
+                    [__($isStay ? 'core::front.nav_stays' : 'core::front.nav_fleet'), route($isStay ? 'stays.index' : 'fleet.index')],
+                    [(string) $vehicle->name, url()->current()],
+                ]),
+            ]),
+        ]);
+    }
+
+    /**
+     * schema.org Accommodation for a cabana/room: where it is (address +
+     * map pin), how many guests it sleeps, and its amenities.
+     *
+     * @return array<string, mixed>
+     */
+    private function accommodationSchema(Vehicle $unit, ?string $image): array
+    {
+        return array_filter([
+            '@context' => 'https://schema.org',
+            '@type' => 'Accommodation',
+            'name' => (string) $unit->name,
+            'description' => Seo::description((string) $unit->description) ?: null,
+            'url' => url()->current(),
+            'image' => $unit->images->map(fn ($photo) => Seo::storageImage($photo->path))->filter()->values()->all() ?: $image,
+            'occupancy' => ['@type' => 'QuantitativeValue', 'maxValue' => $unit->seats],
+            'address' => $unit->address ? ['@type' => 'PostalAddress', 'streetAddress' => $unit->address, 'addressCountry' => 'LK'] : null,
+            'geo' => $unit->hasCoordinates() ? ['@type' => 'GeoCoordinates', 'latitude' => (float) $unit->lat, 'longitude' => (float) $unit->lng] : null,
+            'hasMap' => $unit->mapUrl(),
+            'amenityFeature' => array_map(
+                fn (string $feature) => ['@type' => 'LocationFeatureSpecification', 'name' => ucfirst(str_replace('_', ' ', $feature)), 'value' => true],
+                $unit->features ?? [],
+            ) ?: null,
+        ], fn ($value) => $value !== null && $value !== '');
     }
 
     /**
