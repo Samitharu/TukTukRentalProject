@@ -25,11 +25,11 @@ final class UserPolicy
 
     public function update(User $user, User $target): bool
     {
-        return $user->can('users.manage');
+        return $user->can('users.manage') && $user->canManageUser($target);
     }
 
     public function delete(User $user, User $target): bool
     {
-        return $user->can('users.manage') && $user->isNot($target);
+        return $user->can('users.manage') && $user->isNot($target) && $user->canManageUser($target);
     }
 }

@@ -1,5 +1,7 @@
 <x-admin::layouts.app :title="__('Users')">
-    <p><a href="{{ route('admin.users.create') }}" class="admin-btn">{{ __('Add user') }}</a></p>
+    @can('create', App\Models\User::class)
+        <p><a href="{{ route('admin.users.create') }}" class="admin-btn">{{ __('Add user') }}</a></p>
+    @endcan
 
     <div class="admin-card" style="padding:0;">
         <table class="admin-table">
@@ -20,7 +22,9 @@
                         <td>{{ $user->roles->pluck('name')->implode(', ') }}</td>
                         <td>{{ $user->is_active ? __('Active') : __('Inactive') }}</td>
                         <td>
-                            <a href="{{ route('admin.users.edit', $user) }}">{{ __('Edit') }}</a>
+                            @can('update', $user)
+                                <a href="{{ route('admin.users.edit', $user) }}">{{ __('Edit') }}</a>
+                            @endcan
                             @can('delete', $user)
                                 <form method="POST" action="{{ route('admin.users.destroy', $user) }}" style="display:inline;" onsubmit="return confirm('{{ __('Remove this user?') }}');">
                                     @csrf

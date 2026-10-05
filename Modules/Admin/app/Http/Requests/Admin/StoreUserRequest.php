@@ -7,7 +7,6 @@ namespace Modules\Admin\Http\Requests\Admin;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Spatie\Permission\Models\Role;
 
 final class StoreUserRequest extends FormRequest
 {
@@ -22,7 +21,7 @@ final class StoreUserRequest extends FormRequest
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'string', 'email', Rule::unique('users', 'email')],
             'password' => ['required', 'string', 'min:12', 'confirmed'],
-            'role' => ['required', 'string', Rule::exists(Role::class, 'name')],
+            'role' => ['required', 'string', Rule::in($this->user()->assignableRoles()->pluck('name')->all())],
         ];
     }
 }

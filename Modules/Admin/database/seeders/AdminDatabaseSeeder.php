@@ -9,6 +9,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 /**
  * Seeds the four roles named in the brief (§5) and the permissions that
@@ -50,9 +51,18 @@ class AdminDatabaseSeeder extends Seeder
         $superAdmin = Role::findOrCreate('Super Admin');
         $superAdmin->syncPermissions(Permission::all());
 
-        $manager = Role::findOrCreate('Manager');
-        $manager->syncPermissions([
-            'locales.view', 'users.view',
+        // The business owner's role — everything day-to-day, plus staff
+        // accounts (limited to roles at or below their own, see
+        // User::assignableRoles()). Was called "Manager": renamed in place
+        // so users already holding it keep it.
+        if (! Role::query()->where('name', 'Admin')->exists()) {
+            Role::query()->where('name', 'Manager')->update(['name' => 'Admin']);
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+        }
+
+        $admin = Role::findOrCreate('Admin');
+        $admin->syncPermissions([
+            'locales.view', 'users.view', 'users.manage',
             'fleet.view', 'fleet.manage',
             'packages.view', 'packages.manage', 'addons.manage',
             'pricing.manage',

@@ -8,10 +8,10 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Modules\Admin\Http\Requests\Admin\StoreUserRequest;
 use Modules\Admin\Http\Requests\Admin\UpdateUserRequest;
-use Spatie\Permission\Models\Role;
 
 final class UserController extends Controller
 {
@@ -24,11 +24,11 @@ final class UserController extends Controller
         return view('admin::admin.users.index', compact('users'));
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         $this->authorize('create', User::class);
 
-        $roles = Role::query()->orderBy('name')->get();
+        $roles = $request->user()->assignableRoles();
 
         return view('admin::admin.users.create', compact('roles'));
     }
@@ -49,11 +49,11 @@ final class UserController extends Controller
         return redirect()->route('admin.users.index')->with('status', __('User created.'));
     }
 
-    public function edit(User $user): View
+    public function edit(Request $request, User $user): View
     {
         $this->authorize('update', $user);
 
-        $roles = Role::query()->orderBy('name')->get();
+        $roles = $request->user()->assignableRoles();
 
         return view('admin::admin.users.edit', compact('user', 'roles'));
     }
