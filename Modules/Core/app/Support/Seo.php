@@ -121,6 +121,13 @@ final class Seo
     {
         $business = config('core.business');
         $real = fn (?string $value) => is_string($value) && $value !== '' && ! str_starts_with($value, '[') && ! str_contains($value, '.example') && ! str_contains($value, '000 0000');
+        $city = $real($business['city'] ?? null) ? $business['city'] : null;
+        $address = array_filter([
+            '@type' => 'PostalAddress',
+            'streetAddress' => $real($business['address'] ?? null) ? $business['address'] : null,
+            'addressLocality' => $city,
+            'addressCountry' => 'LK',
+        ], fn ($value) => $value !== null);
 
         return array_filter([
             '@context' => 'https://schema.org',
@@ -132,10 +139,10 @@ final class Seo
             'image' => self::defaultImage(),
             'telephone' => $real($business['phone'] ?? null) ? $business['phone'] : null,
             'email' => $real($business['email'] ?? null) ? $business['email'] : null,
-            'address' => $real($business['address'] ?? null)
-                ? ['@type' => 'PostalAddress', 'streetAddress' => $business['address'], 'addressCountry' => 'LK']
-                : ['@type' => 'PostalAddress', 'addressCountry' => 'LK'],
-            'areaServed' => ['@type' => 'Country', 'name' => 'Sri Lanka'],
+            'address' => $address,
+            'areaServed' => $city !== null
+                ? [['@type' => 'City', 'name' => $city], ['@type' => 'Country', 'name' => 'Sri Lanka']]
+                : ['@type' => 'Country', 'name' => 'Sri Lanka'],
         ], fn ($value) => $value !== null);
     }
 

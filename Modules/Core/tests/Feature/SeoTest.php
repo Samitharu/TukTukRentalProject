@@ -45,6 +45,19 @@ it('gives the home page canonical, hreflang, social and business tags', function
     expect($types)->toContain('WebSite')->toContain('AutoRental');
 });
 
+it('targets tuk tuk rental in Negombo on the home page', function (): void {
+    $html = $this->get('/en')->assertOk()->getContent();
+
+    expect($html)
+        ->toContain('<title>Tuk Tuk Rental in Negombo, Sri Lanka · '.e(config('app.name')).'</title>')
+        ->toMatch('#<meta name="description" content="[^"]*Negombo#')
+        ->toMatch('#<h1 class="hero__title">[^<]*<span[^>]*>tuk tuk.*?</span> in Negombo#s');
+
+    $business = collect(jsonLdBlocks($html))->firstWhere('@type', 'AutoRental');
+    expect($business['address']['addressLocality'])->toBe('Negombo')
+        ->and($business['areaServed'][0])->toBe(['@type' => 'City', 'name' => 'Negombo']);
+});
+
 it('drops filter and tracking query strings from the canonical URL but keeps the page number', function (): void {
     $this->get('/en/tuk-tuks?category=3&utm_source=fb')
         ->assertSee('<link rel="canonical" href="'.seoBase().'/en/tuk-tuks">', false);

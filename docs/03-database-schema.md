@@ -1,4 +1,4 @@
-# Database Schema — Miranda Tuk Tuk Rental
+# Database Schema — Happy Journy TukTuk Rental
 
 MySQL 8, InnoDB, `utf8mb4_unicode_ci`. All `*_at` datetime columns store UTC; display conversion to `Asia/Colombo` (or the customer's locale-implied timezone for emails) happens in the presentation layer only. Translatable text columns (marked **[T]**) are JSON columns consumed by `spatie/laravel-translatable`, keyed by locale code (`{"en": "...", "de": "...", "ru": "...", "fr": "..."}`).
 

@@ -1,4 +1,4 @@
-# Miranda Tuk Tuk Rental
+# Happy Journy TukTuk Rental
 
 Laravel 12 / PHP 8.3, modular (`nwidart/laravel-modules`), no Node/Vite — see [docs/01-architecture.md](docs/01-architecture.md) for the full architecture and [docs/00-phase-1-summary.md](docs/00-phase-1-summary.md) for the project's phased build plan.
 

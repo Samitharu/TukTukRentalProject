@@ -22,8 +22,9 @@ return [
     'footer_contact' => 'Contact',
     'all_rights_reserved' => 'All rights reserved.',
     'footer_developed_by' => 'Developed and maintained by :company',
-    'seo_home_title' => 'Tuk Tuk Rental & Beach Stays in Sri Lanka',
-    'faq_meta_description' => 'Answers to common questions about renting a tuk tuk in Sri Lanka: driving permits, pickup and delivery, insurance, payment and cancellations.',
+    'seo_home_title' => 'Tuk Tuk Rental in Negombo, Sri Lanka',
+    'seo_home_description' => 'Rent a tuk tuk in Negombo, close to Colombo airport. Transparent daily and hourly prices, insured and well-maintained tuk tuks, and 24/7 support.',
+    'faq_meta_description' => 'Common questions about renting a tuk tuk in Negombo, Sri Lanka: driving permits, pickup and delivery, insurance, payment and cancellations.',
     'whatsapp' => 'WhatsApp us',
     'whatsapp_default_message' => "Hi! I'd like to ask about renting a tuk tuk.",
     'cookie_consent_title' => 'Cookie notice',
@@ -31,8 +32,8 @@ return [
     'cookie_consent_accept' => 'Got it',
 
     // Homepage
-    'home_hero_title' => 'Explore Sri Lanka your way, in a tuk tuk you can trust',
-    'home_hero_lead' => 'Transparent pricing, well-maintained vehicles, and 24/7 support for visitors renting their first tuk tuk.',
+    'home_hero_title' => 'Rent a tuk tuk in Negombo and explore Sri Lanka your way',
+    'home_hero_lead' => 'Transparent pricing, well-maintained vehicles, and 24/7 support for visitors renting their first tuk tuk, a short ride from Colombo airport.',
     'home_hero_caption' => 'Small Ride, Big Adventures',
     'home_featured_packages' => 'Popular packages',
     'home_view_all_packages' => 'View all packages',
@@ -56,7 +57,7 @@ return [
 
     // Fleet
     'fleet_title' => 'Our Tuk Tuks',
-    'fleet_intro' => 'Browse our fleet — every vehicle shown is inspected, insured, and ready to go.',
+    'fleet_intro' => 'Browse our tuk tuks for rent in Negombo — every vehicle shown is inspected, insured, and ready to go.',
     'fleet_seats' => ':count seats',
     'fleet_transmission' => 'Transmission',
     'fleet_fuel_type' => 'Fuel type',

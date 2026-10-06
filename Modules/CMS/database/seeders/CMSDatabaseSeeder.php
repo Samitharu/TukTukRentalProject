@@ -31,7 +31,7 @@ class CMSDatabaseSeeder extends Seeder
         $pages = [
             [
                 'title' => 'About Us',
-                'content' => "<p>Miranda Tuk Tuk Rental was started by a small team of locals who grew tired of watching visitors get overcharged and under-informed by informal rental stands along the coast road. We wanted a rental experience a first-time visitor to Sri Lanka could trust: transparent pricing, well-maintained vehicles, and honest advice about routes, permits, and road conditions.</p><p>Every tuk tuk in our fleet is inspected between rentals, insured, and fitted with a phone holder and helmet as standard. We're a new business — small enough that you'll likely deal with the same two or three people throughout your rental, and motivated to earn every single review.</p>",
+                'content' => "<p>Happy Journy TukTuk Rental was started by a small team of locals who grew tired of watching visitors get overcharged and under-informed by informal rental stands along the coast road. We wanted a rental experience a first-time visitor to Sri Lanka could trust: transparent pricing, well-maintained vehicles, and honest advice about routes, permits, and road conditions.</p><p>Every tuk tuk in our fleet is inspected between rentals, insured, and fitted with a phone holder and helmet as standard. We're a new business — small enough that you'll likely deal with the same two or three people throughout your rental, and motivated to earn every single review.</p>",
             ],
             [
                 'title' => 'How It Works',
@@ -43,7 +43,7 @@ class CMSDatabaseSeeder extends Seeder
             ],
             [
                 'title' => 'Terms & Conditions',
-                'content' => '<p>[Placeholder — the business owner should confirm final wording with a local advisor before launch.] By renting a vehicle from Miranda Tuk Tuk Rental, you agree to: return the vehicle in the condition it was provided (normal wear excepted); hold a valid driving permit for the duration of the rental; not use the vehicle for any illegal purpose or to transport more passengers than the vehicle is rated for; and accept responsibility for traffic fines incurred during your rental period. Full terms will be finalized before go-live.</p>',
+                'content' => '<p>[Placeholder — the business owner should confirm final wording with a local advisor before launch.] By renting a vehicle from Happy Journy TukTuk Rental, you agree to: return the vehicle in the condition it was provided (normal wear excepted); hold a valid driving permit for the duration of the rental; not use the vehicle for any illegal purpose or to transport more passengers than the vehicle is rated for; and accept responsibility for traffic fines incurred during your rental period. Full terms will be finalized before go-live.</p>',
             ],
             [
                 'title' => 'Privacy Policy',

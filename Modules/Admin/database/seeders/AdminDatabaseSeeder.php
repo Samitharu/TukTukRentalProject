@@ -85,7 +85,7 @@ class AdminDatabaseSeeder extends Seeder
             $superAdminUser = User::query()->updateOrCreate(
                 ['email' => 'owner@mirandatuktuk.example'],
                 [
-                    'name' => 'Miranda Owner',
+                    'name' => 'Happy Journy Owner',
                     'password' => Hash::make('ChangeMe!12345'),
                     'is_active' => true,
                     'email_verified_at' => now(),

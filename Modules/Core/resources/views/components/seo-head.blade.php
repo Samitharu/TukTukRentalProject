@@ -28,7 +28,7 @@
 
     $noindex = request()->attributes->get(NoIndex::ATTRIBUTE) === true;
     $robots = $noindex ? 'noindex, nofollow' : ($robots ?? 'index, follow, max-image-preview:large');
-    $metaDescription = Seo::description($description) ?: Seo::description(__('core::front.home_hero_lead'));
+    $metaDescription = Seo::description($description) ?: Seo::description(__('core::front.seo_home_description'));
     $canonical ??= Seo::canonicalUrl();
     $alternates = $noindex ? [] : ($alternates ?? Seo::alternatesForCurrentPath());
     $defaultCode = Seo::defaultLocaleCode();

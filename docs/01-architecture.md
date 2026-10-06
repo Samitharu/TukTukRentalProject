@@ -1,4 +1,4 @@
-# Architecture Plan — Miranda Tuk Tuk Rental
+# Architecture Plan — Happy Journy TukTuk Rental
 
 ## 1. Stack summary
 

@@ -14,6 +14,9 @@ return [
         'whatsapp' => env('BUSINESS_WHATSAPP', '94000000000'), // digits only, no + or spaces
         'email' => env('BUSINESS_EMAIL', 'hello@mirandatuktuk.example'),
         'address' => env('BUSINESS_ADDRESS', '[Address pending — see docs/01-architecture.md §7]'),
+        // The town the business operates from — the local-search target
+        // ("tuk tuk rental Negombo") in the home page's structured data.
+        'city' => env('BUSINESS_CITY', 'Negombo'),
         // Short line shown under the brand name in the header logo mark
         // (e.g. "Ride Sri Lanka") — optional, blank by default.
         'tagline' => env('BUSINESS_TAGLINE', ''),
