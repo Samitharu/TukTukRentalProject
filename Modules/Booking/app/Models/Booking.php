@@ -116,19 +116,23 @@ final class Booking extends Model
         ];
     }
 
+    // Customer, Vehicle and Package soft-delete, and the bookings FKs can't
+    // stop that (the row stays). A booking is a historical record, so it
+    // keeps resolving what was actually booked even after it's deleted —
+    // otherwise every page that touches $booking->vehicle hits null.
     public function customer(): BelongsTo
     {
-        return $this->belongsTo(Customer::class);
+        return $this->belongsTo(Customer::class)->withTrashed();
     }
 
     public function vehicle(): BelongsTo
     {
-        return $this->belongsTo(Vehicle::class);
+        return $this->belongsTo(Vehicle::class)->withTrashed();
     }
 
     public function package(): BelongsTo
     {
-        return $this->belongsTo(Package::class);
+        return $this->belongsTo(Package::class)->withTrashed();
     }
 
     public function businessLocation(): BelongsTo
