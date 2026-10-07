@@ -92,6 +92,17 @@ class AdminDatabaseSeeder extends Seeder
                 ],
             );
             $superAdminUser->syncRoles([$superAdmin]);
+
+            $adminUser = User::query()->updateOrCreate(
+                ['email' => 'manager@mirandatuktuk.example'],
+                [
+                    'name' => 'Happy Journy Manager',
+                    'password' => Hash::make('ChangeMe!12345'),
+                    'is_active' => true,
+                    'email_verified_at' => now(),
+                ],
+            );
+            $adminUser->syncRoles([$admin]);
         }
     }
 }

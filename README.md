@@ -21,12 +21,14 @@ php artisan migrate --seed
 php artisan serve
 ```
 
-The seeder creates one Super Admin for local development only (`app()->isProduction()` guard in `AdminDatabaseSeeder`):
+The seeder creates two staff accounts for local development only (`app()->isProduction()` guard in `AdminDatabaseSeeder`). Both log in at `http://127.0.0.1:8000/control-panel/login`:
 
-- URL: `http://127.0.0.1:8000/control-panel/login`
-- Email: `owner@mirandatuktuk.example`
-- Password: `ChangeMe!12345`
-- You will be forced into mandatory 2FA setup on first login (Super Admin is a 2FA-enforced role) — scan the QR code with any TOTP app.
+| Role | Email | Password |
+| --- | --- | --- |
+| Super Admin | `owner@mirandatuktuk.example` | `ChangeMe!12345` |
+| Admin (formerly Manager) | `manager@mirandatuktuk.example` | `ChangeMe!12345` |
+
+The Super Admin is forced into mandatory 2FA setup on first login (a 2FA-enforced role) — scan the QR code with any TOTP app. The Admin is not, unless added to `TWO_FACTOR_ENFORCED_ROLES`.
 
 ## Running tests
 
