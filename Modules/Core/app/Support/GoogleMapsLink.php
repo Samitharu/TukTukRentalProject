@@ -148,6 +148,42 @@ final class GoogleMapsLink
         return null;
     }
 
+    /**
+     * Fills validated form data's lat/lng from its `google_maps_url` when
+     * the form didn't supply a pin — or supplied the old pin alongside a
+     * new link (a short link the browser couldn't read, so the map still
+     * showed the previous place).
+     *
+     * @param  array<string, mixed>  $data
+     * @param  object|null  $existing  the model being edited (google_maps_url, lat, lng)
+     * @return array{0: array<string, mixed>, 1: bool}  data, and whether a pasted link without coordinates could be read
+     */
+    public static function fillCoordinates(array $data, ?object $existing = null): array
+    {
+        $url = $data['google_maps_url'] ?? null;
+
+        if (! is_string($url) || $url === '') {
+            return [$data, true];
+        }
+
+        $hasPin = ($data['lat'] ?? null) !== null;
+        $stalePin = $existing !== null
+            && $hasPin
+            && $existing->google_maps_url !== $url
+            && (float) $data['lat'] === (float) $existing->lat
+            && (float) ($data['lng'] ?? 0) === (float) $existing->lng;
+
+        if ($hasPin && ! $stalePin) {
+            return [$data, true];
+        }
+
+        $coordinates = self::resolveCoordinates($url);
+
+        return $coordinates !== null
+            ? [[...$data, ...$coordinates], true]
+            : [$data, false];
+    }
+
     private static function isGoogleHost(string $url): bool
     {
         $host = strtolower((string) parse_url($url, PHP_URL_HOST));

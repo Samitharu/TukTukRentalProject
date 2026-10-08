@@ -16,7 +16,12 @@
                 @foreach ($locations as $location)
                     <tr>
                         <td>{{ $location->name }}</td>
-                        <td>{{ $location->address }}</td>
+                        <td>
+                            {{ $location->address }}
+                            @if ($location->mapUrl())
+                                <a href="{{ $location->mapUrl() }}" target="_blank" rel="noopener noreferrer">{{ __('Map') }}</a>
+                            @endif
+                        </td>
                         <td>{{ $location->is_pickup_point ? __('Yes') : __('No') }}</td>
                         <td>{{ $location->is_active ? __('Yes') : __('No') }}</td>
                         <td>

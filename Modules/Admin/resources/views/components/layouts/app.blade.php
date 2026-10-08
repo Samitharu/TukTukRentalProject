@@ -6,7 +6,12 @@
     <div class="admin-shell">
         <aside class="admin-sidebar">
             <a href="{{ route('admin.dashboard') }}" class="admin-sidebar__brand">
-                <span class="admin-sidebar__brand-mark" aria-hidden="true">{{ mb_substr(config('app.name'), 0, 1) }}</span>
+                @php $logoUrl = \Modules\Core\Models\SiteSetting::current()->logoUrl(); @endphp
+                @if ($logoUrl)
+                    <span class="admin-sidebar__brand-mark admin-sidebar__brand-mark--logo" aria-hidden="true"><img src="{{ $logoUrl }}" alt=""></span>
+                @else
+                    <span class="admin-sidebar__brand-mark" aria-hidden="true">{{ mb_substr(config('app.name'), 0, 1) }}</span>
+                @endif
                 <span class="admin-sidebar__brand-copy">
                     <strong>{{ config('app.name') }}</strong>
                     <small>{{ __('Admin workspace') }}</small>

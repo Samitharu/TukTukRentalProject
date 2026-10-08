@@ -16,6 +16,13 @@
             <p><strong>{{ __('Pickup') }}:</strong> {{ $booking->start_at->format('Y-m-d') }}</p>
             <p><strong>{{ __('Return') }}:</strong> {{ $booking->end_at->format('Y-m-d') }}</p>
         @endif
+        @if ($booking->pickup_type === 'office' && $booking->businessLocation)
+            <p><strong>{{ __('Pickup location') }}:</strong> {{ $booking->businessLocation->name }}
+                @if ($booking->businessLocation->mapUrl())
+                    (<a href="{{ $booking->businessLocation->mapUrl() }}" target="_blank" rel="noopener noreferrer">{{ __('View on Google Maps') }}</a>)
+                @endif
+            </p>
+        @endif
         <p><strong>{{ __('Total') }}:</strong> {{ $booking->total_amount }} {{ $booking->currency_code }} ({{ __('deposit') }}: {{ $booking->deposit_amount }})</p>
         @if ($booking->extraCharges->isNotEmpty())
             <p><strong>{{ __('Extra charges') }}:</strong></p>

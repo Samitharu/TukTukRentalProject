@@ -48,6 +48,12 @@
                         @include('fleet::front._location', ['unit' => $booking->vehicle])
                     </div>
                 </div>
+            @elseif ($booking->pickup_type === 'office' && $booking->businessLocation?->hasLocation())
+                <div class="card" style="margin-bottom:var(--space-4);">
+                    <div class="card__body">
+                        @include('fleet::front._location', ['unit' => $booking->businessLocation])
+                    </div>
+                </div>
             @endif
 
             @if (session('review_submitted') || $review || $canReview)

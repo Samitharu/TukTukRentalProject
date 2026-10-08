@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Modules\Availability\Http\Requests\Admin\StoreBusinessLocationRequest;
 use Modules\Availability\Http\Requests\Admin\UpdateBusinessLocationRequest;
 use Modules\Availability\Models\BusinessLocation;
+use Modules\Core\Support\GoogleMapsLink;
 
 final class BusinessLocationController extends Controller
 {
@@ -31,13 +32,13 @@ final class BusinessLocationController extends Controller
 
     public function store(StoreBusinessLocationRequest $request): RedirectResponse
     {
-        $data = $request->validated();
+        [$data, $locationFound] = GoogleMapsLink::fillCoordinates($request->validated());
         $data['is_pickup_point'] = $request->boolean('is_pickup_point', true);
         $data['is_active'] = $request->boolean('is_active', true);
 
         BusinessLocation::query()->create($data);
 
-        return redirect()->route('admin.locations.index')->with('status', __('Location added.'));
+        return redirect()->route('admin.locations.index')->with('status', $this->savedMessage(__('Location added.'), $locationFound));
     }
 
     public function edit(BusinessLocation $location): View
@@ -49,13 +50,13 @@ final class BusinessLocationController extends Controller
 
     public function update(UpdateBusinessLocationRequest $request, BusinessLocation $location): RedirectResponse
     {
-        $data = $request->validated();
+        [$data, $locationFound] = GoogleMapsLink::fillCoordinates($request->validated(), $location);
         $data['is_pickup_point'] = $request->boolean('is_pickup_point');
         $data['is_active'] = $request->boolean('is_active');
 
         $location->update($data);
 
-        return redirect()->route('admin.locations.index')->with('status', __('Location updated.'));
+        return redirect()->route('admin.locations.index')->with('status', $this->savedMessage(__('Location updated.'), $locationFound));
     }
 
     public function destroy(BusinessLocation $location): RedirectResponse
@@ -65,5 +66,12 @@ final class BusinessLocationController extends Controller
         $location->delete();
 
         return redirect()->route('admin.locations.index')->with('status', __('Location removed.'));
+    }
+
+    private function savedMessage(string $message, bool $locationFound): string
+    {
+        return $locationFound
+            ? $message
+            : $message.' '.__('We could not read the exact spot from that Google Maps link — open the location and drop the pin on the map so customers see it.');
     }
 }

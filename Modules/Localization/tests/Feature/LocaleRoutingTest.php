@@ -65,5 +65,5 @@ it('serves the homepage in the requested active locale', function (): void {
     $response->assertSee('lang="de"', false);
     // The real homepage replaced the Phase 2 "coming soon" placeholder in
     // Phase 5 — assert on its German hero copy instead.
-    $response->assertSee('Entdecken Sie Sri Lanka auf Ihre Weise', false);
+    $response->assertSee('entdecken Sie Sri Lanka auf Ihre Weise', false);
 });

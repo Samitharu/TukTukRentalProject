@@ -98,3 +98,23 @@ it('shows the uploaded logo in the public header and no logo falls back to the i
     $response->assertSee('site-header__logo-img', false);
     $response->assertDontSee('site-header__logo-icon', false);
 });
+
+it('shows the uploaded logo in the admin sidebar and as the browser tab icon', function (): void {
+    $admin = User::factory()->create();
+    $admin->assignRole('Branding Manager');
+
+    $this->actingAs($admin)->get('/control-panel/branding')
+        ->assertOk()
+        ->assertDontSee('admin-sidebar__brand-mark--logo', false)
+        ->assertDontSee('rel="icon"', false);
+
+    $this->actingAs($admin)->post('/control-panel/branding', [
+        'logo' => UploadedFile::fake()->image('logo.png', 400, 150),
+    ]);
+    $logoUrl = SiteSetting::current()->logoUrl();
+
+    $this->actingAs($admin)->get('/control-panel/branding')
+        ->assertOk()
+        ->assertSee('admin-sidebar__brand-mark--logo', false)
+        ->assertSee('<link rel="icon" href="'.$logoUrl.'">', false);
+});

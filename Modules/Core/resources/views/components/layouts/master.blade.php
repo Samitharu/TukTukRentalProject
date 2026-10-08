@@ -9,6 +9,12 @@
 
     <title>{{ $title ?? config('app.name') }}</title>
 
+    {{-- Browser tab icon: the logo uploaded under Branding (public/favicon.ico is empty). --}}
+    @if ($faviconUrl = \Modules\Core\Models\SiteSetting::current()->logoUrl())
+        <link rel="icon" href="{{ $faviconUrl }}">
+        <link rel="apple-touch-icon" href="{{ $faviconUrl }}">
+    @endif
+
     @if (! empty($description ?? null))
         <meta name="description" content="{{ $description }}">
     @endif

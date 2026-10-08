@@ -1,5 +1,6 @@
 {{-- A unit's location: OpenStreetMap preview plus "Open in Google Maps" /
-     "Get directions" links. Expects $unit (a Vehicle) with a location;
+     "Get directions" links. Expects $unit (a Vehicle, or a pickup
+     BusinessLocation — both use HasMapLocation) with a location;
      $heading optionally sets the heading level for where it is nested. --}}
 @php $heading = $heading ?? 'h2'; @endphp
 <div class="unit-location">

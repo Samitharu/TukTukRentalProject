@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Modules\Core\Support\HasMapLocation;
 use Modules\Localization\Support\HasTranslatableSlug;
 use Spatie\Translatable\HasTranslations;
 
@@ -42,6 +43,7 @@ final class Vehicle extends Model
 {
     /** @use HasFactory<\Modules\Fleet\Database\Factories\VehicleFactory> */
     use HasFactory;
+    use HasMapLocation;
     use HasTranslatableSlug;
     use HasTranslations;
     use SoftDeletes;
@@ -129,40 +131,6 @@ final class Vehicle extends Model
         return $this->plate_no !== null && $this->plate_no !== ''
             ? $this->plate_no.' — '.$this->name
             : (string) $this->name;
-    }
-
-    public function hasCoordinates(): bool
-    {
-        return $this->lat !== null && $this->lng !== null;
-    }
-
-    public function hasLocation(): bool
-    {
-        return $this->hasCoordinates() || filled($this->google_maps_url);
-    }
-
-    /**
-     * Opens the place in Google Maps: the admin's own link when there is
-     * one (it may carry the business listing, reviews, photos), otherwise
-     * a search for the pinned coordinates.
-     */
-    public function mapUrl(): ?string
-    {
-        if (filled($this->google_maps_url)) {
-            return $this->google_maps_url;
-        }
-
-        return $this->hasCoordinates()
-            ? 'https://www.google.com/maps/search/?api=1&query='.$this->lat.','.$this->lng
-            : null;
-    }
-
-    /** Turn-by-turn directions from wherever the customer is now. */
-    public function directionsUrl(): ?string
-    {
-        return $this->hasCoordinates()
-            ? 'https://www.google.com/maps/dir/?api=1&destination='.$this->lat.','.$this->lng
-            : null;
     }
 
     public function scopeActive(Builder $query): Builder

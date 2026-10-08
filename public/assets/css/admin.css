@@ -82,6 +82,20 @@ a {
     font-weight: 800;
 }
 
+/* The logo uploaded under Branding, on a light tile so a dark or
+   transparent logo still reads against the green sidebar. */
+.admin-sidebar__brand-mark--logo {
+    padding: 0.2rem;
+    background: #fff;
+    overflow: hidden;
+}
+
+.admin-sidebar__brand-mark--logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
 .admin-sidebar__brand-copy {
     display: flex;
     flex-direction: column;

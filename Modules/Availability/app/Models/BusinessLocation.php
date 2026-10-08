@@ -7,12 +7,14 @@ namespace Modules\Availability\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Modules\Core\Support\HasMapLocation;
 use Spatie\Translatable\HasTranslations;
 
 /**
  * @property int $id
  * @property array<string,string> $name
  * @property string|null $address
+ * @property string|null $google_maps_url
  * @property float|null $lat
  * @property float|null $lng
  * @property bool $is_pickup_point
@@ -22,6 +24,7 @@ final class BusinessLocation extends Model
 {
     /** @use HasFactory<\Modules\Availability\Database\Factories\BusinessLocationFactory> */
     use HasFactory;
+    use HasMapLocation;
     use HasTranslations;
 
     public array $translatable = ['name'];
@@ -29,6 +32,7 @@ final class BusinessLocation extends Model
     protected $fillable = [
         'name',
         'address',
+        'google_maps_url',
         'lat',
         'lng',
         'is_pickup_point',

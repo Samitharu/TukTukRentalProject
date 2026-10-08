@@ -114,9 +114,7 @@ final class VehicleController extends Controller
 
     /**
      * Blanks vehicle-only fields for stays and fills the pin from the
-     * Google Maps link when the form didn't supply one — or supplied the
-     * old pin alongside a new link (a short link the browser couldn't
-     * read, so the map still showed the previous place).
+     * Google Maps link (see GoogleMapsLink::fillCoordinates()).
      *
      * @param  array<string, mixed>  $data
      * @return array{0: array<string, mixed>, 1: bool}  data, and whether a pasted link without coordinates could be read
@@ -133,28 +131,8 @@ final class VehicleController extends Controller
             $data['features'] ?? [],
             UnitRules::FEATURES[$isStay ? VehicleCategory::KIND_STAY : VehicleCategory::KIND_VEHICLE],
         ));
-        $url = $data['google_maps_url'] ?? null;
 
-        if (! is_string($url) || $url === '') {
-            return [$data, true];
-        }
-
-        $hasPin = ($data['lat'] ?? null) !== null;
-        $stalePin = $existing !== null
-            && $hasPin
-            && $existing->google_maps_url !== $url
-            && (float) $data['lat'] === (float) $existing->lat
-            && (float) ($data['lng'] ?? 0) === (float) $existing->lng;
-
-        if ($hasPin && ! $stalePin) {
-            return [$data, true];
-        }
-
-        $coordinates = GoogleMapsLink::resolveCoordinates($url);
-
-        return $coordinates !== null
-            ? [[...$data, ...$coordinates], true]
-            : [$data, false];
+        return GoogleMapsLink::fillCoordinates($data, $existing);
     }
 
     private function savedMessage(string $message, bool $locationFound): string
