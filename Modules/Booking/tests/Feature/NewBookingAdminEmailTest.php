@@ -187,9 +187,12 @@ it('delivers through a real queue worker run', function (): void {
     emailTestBook($this)->assertRedirect();
 
     $sent = app('mailer')->getSymfonyTransport()->messages();
+    $subjects = $sent->map(fn ($message) => $message->getOriginalMessage()->getSubject());
 
-    expect($sent)->toHaveCount(1)
-        ->and($sent->first()->getOriginalMessage()->getSubject())->toStartWith('New booking MTR-');
+    // The staff email, plus the customer's own confirmation
+    // (CustomerConfirmationEmailTest).
+    expect($sent)->toHaveCount(2)
+        ->and($subjects->filter(fn ($subject) => str_starts_with($subject, 'New booking MTR-')))->toHaveCount(1);
 });
 
 it('still completes the customer\'s booking if the queue backend is down', function (): void {

@@ -16,6 +16,7 @@ class EventServiceProvider extends ServiceProvider
     protected $listen = [
         \Modules\Booking\Events\BookingPlaced::class => [
             \Modules\Booking\Listeners\SendNewBookingNotificationToAdmins::class,
+            \Modules\Booking\Listeners\SendBookingConfirmationToCustomer::class,
         ],
     ];
 
