@@ -37,16 +37,18 @@ final class CustomerService
             }
         }
 
-        // An existing customer's core identity fields are refreshed from
-        // the latest booking's driver details (nationality/passport can
-        // change trip to trip; the account itself does not change).
-        $customer->fill([
-            'full_name' => $data['full_name'],
-            'phone' => $data['phone'] ?? $customer->phone,
-            'nationality' => $data['nationality'] ?? $customer->nationality,
-            'passport_number' => $data['passport_number'] ?? $customer->passport_number,
-            'locale_preference' => $data['locale_preference'] ?? $customer->locale_preference,
-        ])->save();
+        // Guest checkout proves nothing about who owns an email address, so
+        // a checkout may only fill in what an existing customer is missing —
+        // never replace it. Otherwise anyone who knows a customer's email
+        // could rewrite their name, phone and passport number (and with
+        // them every earlier booking, receipt and admin view).
+        foreach (['full_name', 'phone', 'nationality', 'passport_number', 'locale_preference'] as $field) {
+            if (blank($customer->{$field}) && filled($data[$field] ?? null)) {
+                $customer->{$field} = $data[$field];
+            }
+        }
+
+        $customer->save();
 
         return $customer;
     }

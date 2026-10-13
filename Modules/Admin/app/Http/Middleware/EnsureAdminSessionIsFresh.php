@@ -27,8 +27,10 @@ final class EnsureAdminSessionIsFresh
 
         $now = now();
 
-        $idleExpired = $lastActivity !== null && $now->diffInMinutes($lastActivity) > $idleMinutes;
-        $absoluteExpired = $loginAt !== null && $now->diffInHours($loginAt) > $absoluteHours;
+        // Earlier → later: Carbon 3's diffIn*() is signed, so the reverse
+        // ($now->diffInMinutes($past)) is negative and would never expire.
+        $idleExpired = $lastActivity !== null && $lastActivity->diffInMinutes($now) > $idleMinutes;
+        $absoluteExpired = $loginAt !== null && $loginAt->diffInHours($now) > $absoluteHours;
 
         if ($idleExpired || $absoluteExpired) {
             Auth::logout();

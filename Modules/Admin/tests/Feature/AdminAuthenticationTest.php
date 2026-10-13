@@ -73,6 +73,43 @@ it('rejects an inactive user even with correct credentials', function (): void {
     $this->assertGuest();
 });
 
+it('keeps an admin signed in while they stay active', function (): void {
+    $user = User::factory()->create(['password' => Hash::make('a-very-strong-password'), 'is_active' => true]);
+    $this->post('/control-panel/login', ['email' => $user->email, 'password' => 'a-very-strong-password']);
+
+    $this->travel((int) config('admin.session.idle_minutes') - 1)->minutes();
+
+    $this->get('/control-panel')->assertOk();
+    $this->assertAuthenticatedAs($user);
+});
+
+it('signs an admin out after the idle timeout', function (): void {
+    $user = User::factory()->create(['password' => Hash::make('a-very-strong-password'), 'is_active' => true]);
+    $this->post('/control-panel/login', ['email' => $user->email, 'password' => 'a-very-strong-password']);
+
+    $this->travel((int) config('admin.session.idle_minutes') + 1)->minutes();
+
+    $this->get('/control-panel')->assertRedirect('/control-panel/login');
+    $this->assertGuest();
+});
+
+it('signs an active admin out once the absolute session lifetime is up', function (): void {
+    config(['admin.session.absolute_hours' => 1]);
+    $user = User::factory()->create(['password' => Hash::make('a-very-strong-password'), 'is_active' => true]);
+    $this->post('/control-panel/login', ['email' => $user->email, 'password' => 'a-very-strong-password']);
+
+    // Active every 15 minutes — never idle — then past the hour.
+    for ($i = 0; $i < 3; $i++) {
+        $this->travel(15)->minutes();
+        $this->get('/control-panel')->assertOk();
+    }
+
+    $this->travel(16)->minutes();
+
+    $this->get('/control-panel')->assertRedirect('/control-panel/login');
+    $this->assertGuest();
+});
+
 it('logs the user out and invalidates the session', function (): void {
     $user = User::factory()->create();
 

@@ -23,6 +23,7 @@ use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\DeliveryZone;
 use Modules\Availability\Services\AvailabilityService;
 use Modules\Booking\Exceptions\CouponUnavailableException;
+use Modules\Booking\Exceptions\HoldExpiredException;
 use Modules\Booking\Exceptions\NoVehicleAvailableException;
 use Modules\Booking\Http\Requests\Front\StepAddonsRequest;
 use Modules\Booking\Http\Requests\Front\StepDatesRequest;
@@ -330,12 +331,6 @@ final class BookingFlowController extends Controller
             return $this->couponNoLongerValid();
         }
 
-        $addonSelections = array_map(
-            fn (int $addonId, int $qty) => ['addon_id' => $addonId, 'quantity' => $qty],
-            array_keys($state['addons'] ?? []),
-            array_values($state['addons'] ?? []),
-        );
-
         $customerData = [
             'email' => $state['email'],
             'full_name' => trim($state['first_name'].' '.$state['last_name']),
@@ -362,7 +357,6 @@ final class BookingFlowController extends Controller
                 ],
                 customerData: $customerData,
                 price: $price,
-                addonSelections: $addonSelections,
             );
         } catch (NoVehicleAvailableException|UniqueConstraintViolationException $exception) {
             // A double-clicked "Confirm": the other request (same hold key)
@@ -381,9 +375,17 @@ final class BookingFlowController extends Controller
                     ->withErrors(['package_id' => __(BookingFlowState::isStay() ? 'core::front.booking_no_unit_available_stay' : 'core::front.booking_no_vehicle_available')]);
             }
 
-            $booking = $this->bookings->confirmHold($ownHold, $customerData, $price, $addonSelections);
+            $booking = $this->bookings->confirmHold($ownHold, $customerData, $price);
         } catch (CouponUnavailableException) {
             return $this->couponNoLongerValid();
+        } catch (HoldExpiredException) {
+            // This checkout's hold_key points at a hold that was released
+            // or expired (an earlier confirm failed). Retrying with the same
+            // key would fail the same way every time — start a fresh one.
+            BookingFlowState::put(['hold_key' => null]);
+
+            return redirect()->route('booking.review')
+                ->withErrors(['package_id' => __('core::front.booking_hold_expired')]);
         }
 
         BookingFlowState::clear();
@@ -554,7 +556,8 @@ final class BookingFlowController extends Controller
 
     private function couponNoLongerValid(): RedirectResponse
     {
-        BookingFlowState::put(['coupon_code' => null]);
+        // The failed confirm released its hold; a new key gets a new one.
+        BookingFlowState::put(['coupon_code' => null, 'hold_key' => null]);
 
         return redirect()->route('booking.review')
             ->withErrors(['coupon_code' => __('core::front.booking_coupon_no_longer_valid')]);

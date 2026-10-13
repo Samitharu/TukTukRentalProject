@@ -6,13 +6,20 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 use Modules\Availability\Models\AvailabilityBlackout;
 use Modules\Availability\Models\BusinessLocation;
+use Modules\Availability\Models\VehicleReservationSlot;
 use Modules\Availability\Services\AvailabilityService;
+use Modules\Booking\Exceptions\CouponUnavailableException;
 use Modules\Booking\Models\Booking;
+use Modules\Booking\Models\BookingHold;
 use Modules\Booking\Services\BookingService;
+use Modules\Customer\Models\Customer;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Fleet\Models\VehicleMaintenanceLog;
 use Modules\Localization\Models\Locale;
+use Modules\Package\Models\Addon;
 use Modules\Package\Models\Package;
+use Modules\Pricing\Models\Coupon;
+use Modules\Pricing\Services\PricingService;
 
 /**
  * The public wizard's guard rails: what a customer is told (error /
@@ -195,6 +202,95 @@ it('creates exactly one booking when "Confirm" is submitted twice', function ():
     expect(Booking::query()->count())->toBe(1)
         ->and($second->headers->get('Location'))->toBe($first->headers->get('Location'))
         ->and($first->headers->get('Location'))->toContain('/en/booking/confirmation/MTR-');
+});
+
+it('recovers from a checkout whose hold has expired instead of failing on every retry', function (): void {
+    safetyThroughDetails($this);
+    $this->get('/en/booking/review')->assertOk();
+
+    // An earlier confirm created a hold under this checkout's key, then failed.
+    app(BookingService::class)->createHold([
+        'hold_key' => session('booking_flow.hold_key'),
+        'start_at' => $this->start->toDateString(),
+        'end_at' => $this->end->toDateString(),
+        'vehicle_id' => $this->vehicleA->id,
+        'package_id' => $this->package->id,
+    ]);
+    $this->travel((int) config('booking.hold_minutes') + 1)->minutes();
+
+    $this->post('/en/booking/confirm', ['terms_accepted' => '1'])
+        ->assertRedirect('/en/booking/review')
+        ->assertSessionHasErrors(['package_id' => 'Your reservation timed out before it was confirmed. Please check the details below and confirm again.']);
+
+    expect(VehicleReservationSlot::query()->count())->toBe(0);
+
+    $this->get('/en/booking/review')->assertOk();
+    $this->post('/en/booking/confirm', ['terms_accepted' => '1'])
+        ->assertRedirectContains('/en/booking/confirmation/MTR-');
+
+    expect(Booking::query()->count())->toBe(1);
+});
+
+it('frees the vehicle at once when a confirm fails after its hold was created', function (): void {
+    $coupon = Coupon::query()->create(['code' => 'LAST1', 'type' => Coupon::TYPE_PERCENT, 'value' => 10, 'is_active' => true, 'usage_limit' => 1, 'usage_count' => 0]);
+    $price = app(PricingService::class)->calculate($this->package, $this->start, 3, coupon: $coupon);
+
+    // Someone else redeems the coupon's last use between pricing and confirming.
+    $coupon->update(['usage_count' => 1]);
+
+    expect(fn () => app(BookingService::class)->createManualBooking(
+        holdData: ['hold_key' => (string) Str::uuid(), 'start_at' => $this->start->toDateString(), 'end_at' => $this->end->toDateString(), 'package_id' => $this->package->id],
+        customerData: ['email' => 'ana.silva@example.test', 'full_name' => 'Ana Silva', 'pickup_type' => 'office'],
+        price: $price,
+    ))->toThrow(CouponUnavailableException::class);
+
+    expect(VehicleReservationSlot::query()->count())->toBe(0)
+        ->and(BookingHold::query()->sole()->status)->toBe(BookingHold::STATUS_RELEASED);
+});
+
+it('books only the add-ons that were priced, never one the package does not offer', function (): void {
+    $offered = Addon::factory()->create(['is_active' => true, 'max_quantity' => 2, 'price' => 5, 'pricing_unit' => Addon::UNIT_FLAT]);
+    $notOffered = Addon::factory()->create(['is_active' => true, 'max_quantity' => 5, 'price' => 50, 'pricing_unit' => Addon::UNIT_FLAT]);
+    $this->package->addons()->attach($offered->id, ['is_included' => false]);
+
+    safetyDates($this);
+    $this->post('/en/booking/package', ['package_id' => $this->package->id]);
+    // A crafted form: more than max_quantity, plus an add-on this package doesn't offer.
+    $this->post('/en/booking/addons', ['addons' => [$offered->id => 9, $notOffered->id => 3]]);
+    $this->post('/en/booking/details', safetyDriver());
+    $this->get('/en/booking/review')->assertOk();
+    $this->post('/en/booking/confirm', ['terms_accepted' => '1']);
+
+    $booking = Booking::query()->with('addons')->sole();
+
+    expect($booking->addons)->toHaveCount(1)
+        ->and($booking->addons->first()->addon_id)->toBe($offered->id)
+        ->and($booking->addons->first()->quantity)->toBe(2)
+        ->and((float) $booking->total_amount)->toEqualWithDelta(70.0, 0.01); // 20/day * 3 days + 2 * 5
+});
+
+it('never lets a checkout overwrite an existing customer\'s details', function (): void {
+    $customer = Customer::query()->create([
+        'email' => 'ana.silva@example.test', 'full_name' => 'Ana Silva',
+        'phone' => '+351 912 345 678', 'nationality' => 'PT', 'passport_number' => 'X1234567',
+    ]);
+
+    safetyDates($this);
+    $this->post('/en/booking/package', ['package_id' => $this->package->id]);
+    $this->post('/en/booking/addons', []);
+    $this->post('/en/booking/details', safetyDriver([
+        'first_name' => 'Someone', 'last_name' => 'Else', 'phone' => '+1 555 0100', 'nationality' => 'US', 'passport_number' => 'EVIL0001',
+    ]));
+    $this->get('/en/booking/review')->assertOk();
+    $this->post('/en/booking/confirm', ['terms_accepted' => '1']);
+
+    $customer->refresh();
+
+    expect(Booking::query()->sole()->customer_id)->toBe($customer->id)
+        ->and($customer->full_name)->toBe('Ana Silva')
+        ->and($customer->phone)->toBe('+351 912 345 678')
+        ->and($customer->nationality)->toBe('PT')
+        ->and($customer->passport_number)->toBe('X1234567');
 });
 
 it('rejects a stale session whose pickup date has passed', function (): void {

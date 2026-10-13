@@ -71,8 +71,19 @@ Both are **queued**, so the booking never waits on the mail server — but that 
    [Service]
    User=www-data
    WorkingDirectory=/var/www/tuktuk
-   ExecStart=/usr/bin/php artisan queue:work --sleep=3 --tries=1 --max-time=3600
+   # Ubuntu's PHP CLI has NO memory limit (memory_limit = -1), so cap it
+   # here. The worker also exits by itself (and is restarted) once it
+   # passes 192 MB, or after 500 jobs or an hour, whichever comes first.
+   ExecStart=/usr/bin/php -d memory_limit=256M artisan queue:work --sleep=3 --tries=1 --memory=192 --max-jobs=500 --max-time=3600
    Restart=always
+   # Without a delay, a worker that keeps crashing is respawned every
+   # 100 ms, and systemd gives up for good after 5 quick failures.
+   RestartSec=10
+   # A hard ceiling for the whole worker process. And if the server runs
+   # out of memory anyway, the kernel kills this worker (it restarts on
+   # its own) instead of MySQL or PHP-FPM, which is what takes the site down.
+   MemoryMax=320M
+   OOMScoreAdjust=500
 
    [Install]
    WantedBy=multi-user.target
@@ -82,11 +93,34 @@ Both are **queued**, so the booking never waits on the mail server — but that 
    sudo systemctl daemon-reload && sudo systemctl enable --now tuktuk-queue
    ```
 
-   After every deploy, run `php artisan queue:restart` so the worker picks up the new code.
+   After every deploy, run `php artisan queue:restart` so the worker picks up the new code. Never start a second `queue:work` by hand while the service is running. Every worker is a full copy of the app in memory.
+
 4. Test it: `php artisan tinker` → `Mail::raw('Test', fn ($m) => $m->to('you@example.com')->subject('Test'));`
 
 Gmail allows roughly 500 emails a day from one account — plenty for booking emails. Failed sends are retried 5 times over about an hour and then appear in `php artisan queue:failed`.
 
+## Scheduler (required)
+
+Abandoned checkouts hold their tuk tuk until `booking:release-expired-holds` frees it, and that command runs only through Laravel's scheduler. Without this cron entry, a held vehicle stays blocked for those dates **forever**:
+
+```bash
+sudo crontab -u www-data -e
+```
+
+```cron
+* * * * * cd /var/www/tuktuk && php -d memory_limit=256M artisan schedule:run >> /dev/null 2>&1
+```
+
+Check it with `php artisan schedule:list`.
+
+## Small servers: add swap
+
+Lightsail instances come with no swap. MySQL, PHP-FPM and the queue worker share the RAM, and when it runs out the kernel kills a process, usually MySQL, which takes the site down. A 1 GB swap file turns that into a short slowdown instead:
+
+```bash
+sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
 ## Running tests
 
 ```bash

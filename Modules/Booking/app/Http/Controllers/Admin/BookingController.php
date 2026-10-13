@@ -160,7 +160,6 @@ final class BookingController extends Controller
                     'special_requests' => $data['special_requests'] ?? null,
                 ],
                 price: $price,
-                addonSelections: array_map(fn (int $id) => ['addon_id' => $id, 'quantity' => 1], $addonIds),
             );
         } catch (NoVehicleAvailableException $exception) {
             return back()->withInput()->withErrors(['vehicle_id' => $exception->getMessage()]);

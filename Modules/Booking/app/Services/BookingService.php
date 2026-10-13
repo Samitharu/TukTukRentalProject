@@ -26,6 +26,7 @@ use Modules\Package\Models\Addon;
 use Modules\Package\Models\Package;
 use Modules\Pricing\DataObjects\PriceBreakdown;
 use Modules\Pricing\Models\Coupon;
+use Throwable;
 
 /**
  * The single, authoritative surface for every booking-write operation —
@@ -142,11 +143,10 @@ final class BookingService
      *   pickup_type?: string, business_location_id?: int|null, delivery_zone_id?: int|null,
      *   has_international_permit?: bool, special_requests?: string|null,
      * } $customerData
-     * @param array<int, array{addon_id:int, quantity:int}> $addonSelections
      */
-    public function confirmHold(BookingHold $hold, array $customerData, PriceBreakdown $price, array $addonSelections = []): Booking
+    public function confirmHold(BookingHold $hold, array $customerData, PriceBreakdown $price): Booking
     {
-        return $this->transaction(function () use ($hold, $customerData, $price, $addonSelections) {
+        return $this->transaction(function () use ($hold, $customerData, $price) {
             /** @var BookingHold $hold */
             $hold = BookingHold::query()->lockForUpdate()->findOrFail($hold->id);
 
@@ -211,13 +211,19 @@ final class BookingService
                 }
             }
 
-            foreach ($addonSelections as $selection) {
-                $addon = Addon::query()->find($selection['addon_id']);
+            // Exactly the add-ons that were priced — PricingService already
+            // dropped ones this package doesn't offer and capped quantities
+            // at max_quantity — so the booking never lists an add-on the
+            // customer wasn't charged for.
+            $addons = Addon::query()->whereIn('id', array_column($price->addonLines, 'addon_id'))->get()->keyBy('id');
+
+            foreach ($price->addonLines as $line) {
+                $addon = $addons->get($line['addon_id']);
 
                 if ($addon !== null) {
                     $booking->addons()->create([
                         'addon_id' => $addon->id,
-                        'quantity' => $selection['quantity'],
+                        'quantity' => $line['quantity'],
                         'unit_price' => $addon->price,
                     ]);
                 }
@@ -238,11 +244,40 @@ final class BookingService
      * through the exact same hold-then-confirm path as the public flow,
      * just without a customer-facing review step in between.
      */
-    public function createManualBooking(array $holdData, array $customerData, PriceBreakdown $price, array $addonSelections = []): Booking
+    public function createManualBooking(array $holdData, array $customerData, PriceBreakdown $price): Booking
     {
         $hold = $this->createHold($holdData);
 
-        return $this->confirmHold($hold, $customerData, $price, $addonSelections);
+        try {
+            return $this->confirmHold($hold, $customerData, $price);
+        } catch (Throwable $exception) {
+            // createHold() committed on its own, so a failed confirm (coupon
+            // used up, hold expired, DB error) would otherwise leave the
+            // vehicle held until the expiry sweep — or forever, if the
+            // scheduler isn't running.
+            $this->releaseHold($hold);
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * Frees an unconverted hold's slots straight away. A no-op for a hold
+     * that has meanwhile been converted (a double-clicked "Confirm"
+     * succeeding in the other request), expired or released.
+     */
+    public function releaseHold(BookingHold $hold): void
+    {
+        $this->transaction(function () use ($hold): void {
+            $hold = BookingHold::query()->lockForUpdate()->find($hold->id);
+
+            if ($hold === null || $hold->status !== BookingHold::STATUS_ACTIVE) {
+                return;
+            }
+
+            $this->availability->releaseSlots($hold);
+            $hold->update(['status' => BookingHold::STATUS_RELEASED]);
+        });
     }
 
     public function cancel(Booking $booking, string $reason, ?User $admin = null): Booking

@@ -185,6 +185,7 @@ return [
     'booking_coupon_apply' => 'Apply',
     'booking_coupon_invalid' => 'That coupon code is not valid.',
     'booking_coupon_no_longer_valid' => 'Sorry, that coupon has just reached its limit or expired, so it no longer applies. Please check the updated total below before confirming.',
+    'booking_hold_expired' => 'Your reservation timed out before it was confirmed. Please check the details below and confirm again.',
     'booking_terms_accept' => 'I accept the :terms and :cancellation.',
     'booking_confirm_button' => 'Confirm booking',
     'booking_pay_on_pickup_notice' => 'No payment is taken online — you pay in cash or by card when you collect your tuk tuk.',
