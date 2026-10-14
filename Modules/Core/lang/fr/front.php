@@ -178,6 +178,7 @@ return [
     'booking_coupon_invalid' => "Ce code promo n'est pas valide.",
     'booking_coupon_no_longer_valid' => "Désolé, ce code promo vient d'atteindre sa limite ou a expiré et ne s'applique plus. Veuillez vérifier le total mis à jour ci-dessous avant de confirmer.",
     'booking_hold_expired' => "Votre réservation a expiré avant d'être confirmée. Veuillez vérifier les informations ci-dessous et confirmer à nouveau.",
+    'booking_blocked' => "Désolé, nous n'avons pas pu finaliser cette réservation en ligne. Contactez-nous par WhatsApp ou par e-mail et nous la ferons volontiers pour vous.",
     'booking_terms_accept' => "J'accepte les :terms et la :cancellation.",
     'booking_confirm_button' => 'Confirmer la réservation',
     'booking_pay_on_pickup_notice' => "Aucun paiement n'est prélevé en ligne — vous payez en espèces ou par carte lors de la prise en charge de votre tuk tuk.",

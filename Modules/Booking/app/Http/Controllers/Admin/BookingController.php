@@ -7,21 +7,27 @@ namespace Modules\Booking\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Admin\Models\BlockedIp;
 use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\DeliveryZone;
+use Modules\Availability\Services\AvailabilityService;
 use Modules\Booking\Exceptions\CouponUnavailableException;
 use Modules\Booking\Exceptions\NoVehicleAvailableException;
 use Modules\Booking\Http\Requests\Admin\StoreManualBookingRequest;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Services\BookingService;
+use Modules\Booking\Services\SuspiciousBookingDetector;
 use Modules\Booking\Support\HourlySchedule;
+use Modules\Core\Support\Countries;
 use Modules\Customer\Models\Customer;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Package\Models\Package;
+use Modules\Pricing\DataObjects\PriceBreakdown;
 use Modules\Pricing\Models\Coupon;
 use Modules\Pricing\Services\PricingService;
 
@@ -30,6 +36,7 @@ final class BookingController extends Controller
     public function __construct(
         private readonly BookingService $bookings,
         private readonly PricingService $pricing,
+        private readonly SuspiciousBookingDetector $detector,
     ) {
     }
 
@@ -40,6 +47,7 @@ final class BookingController extends Controller
         $bookings = Booking::query()
             ->with(['customer', 'vehicle.category'])
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
+            ->when($request->boolean('suspicious'), fn ($q) => $this->detector->scopeToSuspicious($q))
             ->when($request->filled('q'), function ($q) use ($request) {
                 // Escape LIKE wildcards so "_" or "%" in the search box are
                 // matched literally rather than as "any character(s)".
@@ -79,6 +87,7 @@ final class BookingController extends Controller
 
         return view('booking::admin.bookings.index', [
             'bookings' => $bookings,
+            'flags' => $this->detector->flagsFor($bookings->getCollection()),
             'statuses' => [
                 Booking::STATUS_HOLD, Booking::STATUS_PENDING_PAYMENT, Booking::STATUS_CONFIRMED,
                 Booking::STATUS_ACTIVE, Booking::STATUS_COMPLETED, Booking::STATUS_CANCELLED,
@@ -87,12 +96,40 @@ final class BookingController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         $this->authorize('create', Booking::class);
 
+        // "New booking for this customer" on the customer page — or the
+        // customer already picked, when the form comes back with errors.
+        $customerId = $request->integer('customer') ?: (int) old('customer_id');
+        $customer = $customerId > 0 ? Customer::query()->find($customerId) : null;
+
+        $packages = Package::query()->active()->bookable()
+            ->with(['addons' => fn ($q) => $q->where('addons.is_active', true)->orderBy('addons.sort_order')])
+            ->orderBy('kind')->orderBy('sort_order')->get();
+
+        // Add-ons a customer can choose (not the ones a package already
+        // includes), each tagged with the packages offering it so the form
+        // shows only those for the selected package.
+        $addonPackageIds = [];
+        $addons = collect();
+
+        foreach ($packages as $package) {
+            foreach ($package->addons as $addon) {
+                if (! $addon->pivot->is_included) {
+                    $addonPackageIds[$addon->id][] = $package->id;
+                    $addons->put($addon->id, $addon);
+                }
+            }
+        }
+
         return view('booking::admin.bookings.create', [
-            'packages' => Package::query()->active()->bookable()->orderBy('kind')->orderBy('sort_order')->get(),
+            'packages' => $packages,
+            'addons' => $addons->sortBy('sort_order')->values(),
+            'addonPackageIds' => $addonPackageIds,
+            'selectedCustomer' => $customer,
+            'countries' => Countries::all(),
             'hourlyStartTimes' => HourlySchedule::startTimes(new Package(['min_hours' => 1])),
             'vehicles' => Vehicle::query()->active()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
             'locations' => BusinessLocation::query()->active()->get(),
@@ -101,6 +138,106 @@ final class BookingController extends Controller
     }
 
     public function store(StoreManualBookingRequest $request): RedirectResponse
+    {
+        $data = $request->validated();
+        $quote = $this->priceFor($request);
+        $customer = isset($data['customer_id']) ? Customer::query()->find($data['customer_id']) : null;
+
+        try {
+            $booking = $this->bookings->createManualBooking(
+                holdData: [
+                    'hold_key' => (string) Str::uuid(),
+                    'start_at' => $quote['start_at'],
+                    'end_at' => $quote['end_at'],
+                    'vehicle_id' => $data['vehicle_id'] ?? null,
+                    'package_id' => $quote['package']->id,
+                ],
+                // An existing customer is matched by their stored email;
+                // CustomerService only fills in details they're missing.
+                customerData: [
+                    'email' => $customer?->email ?? $data['email'],
+                    'full_name' => filled($data['full_name'] ?? null) ? $data['full_name'] : $customer?->full_name,
+                    'phone' => $data['phone'] ?? null,
+                    'nationality' => $data['nationality'] ?? null,
+                    'passport_number' => $data['passport_number'] ?? null,
+                    'pickup_type' => $quote['data']['pickup_type'],
+                    'business_location_id' => $quote['data']['business_location_id'] ?? null,
+                    'delivery_zone_id' => $quote['delivery_zone']?->id,
+                    'has_international_permit' => (bool) ($quote['data']['has_international_permit'] ?? false),
+                    'special_requests' => $data['special_requests'] ?? null,
+                ],
+                price: $quote['price'],
+                // The form always posts it (hidden "0" + checkbox); default
+                // on, as before the checkbox existed.
+                notifyCustomer: $request->boolean('notify_customer', true),
+            );
+        } catch (NoVehicleAvailableException $exception) {
+            return back()->withInput()->withErrors(['vehicle_id' => $exception->getMessage()]);
+        } catch (CouponUnavailableException) {
+            return back()->withInput()->withErrors(['coupon_code' => __('That coupon has reached its usage limit.')]);
+        }
+
+        return redirect()->route('admin.bookings.show', $booking)->with('status', __('Booking :reference created.', ['reference' => $booking->reference]));
+    }
+
+    /**
+     * Live price + availability preview for the manual booking form. The
+     * same validation and pricing as store(), so the total shown is the
+     * total that will be booked. Availability is advisory — store()
+     * re-checks under the vehicle lock.
+     */
+    public function quote(StoreManualBookingRequest $request, AvailabilityService $availability): JsonResponse
+    {
+        $quote = $this->priceFor($request);
+        $price = $quote['price'];
+
+        $vehicleIds = $request->filled('vehicle_id') ? [$request->integer('vehicle_id')] : $quote['package']->eligibleVehicleIds();
+        $busy = $availability->unavailableVehicleIds($vehicleIds, $quote['start'], $quote['end']);
+
+        return response()->json([
+            ...$price->toArray(),
+            'coupon_applied' => $price->couponCode !== null,
+            'units_total' => count($vehicleIds),
+            'units_free' => count(array_diff($vehicleIds, $busy)),
+        ]);
+    }
+
+    /** Existing customers matching a name, email or phone, for the form's picker. */
+    public function customerLookup(Request $request): JsonResponse
+    {
+        $this->authorize('create', Booking::class);
+        $this->authorize('viewAny', Customer::class);
+
+        $term = trim((string) $request->query('q', ''));
+
+        if (mb_strlen($term) < 2) {
+            return response()->json([]);
+        }
+
+        $like = '%'.addcslashes($term, '%_\\').'%';
+
+        $customers = Customer::query()
+            ->where(fn ($q) => $q->where('full_name', 'like', $like)->orWhere('email', 'like', $like)->orWhere('phone', 'like', $like))
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get(['id', 'full_name', 'email', 'phone', 'nationality']);
+
+        return response()->json($customers->map(fn (Customer $customer) => [
+            'id' => $customer->id,
+            'full_name' => $customer->full_name,
+            'email' => $customer->email,
+            'phone' => $customer->phone,
+            'nationality' => $customer->nationality,
+        ]));
+    }
+
+    /**
+     * The booking period and server-side price for a manual booking form
+     * submission — shared by store() and quote().
+     *
+     * @return array{package: Package, price: PriceBreakdown, start: CarbonImmutable, end: CarbonImmutable, start_at: string, end_at: string, delivery_zone: DeliveryZone|null, data: array<string, mixed>}
+     */
+    private function priceFor(StoreManualBookingRequest $request): array
     {
         $data = $request->validated();
         $package = Package::query()->findOrFail($data['package_id']);
@@ -126,9 +263,6 @@ final class BookingController extends Controller
             ? array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), HourlySchedule::range($start->toDateString(), $data['start_time'], $hours))
             : [$start->toDateString(), $end->toDateString()];
 
-        $addonIds = $data['addon_ids'] ?? [];
-        $addonSelections = array_fill_keys($addonIds, 1);
-
         $coupon = ! empty($data['coupon_code'])
             ? Coupon::query()->where('code', mb_strtoupper($data['coupon_code']))->active()->first()
             : null;
@@ -137,37 +271,16 @@ final class BookingController extends Controller
             ? DeliveryZone::query()->find($data['delivery_zone_id'])
             : null;
 
-        $price = $this->pricing->calculate($package, $start, $days, $addonSelections, $coupon, $deliveryZone, hours: $hours);
-
-        try {
-            $booking = $this->bookings->createManualBooking(
-                holdData: [
-                    'hold_key' => (string) Str::uuid(),
-                    'start_at' => $startAt,
-                    'end_at' => $endAt,
-                    'vehicle_id' => $data['vehicle_id'] ?? null,
-                    'package_id' => $package->id,
-                ],
-                customerData: [
-                    'email' => $data['email'],
-                    'full_name' => $data['full_name'],
-                    'phone' => $data['phone'] ?? null,
-                    'nationality' => $data['nationality'] ?? null,
-                    'pickup_type' => $data['pickup_type'],
-                    'business_location_id' => $data['business_location_id'] ?? null,
-                    'delivery_zone_id' => $deliveryZone?->id,
-                    'has_international_permit' => (bool) ($data['has_international_permit'] ?? false),
-                    'special_requests' => $data['special_requests'] ?? null,
-                ],
-                price: $price,
-            );
-        } catch (NoVehicleAvailableException $exception) {
-            return back()->withInput()->withErrors(['vehicle_id' => $exception->getMessage()]);
-        } catch (CouponUnavailableException) {
-            return back()->withInput()->withErrors(['coupon_code' => __('That coupon has reached its usage limit.')]);
-        }
-
-        return redirect()->route('admin.bookings.show', $booking)->with('status', __('Booking :reference created.', ['reference' => $booking->reference]));
+        return [
+            'package' => $package,
+            'price' => $this->pricing->calculate($package, $start, $days, $request->addonSelections(), $coupon, $deliveryZone, hours: $hours),
+            'start' => $start,
+            'end' => $end,
+            'start_at' => $startAt,
+            'end_at' => $endAt,
+            'delivery_zone' => $deliveryZone,
+            'data' => $data,
+        ];
     }
 
     public function show(Booking $booking): View
@@ -179,6 +292,10 @@ final class BookingController extends Controller
 
         return view('booking::admin.bookings.show', [
             'booking' => $booking,
+            'flags' => $this->detector->flagsFor([$booking])[$booking->id] ?? [],
+            'related' => $this->detector->relatedTo($booking),
+            'canCancelThis' => $this->detector->isOpenAndUpcoming($booking),
+            'ipBlock' => $booking->ip_address !== null ? BlockedIp::query()->currentlyBlocking($booking->ip_address)->first() : null,
             // Reassign only to the same kind of unit: a tuk tuk rental can't
             // move into a cabana (its dates mean days, not nights).
             'vehicles' => Vehicle::query()->active()->ofKind($booking->vehicle->kind())->orderBy('plate_no')->orderBy('id')->get(),

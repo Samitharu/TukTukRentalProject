@@ -19,6 +19,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Str;
+use Modules\Admin\Models\BlockedIp;
 use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\DeliveryZone;
 use Modules\Availability\Services\AvailabilityService;
@@ -307,6 +308,14 @@ final class BookingFlowController extends Controller
             'terms_accepted' => ['accepted'],
         ]);
 
+        // Staff blocked this IP from a spam booking (admin booking page).
+        // Point them to a person rather than failing silently: mobile
+        // networks share IPs, so a real tourist can land on a blocked one.
+        if (BlockedIp::isBlocked((string) $request->ip())) {
+            return redirect()->route('booking.review')
+                ->withErrors(['booking' => __('core::front.booking_blocked')]);
+        }
+
         // The session may be stale (dates now in the past, package since
         // deactivated) or crafted (?package= on the start URL skips the
         // package step's own checks) — re-validate before booking anything.
@@ -344,6 +353,7 @@ final class BookingFlowController extends Controller
             'has_international_permit' => (bool) ($state['has_international_permit'] ?? false),
             'special_requests' => $state['special_requests'] ?? null,
         ];
+        $source = ['ip_address' => $request->ip(), 'user_agent' => $request->userAgent()];
 
         try {
             $booking = $this->bookings->createManualBooking(
@@ -357,6 +367,7 @@ final class BookingFlowController extends Controller
                 ],
                 customerData: $customerData,
                 price: $price,
+                source: $source,
             );
         } catch (NoVehicleAvailableException|UniqueConstraintViolationException $exception) {
             // A double-clicked "Confirm": the other request (same hold key)
@@ -375,7 +386,7 @@ final class BookingFlowController extends Controller
                     ->withErrors(['package_id' => __(BookingFlowState::isStay() ? 'core::front.booking_no_unit_available_stay' : 'core::front.booking_no_vehicle_available')]);
             }
 
-            $booking = $this->bookings->confirmHold($ownHold, $customerData, $price);
+            $booking = $this->bookings->confirmHold($ownHold, $customerData, $price, $source);
         } catch (CouponUnavailableException) {
             return $this->couponNoLongerValid();
         } catch (HoldExpiredException) {

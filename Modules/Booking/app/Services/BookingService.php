@@ -18,6 +18,7 @@ use Modules\Booking\Models\Booking;
 use Modules\Booking\Models\BookingExtraCharge;
 use Modules\Booking\Models\BookingHold;
 use Modules\Booking\Models\BookingStatusHistory;
+use Modules\Booking\Support\BookingFingerprint;
 use Modules\Booking\Support\BookingReference;
 use Modules\Booking\Support\BookingStateMachine;
 use Modules\Customer\Services\CustomerService;
@@ -143,10 +144,13 @@ final class BookingService
      *   pickup_type?: string, business_location_id?: int|null, delivery_zone_id?: int|null,
      *   has_international_permit?: bool, special_requests?: string|null,
      * } $customerData
+     * @param array{ip_address?: string|null, user_agent?: string|null} $source
+     *   The public visitor's request details; empty for admin manual bookings.
+     * @param bool $notifyCustomer false: skip the customer's confirmation email.
      */
-    public function confirmHold(BookingHold $hold, array $customerData, PriceBreakdown $price): Booking
+    public function confirmHold(BookingHold $hold, array $customerData, PriceBreakdown $price, array $source = [], bool $notifyCustomer = true): Booking
     {
-        return $this->transaction(function () use ($hold, $customerData, $price) {
+        return $this->transaction(function () use ($hold, $customerData, $price, $source, $notifyCustomer) {
             /** @var BookingHold $hold */
             $hold = BookingHold::query()->lockForUpdate()->findOrFail($hold->id);
 
@@ -187,6 +191,10 @@ final class BookingService
                 ...$this->kmAllowanceSnapshot($hold->package_id, $price->days),
                 'locale_at_booking' => app()->getLocale(),
                 'idempotency_key' => $hold->hold_key,
+                'ip_address' => $source['ip_address'] ?? null,
+                'user_agent' => isset($source['user_agent']) ? mb_substr($source['user_agent'], 0, 255) : null,
+                'phone_key' => BookingFingerprint::phoneKey($customerData['phone'] ?? null),
+                'passport_key' => BookingFingerprint::passportKey($customerData['passport_number'] ?? null),
             ]);
 
             $this->availability->repointSlots($hold, $booking);
@@ -233,7 +241,7 @@ final class BookingService
 
             // Deferred until this transaction commits (ShouldDispatchAfterCommit),
             // and never fired for the idempotent early-return above.
-            BookingPlaced::dispatch($booking);
+            BookingPlaced::dispatch($booking, $notifyCustomer);
 
             return $booking;
         });
@@ -244,12 +252,12 @@ final class BookingService
      * through the exact same hold-then-confirm path as the public flow,
      * just without a customer-facing review step in between.
      */
-    public function createManualBooking(array $holdData, array $customerData, PriceBreakdown $price): Booking
+    public function createManualBooking(array $holdData, array $customerData, PriceBreakdown $price, array $source = [], bool $notifyCustomer = true): Booking
     {
         $hold = $this->createHold($holdData);
 
         try {
-            return $this->confirmHold($hold, $customerData, $price);
+            return $this->confirmHold($hold, $customerData, $price, $source, $notifyCustomer);
         } catch (Throwable $exception) {
             // createHold() committed on its own, so a failed confirm (coupon
             // used up, hold expired, DB error) would otherwise leave the

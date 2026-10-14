@@ -178,6 +178,7 @@ return [
     'booking_coupon_invalid' => 'Dieser Gutscheincode ist ungültig.',
     'booking_coupon_no_longer_valid' => 'Dieser Gutschein hat leider gerade sein Limit erreicht oder ist abgelaufen und gilt nicht mehr. Bitte prüfen Sie den aktualisierten Gesamtbetrag unten, bevor Sie bestätigen.',
     'booking_hold_expired' => 'Ihre Reservierung ist abgelaufen, bevor sie bestätigt wurde. Bitte prüfen Sie die Angaben unten und bestätigen Sie erneut.',
+    'booking_blocked' => 'Leider konnten wir diese Buchung nicht online abschließen. Bitte kontaktieren Sie uns per WhatsApp oder E-Mail – wir buchen gerne für Sie.',
     'booking_terms_accept' => 'Ich akzeptiere die :terms und die :cancellation.',
     'booking_confirm_button' => 'Buchung bestätigen',
     'booking_pay_on_pickup_notice' => 'Es wird keine Online-Zahlung eingezogen — Sie zahlen bar oder mit Karte bei Abholung Ihres Tuk Tuks.',

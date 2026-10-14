@@ -41,6 +41,10 @@ use Modules\Package\Models\Package;
  * @property int|null $odometer_start
  * @property int|null $odometer_end
  * @property string|null $idempotency_key
+ * @property string|null $ip_address
+ * @property string|null $user_agent
+ * @property string|null $phone_key
+ * @property string|null $passport_key
  */
 final class Booking extends Model
 {
@@ -73,6 +77,16 @@ final class Booking extends Model
         self::STATUS_HOLD, self::STATUS_PENDING_PAYMENT, self::STATUS_CONFIRMED, self::STATUS_ACTIVE,
     ];
 
+    /**
+     * Booked but not yet picked up — the statuses staff can still cancel,
+     * and the ones a fake booking sits in while it blocks the fleet.
+     *
+     * @var string[]
+     */
+    public const array OPEN_STATUSES = [
+        self::STATUS_HOLD, self::STATUS_PENDING_PAYMENT, self::STATUS_CONFIRMED,
+    ];
+
     protected $fillable = [
         'reference',
         'customer_id',
@@ -97,6 +111,10 @@ final class Booking extends Model
         'odometer_end',
         'locale_at_booking',
         'idempotency_key',
+        'ip_address',
+        'user_agent',
+        'phone_key',
+        'passport_key',
     ];
 
     protected function casts(): array

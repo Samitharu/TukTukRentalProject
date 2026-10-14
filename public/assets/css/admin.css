@@ -524,6 +524,12 @@ a {
     border-color: #efd1cc;
 }
 
+.admin-alert--warn {
+    background: #fdf3dc;
+    color: #7a5a12;
+    border-color: #f0dfb4;
+}
+
 .admin-auth-page {
     max-width: 26rem;
     margin: 4rem auto;
@@ -720,4 +726,61 @@ a {
 .admin-badge--activity {
     background: #e2f0fb;
     color: #1d5a85;
+}
+
+.admin-badge--warn {
+    background: #fdf3dc;
+    color: #7a5a12;
+    font-weight: 600;
+}
+
+/* Manual booking form: existing-customer picker and live price preview. */
+.admin-picker {
+    list-style: none;
+    margin: 0.25rem 0 0;
+    padding: 0;
+    border: 1px solid #d9e2dd;
+    border-radius: var(--admin-radius);
+    max-height: 16rem;
+    overflow-y: auto;
+}
+
+.admin-picker button {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 0;
+    background: none;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+
+.admin-picker button:hover,
+.admin-picker button:focus {
+    background: var(--admin-success-bg);
+}
+
+.admin-price-preview {
+    margin: var(--admin-space-3) 0;
+    padding: var(--admin-space-3);
+    border-radius: var(--admin-radius);
+    background: #f6f8f7;
+}
+
+.admin-price-preview__lines {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.25rem 1rem;
+    margin: 0;
+}
+
+.admin-price-preview__lines dd {
+    margin: 0;
+    text-align: right;
+}
+
+.admin-price-preview__warn {
+    margin: 0.5rem 0 0;
+    color: var(--admin-danger);
 }

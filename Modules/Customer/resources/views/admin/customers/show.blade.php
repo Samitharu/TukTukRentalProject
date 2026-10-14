@@ -4,6 +4,9 @@
         <p><strong>{{ __('Phone') }}:</strong> {{ $customer->phone }}</p>
         <p><strong>{{ __('Nationality') }}:</strong> {{ $customer->nationality }}</p>
         <p><strong>{{ __('Customer since') }}:</strong> {{ $customer->created_at->format('Y-m-d') }}</p>
+        @can('create', \Modules\Booking\Models\Booking::class)
+            <p><a href="{{ route('admin.bookings.create', ['customer' => $customer->id]) }}" class="admin-btn">{{ __('New booking for this customer') }}</a></p>
+        @endcan
     </div>
 
     <div class="admin-card" style="padding:0;">

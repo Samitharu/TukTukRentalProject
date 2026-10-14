@@ -24,7 +24,13 @@ final class BookingPlaced implements ShouldDispatchAfterCommit
     use Dispatchable;
     use SerializesModels;
 
-    public function __construct(public readonly Booking $booking)
-    {
+    /**
+     * @param bool $notifyCustomer false when staff booking on a customer's
+     *   behalf chose not to email them (the admin alert is still sent).
+     */
+    public function __construct(
+        public readonly Booking $booking,
+        public readonly bool $notifyCustomer = true,
+    ) {
     }
 }

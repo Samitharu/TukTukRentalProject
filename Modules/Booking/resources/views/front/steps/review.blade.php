@@ -100,6 +100,9 @@
             @error('coupon_code')
                 <div class="alert alert--warning" role="alert">{{ $message }}</div>
             @enderror
+            @error('booking')
+                <div class="alert alert--warning" role="alert">{{ $message }}</div>
+            @enderror
             <p class="text-muted">{{ __('core::front.booking_review_intro') }}</p>
 
             <div class="card" style="margin-bottom:var(--space-4);">

@@ -21,6 +21,10 @@ final class SendBookingConfirmationToCustomer
 {
     public function handle(BookingPlaced $event): void
     {
+        if (! $event->notifyCustomer) {
+            return;
+        }
+
         $customer = $event->booking->customer;
 
         if ($customer === null || ! filter_var($customer->email, FILTER_VALIDATE_EMAIL)) {

@@ -31,4 +31,15 @@ return [
     // Queue the admin email is pushed onto — keep it off the default queue
     // if you run a dedicated worker for mail (`queue:work --queue=mail,default`).
     'notification_queue' => env('BOOKING_NOTIFICATION_QUEUE', 'default'),
+
+    // Spam-booking detection (admin only — nothing is blocked automatically).
+    // A booking is flagged once this many upcoming, not-yet-picked-up
+    // bookings share a customer, IP, phone or passport. Kept above 2 so a
+    // traveller who books two legs of their trip isn't flagged.
+    'suspicious_threshold' => max(2, (int) env('BOOKING_SUSPICIOUS_THRESHOLD', 3)),
+
+    // How long "Block IP" on a booking keeps that IP from booking online.
+    // Not forever: mobile networks share IPs, so a later real tourist could
+    // get the same one.
+    'block_ip_days' => (int) env('BOOKING_BLOCK_IP_DAYS', 30),
 ];

@@ -15,6 +15,9 @@
                 @endforeach
             </select>
         </div>
+        <div class="admin-form-field" style="display:inline-block;margin-left:1rem;">
+            <label><input type="checkbox" name="suspicious" value="1" @checked(request()->boolean('suspicious'))> {{ __('Suspicious only') }}</label>
+        </div>
         <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Filter') }}</button>
     </form>
 
@@ -34,7 +37,12 @@
             <tbody>
                 @forelse ($bookings as $booking)
                     <tr>
-                        <td><a href="{{ route('admin.bookings.show', $booking) }}"><code>{{ $booking->reference }}</code></a></td>
+                        <td>
+                            <a href="{{ route('admin.bookings.show', $booking) }}"><code>{{ $booking->reference }}</code></a>
+                            @if (isset($flags[$booking->id]))
+                                <span class="admin-badge admin-badge--warn" title="{{ implode(', ', array_map('__', $flags[$booking->id])) }}">⚠ {{ __('Suspicious') }}</span>
+                            @endif
+                        </td>
                         <td>{{ $booking->customer->full_name }}</td>
                         <td>{{ $booking->vehicle->adminLabel() }}</td>
                         <td>{{ $booking->start_at->format('Y-m-d') }}</td>

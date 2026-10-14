@@ -1,4 +1,13 @@
 <x-admin::layouts.app :title="__('Booking :reference', ['reference' => $booking->reference])">
+    @if ($flags !== [])
+        <div class="admin-alert admin-alert--warn">
+            <strong>⚠ {{ __('Possible spam booking') }}:</strong>
+            {{ __(':threshold or more upcoming bookings share', ['threshold' => config('booking.suspicious_threshold')]) }}
+            {{ implode(', ', array_map(fn ($label) => mb_strtolower(__($label)), $flags)) }}.
+            {{ __('Check the related bookings below before cancelling — one traveller can book several legs of a trip.') }}
+        </div>
+    @endif
+
     <div class="admin-card">
         <p><strong>{{ __('Status') }}:</strong> {{ ucfirst(str_replace('_', ' ', $booking->status)) }}</p>
         <p><strong>{{ __('Customer') }}:</strong> <a href="{{ route('admin.customers.show', $booking->customer) }}">{{ $booking->customer->full_name }}</a> ({{ $booking->customer->email }})</p>
@@ -68,6 +77,8 @@
             @endif
         </div>
     </div>
+
+    @include('booking::admin.bookings._source', ['booking' => $booking, 'related' => $related, 'canCancelThis' => $canCancelThis, 'ipBlock' => $ipBlock])
 
     @if ($booking->addons->isNotEmpty())
         <div class="admin-card">
