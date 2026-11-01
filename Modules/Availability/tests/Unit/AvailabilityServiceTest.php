@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
-use Modules\Availability\Models\AvailabilityBlackout;
 use Modules\Availability\Models\VehicleReservationSlot;
 use Modules\Availability\Services\AvailabilityService;
 use Modules\Fleet\Models\Vehicle;
@@ -15,43 +14,7 @@ beforeEach(function (): void {
     $this->vehicle = Vehicle::factory()->create();
 });
 
-it('considers a vehicle with no blackouts, maintenance, or reservations free', function (): void {
-    expect($this->service->isRangeFree($this->vehicle->id, CarbonImmutable::parse('2026-06-01'), CarbonImmutable::parse('2026-06-05')))
-        ->toBeTrue();
-});
-
-it('blocks a range that overlaps an admin blackout', function (): void {
-    AvailabilityBlackout::query()->create([
-        'vehicle_id' => $this->vehicle->id,
-        'starts_on' => '2026-06-03',
-        'ends_on' => '2026-06-04',
-        'reason' => 'Inspection',
-    ]);
-
-    expect($this->service->isRangeFree($this->vehicle->id, CarbonImmutable::parse('2026-06-01'), CarbonImmutable::parse('2026-06-05')))
-        ->toBeFalse();
-});
-
-it('treats a business-wide blackout (null vehicle_id) as blocking every vehicle', function (): void {
-    AvailabilityBlackout::query()->create([
-        'vehicle_id' => null,
-        'starts_on' => '2026-12-25',
-        'ends_on' => '2026-12-25',
-        'reason' => 'Public holiday',
-    ]);
-
-    expect($this->service->isRangeFree($this->vehicle->id, CarbonImmutable::parse('2026-12-24'), CarbonImmutable::parse('2026-12-26')))
-        ->toBeFalse();
-});
-
-it('does not let a blackout on a different vehicle block this one', function (): void {
-    $other = Vehicle::factory()->create();
-    AvailabilityBlackout::query()->create([
-        'vehicle_id' => $other->id,
-        'starts_on' => '2026-06-03',
-        'ends_on' => '2026-06-04',
-    ]);
-
+it('considers a vehicle with no maintenance or reservations free', function (): void {
     expect($this->service->isRangeFree($this->vehicle->id, CarbonImmutable::parse('2026-06-01'), CarbonImmutable::parse('2026-06-05')))
         ->toBeTrue();
 });
@@ -120,10 +83,11 @@ it('returns only vehicles in the category that are actually free', function (): 
     $taken = Vehicle::factory()->create(['category_id' => $category->id]);
     $inactive = Vehicle::factory()->create(['category_id' => $category->id, 'status' => Vehicle::STATUS_RETIRED]);
 
-    AvailabilityBlackout::query()->create([
+    VehicleMaintenanceLog::query()->create([
         'vehicle_id' => $taken->id,
-        'starts_on' => '2026-06-01',
-        'ends_on' => '2026-06-05',
+        'type' => 'Engine repair',
+        'starts_at' => '2026-06-01 08:00:00',
+        'ends_at' => '2026-06-05 17:00:00',
     ]);
 
     $result = $this->service->availableVehiclesInCategory($category->id, CarbonImmutable::parse('2026-06-01'), CarbonImmutable::parse('2026-06-05'));

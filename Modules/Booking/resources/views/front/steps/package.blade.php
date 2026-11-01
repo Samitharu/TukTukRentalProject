@@ -1,5 +1,8 @@
 @php
-    $bookablePackages = $packages->filter(fn ($package) => ($freeCounts[$package->id] ?? 0) > 0);
+    // No availability counts are shown. Rentals are always bookable; only a
+    // stay or airport package with nothing free is marked fully booked.
+    $isFull = fn ($package) => $checksAvailability && ($freeCounts[$package->id] ?? 0) === 0;
+    $bookablePackages = $packages->reject($isFull);
 @endphp
 <x-core::layouts.public :title="__('core::front.booking_package_title').' · '.config('app.name')">
     <section class="section booking-flow">
@@ -7,7 +10,11 @@
             @include('booking::front.steps._indicator', ['current' => 'package'])
 
             <h1>{{ __('core::front.booking_package_title') }}</h1>
-            <p class="text-muted">{{ $isStay ? __('core::front.booking_package_intro_stay', ['nights' => $days]) : __('core::front.booking_package_intro', ['days' => $days]) }}</p>
+            <p class="text-muted">{{ match (true) {
+                $isStay => __('core::front.booking_package_intro_stay', ['nights' => $days]),
+                $isTransfer => __('core::front.booking_package_intro_transfer'),
+                default => __('core::front.booking_package_intro', ['days' => $days]),
+            } }}</p>
 
             @error('package_id')
                 <div class="alert alert--error alert--icon" role="alert">
@@ -16,14 +23,15 @@
                 </div>
             @enderror
 
-            @if ($preselectedVehicle && $preselectedVehicleBooked)
+            {{-- Only a stay keeps the unit the customer opened; vehicles are always assigned. --}}
+            @if ($isStay && $preselectedVehicle && $preselectedVehicleBooked)
                 <div class="alert alert--warning alert--icon" role="status">
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5 21.5 20h-19L12 3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 10v4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.3" r="1.1" fill="currentColor"/></svg>
-                    <span>{{ __($isStay ? 'core::front.booking_unit_preselected_booked' : 'core::front.booking_vehicle_preselected_booked', ['vehicle' => $preselectedVehicle->name]) }}</span>
+                    <span>{{ __('core::front.booking_unit_preselected_booked', ['vehicle' => $preselectedVehicle->name]) }}</span>
                 </div>
-            @elseif ($preselectedVehicle)
+            @elseif ($isStay && $preselectedVehicle)
                 <div class="alert" style="background:var(--color-primary-50);color:var(--color-primary-600);">
-                    {{ __($isStay ? 'core::front.booking_unit_preselected' : 'core::front.booking_vehicle_preselected', ['vehicle' => $preselectedVehicle->name]) }}
+                    {{ __('core::front.booking_unit_preselected', ['vehicle' => $preselectedVehicle->name]) }}
                 </div>
             @endif
 
@@ -42,19 +50,15 @@
                     @csrf
                     <div class="grid grid--2">
                         @foreach ($packages as $package)
-                            @php $free = $freeCounts[$package->id] ?? 0; @endphp
-                            <label class="card package-card package-option {{ $free === 0 ? 'package-option--unavailable' : '' }}">
+                            @php $full = $isFull($package); @endphp
+                            <label class="card package-card package-option {{ $full ? 'package-option--unavailable' : '' }}">
                                 @if ($package->primaryImage())
                                     <img src="{{ asset('storage/'.$package->primaryImage()->path) }}" alt="{{ $package->name }}" loading="lazy">
                                 @endif
                                 <div class="card__body">
-                                    <input type="radio" name="package_id" value="{{ $package->id }}" class="package-option__radio"@checked($free > 0 && (string) old('package_id', $state['package_id'] ?? '') === (string) $package->id) @disabled($free === 0) required>
-                                    @if ($free === 0)
+                                    <input type="radio" name="package_id" value="{{ $package->id }}" class="package-option__radio"@checked(! $full && (string) old('package_id', $state['package_id'] ?? '') === (string) $package->id) @disabled($full) required>
+                                    @if ($full)
                                         <span class="availability-badge availability-badge--none">{{ __('core::front.booking_package_fully_booked') }}</span>
-                                    @elseif ($free <= 2)
-                                        <span class="availability-badge availability-badge--low">{{ trans_choice($isStay ? 'core::front.booking_package_few_left_stay' : 'core::front.booking_package_few_left', $free, ['count' => $free]) }}</span>
-                                    @else
-                                        <span class="availability-badge availability-badge--ok">{{ __('core::front.booking_package_available') }}</span>
                                     @endif
                                     <h2 style="font-size:var(--font-size-lg);">{{ $package->name }}</h2>
                                     <p class="text-muted">{{ \Illuminate\Support\Str::limit(strip_tags((string) $package->description), 110) }}</p>
@@ -62,7 +66,7 @@
                                         <p><strong>{{ __('core::front.packages_from') }} {{ $package->pricingTiers->first()->price }} {{ config('pricing.default_currency') }}</strong> {{ __($package->priceSuffixKey()) }}</p>
                                     @endif
                                     @include('package::front._km-allowance', ['package' => $package])
-                                    @if ($package->isHourly() && $free > 0)
+                                    @if ($package->isHourly() && ! $full)
                                         @php $chosen = old('hourly.'.$package->id, ($state['package_id'] ?? null) == $package->id ? ['start_time' => $state['start_time'] ?? null, 'hours' => $state['hours'] ?? null] : []); @endphp
                                         <div class="hourly-picker">
                                             <select name="hourly[{{ $package->id }}][start_time]" aria-label="{{ __('core::front.booking_start_time') }}">

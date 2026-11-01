@@ -2,7 +2,9 @@
 <x-mail::message>
 # {{ __('New booking received') }}
 
-@if ($booking->isStay())
+@if ($booking->isTransfer())
+**{{ $booking->reference }}** — {{ __('Airport pickup') }} {{ $booking->rentalPeriod('D j M Y') }}
+@elseif ($booking->isStay())
 **{{ $booking->reference }}** — {{ __('Check-in') }} {{ $booking->start_at->format('D j M Y') }} → {{ __('check-out') }} {{ $booking->checkOutDate()->format('D j M Y') }} ({{ trans_choice(':count night|:count nights', $days, ['count' => $days]) }})
 @else
 @if ($booking->isHourly())
@@ -19,11 +21,18 @@
 | **{{ __('Email') }}** | {{ $md($booking->customer?->email) }} |
 | **{{ __('Phone') }}** | {{ $md($booking->customer?->phone ?? '—') }} |
 | **{{ __('Nationality') }}** | {{ $md($booking->customer?->nationality ?? '—') }} |
-@if ($booking->isStay())
+@if ($booking->isTransfer())
+| **{{ __('Direction') }}** | {{ $booking->transfer_direction === 'departure' ? __('Address → airport (departure)') : __('Airport → address (arrival)') }} |
+| **{{ __('Flight') }}** | {{ $md($booking->flight_number) }} |
+| **{{ __('Area') }}** | {{ $md($booking->transferArea?->name ?? '—') }} |
+| **{{ __('Address') }}** | {{ $md($booking->transfer_address) }} |
+| **{{ __('Vehicle') }}** | {{ $booking->vehicle?->name }} ({{ $booking->vehicle?->plate_no }}) |
+| **{{ __('Package') }}** | {{ $booking->package?->name ?? '—' }} |
+@elseif ($booking->isStay())
 | **{{ __('Stay') }}** | {{ $md($booking->vehicle?->name) }}{{ $booking->vehicle?->address ? ' — '.$md($booking->vehicle->address) : '' }} |
 | **{{ __('Package') }}** | {{ $booking->package?->name ?? '—' }} |
 @else
-| **{{ __('Tuk tuk') }}** | {{ $booking->vehicle?->name }} ({{ $booking->vehicle?->plate_no }}) |
+| **{{ __('Vehicle') }}** | {{ $booking->vehicle ? $booking->vehicle->name.' ('.$booking->vehicle->plate_no.')' : '⚠ '.__('Needs a vehicle — none was free; assign one in the control panel') }} |
 | **{{ __('Package') }}** | {{ $booking->package?->name ?? '—' }} |
 | **{{ __('Pickup') }}** | {{ $booking->pickup_type === 'delivery' ? __('Delivery').': '.($booking->deliveryZone?->name ?? '—') : __('Office').': '.($booking->businessLocation?->name ?? '—') }} |
 | **{{ __('International permit') }}** | {{ $booking->has_international_permit ? __('Yes') : __('No') }} |

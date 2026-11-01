@@ -7,13 +7,16 @@ namespace Modules\Fleet\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Modules\Localization\Support\HasTranslatableSlug;
+use Modules\Package\Models\ProductCategory;
 use Spatie\Translatable\HasTranslations;
 
 /**
  * @property int $id
  * @property string $kind
+ * @property int|null $product_category_id
  * @property array<string,string> $name
  * @property array<string,string>|null $description
  * @property string|null $icon
@@ -33,8 +36,11 @@ final class VehicleCategory extends Model
     /** Cabanas and rooms: booked by the night at their own location. */
     public const string KIND_STAY = 'stay';
 
+    /** Airport cars/vans with a driver: booked by time slot, not by the day. */
+    public const string KIND_TRANSFER = 'transfer';
+
     /** @var string[] */
-    public const array KINDS = [self::KIND_VEHICLE, self::KIND_STAY];
+    public const array KINDS = [self::KIND_VEHICLE, self::KIND_STAY, self::KIND_TRANSFER];
 
     public array $translatable = ['name', 'description'];
 
@@ -45,6 +51,7 @@ final class VehicleCategory extends Model
 
     protected $fillable = [
         'kind',
+        'product_category_id',
         'name',
         'description',
         'icon',
@@ -70,9 +77,20 @@ final class VehicleCategory extends Model
         return $this->hasMany(Vehicle::class, 'category_id');
     }
 
+    /** The product line (Tuk Tuk, Vehicle Rent…) this unit type belongs to. */
+    public function productCategory(): BelongsTo
+    {
+        return $this->belongsTo(ProductCategory::class);
+    }
+
     public function isStay(): bool
     {
         return $this->kind === self::KIND_STAY;
+    }
+
+    public function isTransfer(): bool
+    {
+        return $this->kind === self::KIND_TRANSFER;
     }
 
     public function scopeActive(Builder $query): Builder

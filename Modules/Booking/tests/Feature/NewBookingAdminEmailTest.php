@@ -115,17 +115,21 @@ it('keeps the queued payload tiny — the booking is stored by id, not as a seri
         ->and($payload)->not->toContain('walkin@example.test');
 });
 
-it('sends nothing when the booking fails', function (): void {
+it('tells staff when a booking came in with no vehicle free', function (): void {
     Mail::fake();
 
-    // The only tuk tuk is taken between the review page and "Confirm".
+    // The only tuk tuk is taken between the review page and "Confirm" —
+    // the rental is still taken, unassigned.
     emailTestBook($this, beforeConfirm: fn () => app(BookingService::class)->createHold([
         'hold_key' => (string) Str::uuid(), 'start_at' => $this->start->toDateString(),
         'end_at' => $this->start->addDays(5)->toDateString(), 'vehicle_id' => $this->vehicle->id,
-    ]))->assertSessionHasErrors('package_id');
+    ]))->assertRedirect();
 
-    expect(Booking::query()->count())->toBe(0);
-    Mail::assertNothingQueued();
+    $booking = Booking::query()->sole();
+    expect($booking->isUnassigned())->toBeTrue();
+
+    Mail::assertQueued(NewBookingPlacedMail::class, fn (NewBookingPlacedMail $mail) => $mail->booking->is($booking)
+        && str_contains($mail->render(), 'Needs a vehicle'));
 });
 
 it('sends nothing for a booking whose transaction is rolled back', function (): void {

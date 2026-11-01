@@ -8,12 +8,17 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
+use Modules\Availability\Models\BusinessLocation;
+use Modules\Booking\Models\Booking;
 use Modules\Booking\Support\BookingFlowState;
+use Modules\Booking\Support\TransferSchedule;
 
 /**
- * Step 1. For a tuk tuk: pickup and return dates (both days rented) plus
- * how the vehicle is collected. For a stay: check-in and check-out — no
- * pickup at all, and the check-out morning is not a night stayed.
+ * Step 1. For a rental: pickup and return dates (both days rented); it is
+ * always collected at the office. For a stay: check-in and check-out — no
+ * pickup at all, and the check-out morning is not a night stayed. For an
+ * airport pickup: direction, date and time, flight, destination area and
+ * address — a single trip on one day.
  */
 final class StepDatesRequest extends FormRequest
 {
@@ -22,40 +27,72 @@ final class StepDatesRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if (BookingFlowState::isTransfer()) {
+            $this->merge([
+                'end_date' => $this->input('start_date'),
+                'flight_number' => TransferSchedule::normalizeFlightNumber($this->input('flight_number')),
+            ]);
+        }
+    }
+
     public function rules(): array
     {
         $latestStart = now()->addDays((int) config('availability.maximum_advance_days'))->toDateString();
-        $startRules = ['required', 'date', 'after_or_equal:today', 'before_or_equal:'.$latestStart];
+        $startDate = ['required', 'date', 'after_or_equal:today', 'before_or_equal:'.$latestStart];
 
-        if (BookingFlowState::isStay()) {
+        // Pickup is never asked: rentals are collected at the office (see
+        // flowData()), so any posted pickup fields are ignored.
+        $ignored = [
+            'pickup_type' => ['exclude'],
+            'business_location_id' => ['exclude'],
+            'delivery_zone_id' => ['exclude'],
+        ];
+
+        if (BookingFlowState::isTransfer()) {
             return [
-                'start_date' => $startRules,
-                'end_date' => ['required', 'date', 'after:start_date'],
-                'pickup_type' => ['exclude'],
-                'business_location_id' => ['exclude'],
-                'delivery_zone_id' => ['exclude'],
+                ...$ignored,
+                'start_date' => $startDate,
+                'end_date' => ['required', 'date'],
+                'transfer_direction' => ['required', Rule::in(Booking::TRANSFER_DIRECTIONS)],
+                'transfer_time' => ['required', 'date_format:H:i'],
+                'flight_number' => ['required', 'string', 'max:10', 'regex:'.TransferSchedule::FLIGHT_NUMBER_PATTERN],
+                'transfer_area_id' => ['required', 'integer', Rule::exists('transfer_areas', 'id')->where('is_active', true)],
+                'transfer_address' => ['required', 'string', 'max:255'],
             ];
         }
 
         return [
-            'start_date' => $startRules,
-            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
-            'pickup_type' => ['required', Rule::in(['office', 'delivery'])],
-            'business_location_id' => ['required_if:pickup_type,office', 'nullable', 'integer', 'exists:business_locations,id'],
-            'delivery_zone_id' => ['required_if:pickup_type,delivery', 'nullable', 'integer', 'exists:delivery_zones,id'],
+            ...$ignored,
+            'start_date' => $startDate,
+            'end_date' => BookingFlowState::isStay()
+                ? ['required', 'date', 'after:start_date']
+                : ['required', 'date', 'after_or_equal:start_date'],
         ];
     }
 
     /**
      * Rental length cap (config booking.max_rental_days) — a business limit
      * that also bounds how many per-day reservation rows one request can
-     * make the database write. For a stay it caps nights.
+     * make the database write. For a stay it caps nights. An airport
+     * pickup must instead be far enough ahead (minimum notice).
      */
     public function after(): array
     {
         return [
             function (Validator $validator): void {
-                if ($validator->errors()->hasAny(['start_date', 'end_date'])) {
+                if ($validator->errors()->hasAny(['start_date', 'end_date', 'transfer_time'])) {
+                    return;
+                }
+
+                if (BookingFlowState::isTransfer()) {
+                    $problem = TransferSchedule::problem((string) $this->input('start_date'), $this->input('transfer_time'));
+
+                    if ($problem !== null) {
+                        $validator->errors()->add('transfer_time', $problem);
+                    }
+
                     return;
                 }
 
@@ -80,30 +117,47 @@ final class StepDatesRequest extends FormRequest
             'start_date.before_or_equal' => __('core::front.booking_start_too_far', ['days' => (int) config('availability.maximum_advance_days')]),
             'end_date.after_or_equal' => __('core::front.booking_end_before_start'),
             'end_date.after' => __('core::front.booking_check_out_after_check_in'),
+            'flight_number.regex' => __('core::front.transfer_flight_invalid'),
+            'transfer_time.date_format' => __('core::front.transfer_time_invalid'),
+        ];
+    }
+
+    public function attributes(): array
+    {
+        return [
+            'transfer_direction' => __('core::front.transfer_direction'),
+            'transfer_time' => __('core::front.transfer_time'),
+            'flight_number' => __('core::front.transfer_flight_number'),
+            'transfer_area_id' => __('core::front.transfer_area'),
+            'transfer_address' => __('core::front.transfer_address'),
         ];
     }
 
     /**
-     * The validated input in the flow's internal shape: a stay's check-out
-     * becomes its last night, and it has no pickup (see
-     * BookingFlowState::isStay()).
+     * The validated input in the flow's internal shape. A rental is always
+     * collected at the office; a stay's check-out becomes its last night,
+     * and it has no pickup (see BookingFlowState::isStay()); an airport
+     * pickup is a one-day booking whose times come from transfer_time.
      *
      * @return array<string, mixed>
      */
     public function flowData(): array
     {
         $data = $this->validated();
+        $noPickup = ['pickup_type' => 'office', 'business_location_id' => null, 'delivery_zone_id' => null];
+
+        if (BookingFlowState::isTransfer()) {
+            return [...$data, ...$noPickup, 'end_date' => $data['start_date']];
+        }
 
         if (! BookingFlowState::isStay()) {
-            return $data;
+            return [...$data, ...$noPickup, 'business_location_id' => BusinessLocation::office()?->id];
         }
 
         return [
             ...$data,
+            ...$noPickup,
             'end_date' => CarbonImmutable::parse($data['end_date'])->subDay()->toDateString(),
-            'pickup_type' => 'office',
-            'business_location_id' => null,
-            'delivery_zone_id' => null,
         ];
     }
 }

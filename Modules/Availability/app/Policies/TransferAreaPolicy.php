@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Modules\Availability\Policies;
 
 use App\Models\User;
-use Modules\Availability\Models\AvailabilityBlackout;
+use Modules\Availability\Models\TransferArea;
 
-final class AvailabilityBlackoutPolicy
+final class TransferAreaPolicy
 {
     public function viewAny(User $user): bool
     {
@@ -19,7 +19,12 @@ final class AvailabilityBlackoutPolicy
         return $user->can('availability.manage');
     }
 
-    public function delete(User $user, AvailabilityBlackout $blackout): bool
+    public function update(User $user, TransferArea $area): bool
+    {
+        return $user->can('availability.manage');
+    }
+
+    public function delete(User $user, TransferArea $area): bool
     {
         return $user->can('availability.manage');
     }

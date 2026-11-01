@@ -19,7 +19,7 @@ beforeEach(function (): void {
     ProductCategory::query()->get()->each->syncSlugs();
 
     $this->tukTuks = ProductCategory::query()->where('name->en', 'Tuk Tuk Rental')->firstOrFail();
-    $this->surfing = ProductCategory::query()->where('name->en', 'Surfing')->firstOrFail();
+    $this->surfing = ProductCategory::query()->where('name->en', 'Kite & Surfing')->firstOrFail();
 
     $this->explorer = Package::factory()->create(['name' => ['en' => 'Island Explorer'], 'product_category_id' => $this->tukTuks->id]);
     $this->explorer->pricingTiers()->create(['min_days' => 1, 'max_days' => null, 'price' => 20]);
@@ -35,13 +35,14 @@ beforeEach(function (): void {
 it('groups packages by category and leaves out empty categories', function (): void {
     $this->get('/en/packages')
         ->assertOk()
-        ->assertSeeInOrder(['Tuk Tuk Rental', 'Island Explorer', 'Surfing', 'Beginner Surf Lesson'])
-        ->assertSee('/en/packages/category/surfing', false)
-        ->assertDontSee('Kitesurfing');
+        ->assertSeeInOrder(['Tuk Tuk Rental', 'Island Explorer', 'Kite & Surfing', 'Beginner Surf Lesson'])
+        ->assertSee('/en/packages/category/kite-surfing', false)
+        // Vehicle Rent has no packages yet.
+        ->assertDontSee('/en/packages/category/vehicle-rent', false);
 });
 
 it('shows a category page with its own packages', function (): void {
-    $this->get('/en/packages/category/surfing')
+    $this->get('/en/packages/category/kite-surfing')
         ->assertOk()
         ->assertSee('Beginner Surf Lesson')
         ->assertSee('/ person')
@@ -51,7 +52,7 @@ it('shows a category page with its own packages', function (): void {
 it('hides a category and its packages when the admin deactivates it', function (): void {
     $this->surfing->update(['is_active' => false]);
 
-    $this->get('/en/packages/category/surfing')->assertNotFound();
+    $this->get('/en/packages/category/kite-surfing')->assertNotFound();
     $this->get('/en/packages/'.$this->lesson->slugFor('en'))->assertNotFound();
     $this->get('/en/packages')->assertOk()->assertDontSee('Beginner Surf Lesson');
 });
@@ -78,6 +79,6 @@ it('keeps the normal booking button for rental packages', function (): void {
 it('lists category pages in the sitemap', function (): void {
     $this->get('/sitemap.xml')
         ->assertOk()
-        ->assertSee('/en/packages/category/surfing', false)
+        ->assertSee('/en/packages/category/kite-surfing', false)
         ->assertSee('/en/packages/category/tuk-tuk-rental', false);
 });

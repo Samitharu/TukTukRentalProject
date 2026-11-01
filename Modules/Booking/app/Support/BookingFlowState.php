@@ -49,13 +49,38 @@ final class BookingFlowState
     }
 
     /**
-     * What is being booked: a tuk tuk ('vehicle', the default) or a stay
-     * ('stay'). Set once at the start of the flow from the package or unit
-     * the customer came from (see BookingFlowController::start()).
+     * What is being booked: a rental ('vehicle', the default), a stay
+     * ('stay') or an airport pickup ('transfer'). Set at the start of the
+     * flow from the line, package or unit the customer came from (see
+     * BookingFlowController::start()).
      */
     public static function kind(): string
     {
-        return self::value('kind') === VehicleCategory::KIND_STAY ? VehicleCategory::KIND_STAY : VehicleCategory::KIND_VEHICLE;
+        $kind = self::value('kind');
+
+        return in_array($kind, VehicleCategory::KINDS, true) ? $kind : VehicleCategory::KIND_VEHICLE;
+    }
+
+    /**
+     * The product line (Tuk Tuk, Vehicle Rent, Airport Pickup, Stays) being
+     * booked, or null for "any line of this kind" — old sessions, or a
+     * customer who came straight to /booking/start.
+     */
+    public static function lineId(): ?int
+    {
+        $lineId = self::value('line_id');
+
+        return $lineId !== null ? (int) $lineId : null;
+    }
+
+    /**
+     * For an airport pickup, start_date = end_date = the pickup day, and
+     * the real times come from transfer_time + the area's duration (see
+     * TransferSchedule::range()). It counts as a one-day booking.
+     */
+    public static function isTransfer(): bool
+    {
+        return self::kind() === VehicleCategory::KIND_TRANSFER;
     }
 
     /**

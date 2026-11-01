@@ -17,6 +17,7 @@ use Modules\Package\Models\Package;
 use Modules\Package\Models\PackageImage;
 use Modules\Package\Models\ProductCategory;
 use Modules\Package\Services\PackageImageService;
+use Modules\Package\Support\PackageCharge;
 
 final class PackageController extends Controller
 {
@@ -51,6 +52,9 @@ final class PackageController extends Controller
             'preselectedCategoryId' => $request->integer('category') ?: null,
             'categories' => VehicleCategory::query()->active()->orderBy('kind')->orderBy('sort_order')->get(),
             'vehicles' => Vehicle::query()->active()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
+            'charge' => null,
+            'price' => null,
+            'usesLengthPrices' => false,
         ]);
     }
 
@@ -62,12 +66,15 @@ final class PackageController extends Controller
         $package = Package::query()->create($data);
         $package->categories()->sync($request->input('category_ids', []));
         $package->vehicles()->sync($request->input('vehicle_ids', []));
+        $this->syncPrice($package, $request);
 
         foreach ($request->file('images', []) as $index => $file) {
             $this->images->store($package, $file, isPrimary: $index === 0);
         }
 
-        return redirect()->route('admin.packages.edit', $package)->with('status', __('Package created — now add pricing tiers.'));
+        return $request->filled('price')
+            ? redirect()->route('admin.packages.index')->with('status', __('Package created.'))
+            : redirect()->route('admin.packages.edit', $package)->with('status', __('Package created — now add pricing tiers.'));
     }
 
     public function edit(Package $package): View
@@ -86,6 +93,9 @@ final class PackageController extends Controller
             'selectedVehicleIds' => $package->vehicles()->pluck('vehicles.id')->all(),
             'includedAddonIds' => $package->addons()->wherePivot('is_included', true)->pluck('addons.id')->all(),
             'offeredAddonIds' => $package->addons()->pluck('addons.id')->all(),
+            'charge' => PackageCharge::of($package),
+            'price' => $package->pricingTiers->count() === 1 ? $package->pricingTiers->first()->price : null,
+            'usesLengthPrices' => $package->pricingTiers->count() > 1,
         ]);
     }
 
@@ -97,6 +107,7 @@ final class PackageController extends Controller
         $package->update($data);
         $package->categories()->sync($request->input('category_ids', []));
         $package->vehicles()->sync($request->input('vehicle_ids', []));
+        $this->syncPrice($package, $request);
 
         foreach ($request->file('images', []) as $file) {
             $this->images->store($package, $file);
@@ -113,7 +124,11 @@ final class PackageController extends Controller
      */
     private function packageData(StorePackageRequest|UpdatePackageRequest $request): array
     {
-        $data = $request->safe()->except(['category_ids', 'vehicle_ids', 'images']);
+        $data = $request->safe()->except([
+            'category_ids', 'vehicle_ids', 'images',
+            // The simple form's own fields (see SimplePackageForm).
+            'charge', 'price', 'package_days', 'daily_km', 'daily_extra_km_rate', 'vehicle_type_id',
+        ]);
         $data['deposit_is_percent'] = $request->boolean('deposit_is_percent');
         $data['is_featured'] = $request->boolean('is_featured');
         $data['included_km_per_day'] = $request->boolean('included_km_per_day', true);
@@ -126,6 +141,21 @@ final class PackageController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * The simple form's one price becomes the package's only tier (from 1,
+     * no upper limit) — what pricing reads for every way of charging. A
+     * package priced by rental length (several tiers) keeps its tiers.
+     */
+    private function syncPrice(Package $package, StorePackageRequest|UpdatePackageRequest $request): void
+    {
+        if (! $request->filled('price') || $package->pricingTiers()->count() > 1) {
+            return;
+        }
+
+        $package->pricingTiers()->delete();
+        $package->pricingTiers()->create(['min_days' => 1, 'max_days' => null, 'price' => (float) $request->input('price')]);
     }
 
     public function destroy(Package $package): RedirectResponse

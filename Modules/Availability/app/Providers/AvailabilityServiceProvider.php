@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Modules\Availability\Providers;
 
 use Illuminate\Support\Facades\Gate;
-use Modules\Availability\Models\AvailabilityBlackout;
 use Modules\Availability\Models\BusinessLocation;
-use Modules\Availability\Policies\AvailabilityBlackoutPolicy;
+use Modules\Availability\Models\TransferArea;
 use Modules\Availability\Policies\BusinessLocationPolicy;
+use Modules\Availability\Policies\TransferAreaPolicy;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 class AvailabilityServiceProvider extends ModuleServiceProvider
@@ -30,6 +30,6 @@ class AvailabilityServiceProvider extends ModuleServiceProvider
         parent::boot();
 
         Gate::policy(BusinessLocation::class, BusinessLocationPolicy::class);
-        Gate::policy(AvailabilityBlackout::class, AvailabilityBlackoutPolicy::class);
+        Gate::policy(TransferArea::class, TransferAreaPolicy::class);
     }
 }

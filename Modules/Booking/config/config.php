@@ -21,6 +21,15 @@ return [
         'last_return_hour' => (int) env('BOOKING_HOURLY_LAST_RETURN', 22),
     ],
 
+    // Airport pickups: minutes kept free between two trips on the same
+    // vehicle, on top of each destination area's own trip duration.
+    'transfer_buffer_minutes' => (int) env('BOOKING_TRANSFER_BUFFER_MINUTES', 30),
+
+    // Customers enter flight times in local Sri Lanka time; stored as that
+    // wall-clock time (like hourly rentals) and compared against "now"
+    // in this zone for the minimum-notice rule.
+    'business_timezone' => env('BUSINESS_TIMEZONE', 'Asia/Colombo'),
+
     // Who receives the "new booking placed" email (comma-separated). Falls
     // back to the business contact address when unset or left empty.
     'admin_notification_emails' => array_values(array_filter(array_map(

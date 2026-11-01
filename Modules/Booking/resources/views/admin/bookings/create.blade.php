@@ -63,7 +63,12 @@
                 <select id="package_id" name="package_id" required data-package-select>
                     <option value="">{{ __('— Select —') }}</option>
                     @foreach ($packages as $package)
-                        <option value="{{ $package->id }}" @selected(old('package_id') == $package->id)>{{ $package->name }} ({{ $package->isStay() ? __('Stay') : ($package->isHourly() ? __('Tuk tuk, hourly :min–:max h', ['min' => $package->min_hours, 'max' => $package->max_hours ?? '…']) : __('Tuk tuk')) }})</option>
+                        <option value="{{ $package->id }}" @selected(old('package_id') == $package->id)>{{ $package->name }} ({{ match (true) {
+                            $package->isStay() => __('Stay'),
+                            $package->isTransfer() => __('Airport pickup'),
+                            $package->isHourly() => __('Rental, hourly :min–:max h', ['min' => $package->min_hours, 'max' => $package->max_hours ?? '…']),
+                            default => __('Rental'),
+                        } }})</option>
                     @endforeach
                 </select>
             </div>
@@ -73,7 +78,7 @@
                 <select id="vehicle_id" name="vehicle_id">
                     <option value="">{{ __('— Auto-assign —') }}</option>
                     @foreach ($vehicles as $vehicle)
-                        <option value="{{ $vehicle->id }}" @selected(old('vehicle_id') == $vehicle->id)>{{ $vehicle->adminLabel() }} ({{ $vehicle->isStay() ? __('Stay') : __('Tuk tuk') }})</option>
+                        <option value="{{ $vehicle->id }}" @selected(old('vehicle_id') == $vehicle->id)>{{ $vehicle->adminLabel() }} ({{ $vehicle->isStay() ? __('Stay') : ($vehicle->isTransfer() ? __('Airport vehicle') : ($vehicle->category?->name ?? __('Rental'))) }})</option>
                     @endforeach
                 </select>
             </div>
@@ -85,9 +90,47 @@
 
             <div class="admin-form-field">
                 <label for="end_date">{{ __('Return date / check-out') }}</label>
-                <input type="date" id="end_date" name="end_date" value="{{ old('end_date') }}" required>
-                <p class="admin-hint">{{ __('For a stay package enter the check-out day — the guest is charged per night. Pickup and permit fields below are ignored for stays.') }}</p>
+                <input type="date" id="end_date" name="end_date" value="{{ old('end_date') }}">
+                <p class="admin-hint">{{ __('For a stay package enter the check-out day — the guest is charged per night. The permit field below is ignored for stays. Leave empty for an airport pickup.') }}</p>
             </div>
+
+            <fieldset class="admin-form-field admin-location">
+                <legend>{{ __('Airport pickup packages only') }}</legend>
+                <p class="admin-hint" style="margin-top:0;">{{ __('The pickup date is the date above. The vehicle is reserved from this time for the destination area\'s trip duration.') }}</p>
+                <div class="admin-location__coords">
+                    <div>
+                        <label for="transfer_direction">{{ __('Direction') }}</label>
+                        <select id="transfer_direction" name="transfer_direction">
+                            <option value="">{{ __('— Not an airport pickup —') }}</option>
+                            <option value="arrival" @selected(old('transfer_direction') === 'arrival')>{{ __('Airport → address (arrival)') }}</option>
+                            <option value="departure" @selected(old('transfer_direction') === 'departure')>{{ __('Address → airport (departure)') }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="transfer_time">{{ __('Pickup time') }}</label>
+                        <input type="time" id="transfer_time" name="transfer_time" value="{{ old('transfer_time') }}">
+                    </div>
+                </div>
+                <div class="admin-location__coords">
+                    <div>
+                        <label for="flight_number">{{ __('Flight number') }}</label>
+                        <input type="text" id="flight_number" name="flight_number" value="{{ old('flight_number') }}" maxlength="10" placeholder="UL 504">
+                    </div>
+                    <div>
+                        <label for="transfer_area_id">{{ __('Destination area') }}</label>
+                        <select id="transfer_area_id" name="transfer_area_id">
+                            <option value="">{{ __('— Select —') }}</option>
+                            @foreach ($transferAreas as $area)
+                                <option value="{{ $area->id }}" @selected(old('transfer_area_id') == $area->id)>{{ $area->name }} (+{{ $area->price }}, {{ $area->duration_minutes }} min)</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <div class="admin-form-field">
+                    <label for="transfer_address">{{ __('Hotel / address') }}</label>
+                    <input type="text" id="transfer_address" name="transfer_address" value="{{ old('transfer_address') }}" maxlength="255">
+                </div>
+            </fieldset>
 
             <fieldset class="admin-form-field admin-location">
                 <legend>{{ __('Hourly packages only') }}</legend>
@@ -109,32 +152,7 @@
                 </div>
             </fieldset>
 
-            <div class="admin-form-field">
-                <label for="pickup_type">{{ __('Pickup type') }}</label>
-                <select id="pickup_type" name="pickup_type" required>
-                    <option value="office" @selected(old('pickup_type', 'office') === 'office')>{{ __('At our office') }}</option>
-                    <option value="delivery" @selected(old('pickup_type') === 'delivery')>{{ __('Delivery') }}</option>
-                </select>
-            </div>
-
-            <div class="admin-form-field">
-                <label for="business_location_id">{{ __('Pickup location') }}</label>
-                <select id="business_location_id" name="business_location_id">
-                    @foreach ($locations as $location)
-                        <option value="{{ $location->id }}" @selected(old('business_location_id') == $location->id)>{{ $location->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-
-            <div class="admin-form-field">
-                <label for="delivery_zone_id">{{ __('Delivery zone (if delivery)') }}</label>
-                <select id="delivery_zone_id" name="delivery_zone_id">
-                    <option value="">{{ __('— None —') }}</option>
-                    @foreach ($deliveryZones as $zone)
-                        <option value="{{ $zone->id }}" @selected(old('delivery_zone_id') == $zone->id)>{{ $zone->name }} (+{{ $zone->extra_fee }})</option>
-                    @endforeach
-                </select>
-            </div>
+            <p class="admin-hint">{{ __('Pickup') }}: {{ __('At our office') }}{{ $office ? ' — '.$office->name : '' }}</p>
 
             <div class="admin-form-field">
                 <label><input type="hidden" name="has_international_permit" value="0"><input type="checkbox" name="has_international_permit" value="1" @checked(old('has_international_permit'))> {{ __('Has International Driving Permit') }}</label>
@@ -169,6 +187,7 @@
                 'rental' => __('Rental'),
                 'seasonal' => __('Seasonal adjustment'),
                 'addons' => __('Add-ons'),
+                'transfer' => __('Destination area'),
                 'delivery' => __('Delivery'),
                 'coupon' => __('Coupon discount'),
                 'couponIgnored' => __('Coupon not valid — not applied.'),

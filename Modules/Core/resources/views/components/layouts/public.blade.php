@@ -2,6 +2,20 @@
     $whatsappNumber = config('core.business.whatsapp');
     $whatsappText = rawurlencode(__('core::front.whatsapp_default_message'));
     $siteSettings = \Modules\Core\Models\SiteSetting::current();
+    // The Services menu: every visible product line with something to book
+    // (an active package) and a page in this language.
+    $serviceLines = \Modules\Package\Models\ProductCategory::query()->active()
+        ->whereHas('packages', fn ($q) => $q->where('is_active', true))
+        ->with('routeSlugs')
+        ->orderBy('sort_order')->orderBy('id')->get()
+        ->map(fn ($line) => ['name' => $line->name, 'slug' => $line->slugFor(app()->getLocale())])
+        ->filter(fn ($line) => $line['slug'] !== null)
+        ->values();
+    $servicesActive = request()->routeIs('packages.*', 'fleet.*', 'vehicles.*', 'stays.*');
+    // Two-line brand: "Happy Journy" / "TukTuk Rental" (or the tagline).
+    $brandWords = preg_split('/\s+/', trim((string) config('app.name'))) ?: [];
+    $brandTitle = implode(' ', array_slice($brandWords, 0, 2));
+    $brandSubtitle = config('core.business.tagline') ?: implode(' ', array_slice($brandWords, 2));
 @endphp
 {{-- The public design is light-only: the hero photo, dark headline and
      mint backgrounds don't survive the dark-mode tokens. --}}
@@ -40,39 +54,49 @@
                     @if ($siteSettings->logoUrl())
                         <img src="{{ $siteSettings->logoUrl() }}" alt="{{ config('app.name') }}" class="site-header__logo-img">
                     @else
-                        <svg class="site-header__logo-icon" viewBox="0 0 48 36" aria-hidden="true" fill="none">
-                            <path d="M4 28h2a4 4 0 0 0 8 0h14a4 4 0 0 0 8 0h2a2 2 0 0 0 2-2v-5l-4-8a3 3 0 0 0-2.7-1.7H17L12.4 7A4 4 0 0 0 9 5H6a2 2 0 0 0-2 2v19a2 2 0 0 0 2 2Z" fill="currentColor" opacity="0.15"/>
-                            <path d="M4 28h2a4 4 0 0 0 8 0h14a4 4 0 0 0 8 0h2a2 2 0 0 0 2-2v-5l-4-8a3 3 0 0 0-2.7-1.7H17L12.4 7A4 4 0 0 0 9 5H6a2 2 0 0 0-2 2v19a2 2 0 0 0 2 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-                            <path d="M17 11v9M30 11v9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                            <circle cx="14" cy="28" r="3.5" fill="var(--color-surface)" stroke="currentColor" stroke-width="2"/>
-                            <circle cx="32" cy="28" r="3.5" fill="var(--color-surface)" stroke="currentColor" stroke-width="2"/>
+                        <svg class="site-header__logo-icon" viewBox="0 0 56 36" aria-hidden="true" fill="none">
+                            {{-- Gold speed swoosh behind a green tuk tuk --}}
+                            <path d="M2 27c5-1.5 9-1.8 13-1.2M5 21.5c3.5-1 6.5-1.2 9.5-.8" stroke="#f4b223" stroke-width="2.4" stroke-linecap="round"/>
+                            <path d="M12 28h2a4 4 0 0 0 8 0h14a4 4 0 0 0 8 0h2a2 2 0 0 0 2-2v-5l-4-8a3 3 0 0 0-2.7-1.7H25L20.4 7A4 4 0 0 0 17 5h-3a2 2 0 0 0-2 2v19a2 2 0 0 0 2 2Z" fill="currentColor" opacity="0.18"/>
+                            <path d="M12 28h2a4 4 0 0 0 8 0h14a4 4 0 0 0 8 0h2a2 2 0 0 0 2-2v-5l-4-8a3 3 0 0 0-2.7-1.7H25L20.4 7A4 4 0 0 0 17 5h-3a2 2 0 0 0-2 2v19a2 2 0 0 0 2 2Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+                            <path d="M25 11v9M38 11v9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                            <circle cx="22" cy="28" r="3.5" fill="#fff" stroke="currentColor" stroke-width="2.2"/>
+                            <circle cx="40" cy="28" r="3.5" fill="#fff" stroke="currentColor" stroke-width="2.2"/>
                         </svg>
                         <span class="site-header__brand-text">
-                            <span class="site-header__brand-name">{{ config('app.name') }}</span>
-                            @if (config('core.business.tagline'))
-                                <small>{{ config('core.business.tagline') }}</small>
+                            <span class="site-header__brand-name">{{ $brandTitle }}</span>
+                            @if ($brandSubtitle !== '')
+                                <small>{{ $brandSubtitle }}</small>
                             @endif
                         </span>
                     @endif
                 </a>
 
                 <nav class="site-nav" aria-label="{{ __('core::front.main_navigation') }}">
-                    {{--
-                        Flat list, no "More" dropdown: six items plus the
-                        language switcher and Book Now button fit real
-                        desktop/laptop widths as long as every item stays
-                        this compact (icon + short label). Travel Guides and
-                        Contact still live in the footer and the mobile menu
-                        below — they just aren't repeated up here.
-                    --}}
+                    {{-- Kept short on purpose: Home, Services (dropdown), About Us, FAQ,
+                         Contact, then the language switcher and the gold Book Now
+                         button. Everything else (blog, pricing…) is in the footer. --}}
                     <ul>
                         <li><a href="{{ route('home') }}" @if(request()->routeIs('home')) aria-current="page" @endif><span class="site-nav__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 11.5 12 4l8 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 10v8.5a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1V10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>{{ __('core::front.nav_home') }}</a></li>
-                        <li><a href="{{ route('fleet.index') }}" @if(request()->routeIs('fleet.*')) aria-current="page" @endif><span class="site-nav__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 15.5V9.8a2 2 0 0 1 2-2h6.3l3.8 3.7H19a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7.5" cy="16" r="2" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="16" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 15.5h2.5M9.5 16h5M19 16h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>{{ __('core::front.nav_fleet') }}</a></li>
-                        <li><a href="{{ route('stays.index') }}" @if(request()->routeIs('stays.*')) aria-current="page" @endif><span class="site-nav__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 11 12 4l9 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 9.5V20h13V9.5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M3 20h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9.5 20v-5h5v5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>{{ __('core::front.nav_stays') }}</a></li>
-                        <li><a href="{{ route('packages.index') }}" @if(request()->routeIs('packages.*')) aria-current="page" @endif><span class="site-nav__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="9" width="17" height="11" rx="1.5" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 13h17M12 9v11" stroke="currentColor" stroke-width="1.8"/><path d="M8.2 9c-1.6 0-3-1.1-3-2.8C5.2 4.6 7 4 8 5c.9.8 1.8 2.3 2.4 3.1M15.8 9c1.6 0 3-1.1 3-2.8 0-1.6-1.8-2.2-2.8-1.2-.9.8-1.8 2.3-2.4 3.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>{{ __('core::front.nav_packages') }}</a></li>
-                        <li><a href="{{ route('pricing') }}" @if(request()->routeIs('pricing')) aria-current="page" @endif><span class="site-nav__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12.6 3.5 20 10.9a2 2 0 0 1 0 2.9l-6 6a2 2 0 0 1-2.9 0L4 12.6V6.3A2.8 2.8 0 0 1 6.8 3.5h5.8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8.8" cy="8.8" r="1.3" fill="currentColor"/></svg></span>{{ __('core::front.pricing_title') }}</a></li>
-                        <li><a href="{{ route('pages.show', 'how-it-works') }}"><span class="site-nav__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v5.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7.8" r="1" fill="currentColor"/></svg></span>{{ __('core::front.nav_how_it_works') }}</a></li>
+                        {{-- Services: one entry per product line (Tuk Tuk, Vehicle Rent,
+                             Airport Pickup, Stays, Kite & Surfing). Opens on hover or
+                             keyboard focus, and on click/tap via the button. --}}
+                        <li class="site-nav__dropdown" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false">
+                            <button type="button" class="site-nav__trigger" @click="open = !open" :aria-expanded="open" aria-expanded="false" aria-haspopup="true" aria-controls="services-menu" @if($servicesActive) aria-current="page" @endif>
+                                <span class="site-nav__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg></span>
+                                {{ __('core::front.nav_services') }}
+                                <svg class="site-nav__caret" viewBox="0 0 24 24" width="12" height="12" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </button>
+                            <ul id="services-menu" class="site-nav__menu">
+                                @foreach ($serviceLines as $line)
+                                    <li><a href="{{ route('packages.category', $line['slug']) }}">{{ $line['name'] }}</a></li>
+                                @endforeach
+                                <li><a href="{{ route('packages.index') }}" class="site-nav__menu-all">{{ __('core::front.nav_services_all') }}</a></li>
+                            </ul>
+                        </li>
+                        <li><a href="{{ route('pages.show', 'about-us') }}" @if(request()->is('*/about-us')) aria-current="page" @endif><span class="site-nav__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.5" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M5 19.5c.8-3.4 3.6-5.5 7-5.5s6.2 2.1 7 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>{{ __('core::front.nav_about') }}</a></li>
                         <li><a href="{{ route('faq') }}" @if(request()->routeIs('faq')) aria-current="page" @endif><span class="site-nav__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="M9.4 9.4a2.6 2.6 0 1 1 3.9 2.3c-.9.5-1.3 1.1-1.3 2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16.6" r="1" fill="currentColor"/></svg></span>{{ __('core::front.nav_faq') }}</a></li>
+                        <li><a href="{{ route('contact') }}" @if(request()->routeIs('contact')) aria-current="page" @endif><span class="site-nav__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5.5" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="m3.8 7 8.2 6 8.2-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>{{ __('core::front.nav_contact') }}</a></li>
                     </ul>
                 </nav>
 
@@ -81,6 +105,7 @@
                     <a href="{{ route('booking.start') }}" class="btn btn--primary site-header__book-btn">
                         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18"><rect x="3.5" y="5" width="17" height="15" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 9.5h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                         {{ __('core::front.book_now') }}
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M5 12h14m-5-5 5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </a>
                     <button type="button" class="nav-toggle" @click="mobileNavOpen = !mobileNavOpen" :aria-expanded="mobileNavOpen" aria-controls="mobile-nav">
                         <span class="visually-hidden">{{ __('core::front.toggle_menu') }}</span>
@@ -92,15 +117,19 @@
             <nav id="mobile-nav" class="site-nav--mobile" x-show="mobileNavOpen" x-cloak aria-label="{{ __('core::front.main_navigation') }}">
                 <ul>
                     <li><a href="{{ route('home') }}">{{ __('core::front.nav_home') }}</a></li>
-                    <li><a href="{{ route('fleet.index') }}">{{ __('core::front.nav_fleet') }}</a></li>
-                    <li><a href="{{ route('stays.index') }}">{{ __('core::front.nav_stays') }}</a></li>
-                    <li><a href="{{ route('packages.index') }}">{{ __('core::front.nav_packages') }}</a></li>
-                    <li><a href="{{ route('pricing') }}">{{ __('core::front.pricing_title') }}</a></li>
-                    <li><a href="{{ route('pages.show', 'how-it-works') }}">{{ __('core::front.nav_how_it_works') }}</a></li>
+                    <li>
+                        <span class="site-nav--mobile__heading">{{ __('core::front.nav_services') }}</span>
+                        <ul class="site-nav--mobile__sub">
+                            @foreach ($serviceLines as $line)
+                                <li><a href="{{ route('packages.category', $line['slug']) }}">{{ $line['name'] }}</a></li>
+                            @endforeach
+                            <li><a href="{{ route('packages.index') }}">{{ __('core::front.nav_services_all') }}</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="{{ route('pages.show', 'about-us') }}">{{ __('core::front.nav_about') }}</a></li>
                     <li><a href="{{ route('faq') }}">{{ __('core::front.nav_faq') }}</a></li>
-                    <li><a href="{{ route('blog.index') }}">{{ __('core::front.nav_blog') }}</a></li>
                     <li><a href="{{ route('contact') }}">{{ __('core::front.nav_contact') }}</a></li>
-                    <li><a href="{{ route('booking.start') }}" class="btn btn--primary btn--block">{{ __('core::front.book_now') }}</a></li>
+                    <li><a href="{{ route('booking.start') }}" class="btn btn--primary btn--block site-nav__book">{{ __('core::front.book_now') }}</a></li>
                 </ul>
             </nav>
         </header>
@@ -141,8 +170,12 @@
                     <h3>{{ __('core::front.footer_explore') }}</h3>
                     <ul>
                         <li><a href="{{ route('fleet.index') }}">{{ __('core::front.nav_fleet') }}</a></li>
+                        <li><a href="{{ route('vehicles.index') }}">{{ __('core::front.nav_vehicles') }}</a></li>
+                        <li><a href="{{ route('booking.start', ['kind' => 'transfer']) }}">{{ __('core::front.nav_airport') }}</a></li>
                         <li><a href="{{ route('stays.index') }}">{{ __('core::front.nav_stays') }}</a></li>
                         <li><a href="{{ route('packages.index') }}">{{ __('core::front.nav_packages') }}</a></li>
+                        <li><a href="{{ route('pricing') }}">{{ __('core::front.pricing_title') }}</a></li>
+                        <li><a href="{{ route('pages.show', 'how-it-works') }}">{{ __('core::front.nav_how_it_works') }}</a></li>
                         <li><a href="{{ route('blog.index') }}">{{ __('core::front.nav_blog') }}</a></li>
                         <li><a href="{{ route('faq') }}">{{ __('core::front.nav_faq') }}</a></li>
                     </ul>
@@ -173,6 +206,13 @@
         <a href="https://wa.me/{{ $whatsappNumber }}?text={{ $whatsappText }}" class="whatsapp-float" target="_blank" rel="noopener" aria-label="{{ __('core::front.whatsapp') }}">
             <svg viewBox="0 0 32 32" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M16.001 3C9.373 3 4 8.373 4 15c0 2.386.697 4.61 1.902 6.48L4 29l7.72-1.867A11.93 11.93 0 0 0 16.001 27C22.63 27 28 21.627 28 15S22.63 3 16.001 3zm0 21.75c-1.98 0-3.822-.57-5.378-1.553l-.385-.236-4.58 1.107 1.15-4.463-.252-.4A9.71 9.71 0 0 1 5.25 15c0-5.93 4.82-10.75 10.75-10.75S26.75 9.07 26.75 15 21.93 24.75 16 24.75zm5.94-7.98c-.326-.163-1.926-.95-2.225-1.058-.298-.108-.515-.163-.732.163-.217.326-.84 1.058-1.03 1.276-.19.217-.38.244-.706.082-.326-.163-1.375-.507-2.62-1.617-.968-.863-1.622-1.93-1.812-2.256-.19-.326-.02-.502.143-.664.146-.146.326-.38.489-.57.163-.19.217-.326.326-.543.109-.217.054-.407-.027-.57-.082-.163-.732-1.766-1.003-2.42-.264-.635-.532-.55-.732-.56-.19-.009-.407-.011-.624-.011-.217 0-.57.082-.868.407-.298.326-1.14 1.113-1.14 2.717 0 1.604 1.167 3.153 1.33 3.37.163.217 2.298 3.51 5.567 4.923.778.336 1.385.536 1.858.686.78.248 1.49.213 2.052.13.626-.093 1.926-.787 2.198-1.548.272-.76.272-1.412.19-1.548-.08-.136-.298-.217-.624-.38z"/></svg>
         </a>
+
+        @if ($siteSettings->tripadvisor_url)
+            <a href="{{ $siteSettings->tripadvisor_url }}" class="tripadvisor-float" target="_blank" rel="noopener" aria-label="{{ __('core::front.tripadvisor') }}" title="{{ __('core::front.tripadvisor') }}">
+                {{-- Owl eyes, Tripadvisor's mark --}}
+                <svg viewBox="0 0 32 32" width="30" height="30" fill="none" aria-hidden="true"><path d="M4 12.5 7 9.5h18l3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="17" r="5.5" stroke="currentColor" stroke-width="2"/><circle cx="22" cy="17" r="5.5" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="17" r="2" fill="currentColor"/><circle cx="22" cy="17" r="2" fill="currentColor"/><path d="m14.6 20.6 1.4 2.4 1.4-2.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+        @endif
 
         <div class="mobile-book-bar">
             <a href="{{ route('booking.start') }}" class="btn btn--primary btn--block">{{ __('core::front.book_now') }}</a>

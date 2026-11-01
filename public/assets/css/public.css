@@ -157,8 +157,8 @@ p { margin: 0 0 var(--space-3); }
     gap: 0.12rem;
     margin: 0 auto;
     padding: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
+    /* Only four items now, and the Services dropdown must not be clipped. */
+    overflow: visible;
 }
 
 .site-nav ul::-webkit-scrollbar {
@@ -216,17 +216,92 @@ p { margin: 0 0 var(--space-3); }
     background: var(--color-accent-400);
 }
 
-/* The full nav (seven links + language switcher + Book Now) only fits
-   from ~75rem; below that the hamburger menu takes over, rather than the
-   link row silently scrolling links out of view. Icons come back once
-   there is room for them too. */
-@media (min-width: 75rem) {
+/* The nav (Home, Services, About Us, FAQ + language switcher + Book Now)
+   fits from 64rem; below that the hamburger menu takes over. */
+@media (min-width: 64rem) {
     .site-nav { display: block; }
     .nav-toggle { display: none; }
 }
 
-@media (max-width: 89.99rem) {
-    .site-nav__icon { display: none; }
+/* ---------- Services dropdown ---------- */
+
+.site-nav__dropdown { position: relative; }
+
+.site-nav__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.34rem;
+    color: rgba(255, 255, 255, 0.8);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 800;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    padding: 0.62rem 0.62rem;
+    border-radius: var(--radius-full);
+}
+
+.site-nav__trigger:hover,
+.site-nav__dropdown:focus-within .site-nav__trigger { background: rgba(255, 255, 255, 0.07); color: #fff; }
+
+.site-nav__trigger[aria-current="page"] { color: #fff; box-shadow: inset 0 -2px 0 var(--color-accent-400); }
+
+.site-nav__caret { transition: transform 150ms ease; }
+.site-nav__trigger[aria-expanded="true"] .site-nav__caret,
+.site-nav__dropdown:hover .site-nav__caret { transform: rotate(180deg); }
+
+.site-nav .site-nav__menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 13rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    margin: 0;
+    padding: 0.4rem;
+    list-style: none;
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 12px 32px rgba(9, 74, 51, 0.22);
+    z-index: 120;
+}
+
+/* A hover bridge over the gap, so the menu stays open on the way down. */
+.site-nav .site-nav__menu::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -0.5rem;
+    height: 0.5rem;
+}
+
+.site-nav__dropdown:hover .site-nav__menu,
+.site-nav__dropdown:focus-within .site-nav__menu,
+.site-nav__trigger[aria-expanded="true"] + .site-nav__menu { display: flex; }
+
+.site-nav .site-nav__menu a {
+    display: flex;
+    justify-content: flex-start;
+    color: var(--color-ink-700);
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0.6rem 0.8rem;
+    border-radius: var(--radius-md);
+}
+
+.site-nav .site-nav__menu a:hover { background: var(--color-primary-50); color: var(--color-primary-600); }
+
+.site-nav .site-nav__menu .site-nav__menu-all {
+    margin-top: 0.25rem;
+    border-top: 1px solid var(--color-border);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    color: var(--color-primary-600);
 }
 
 .site-header__actions {
@@ -258,6 +333,19 @@ p { margin: 0 0 var(--space-3); }
 
 @media (min-width: 64rem) {
     .btn.site-header__book-btn { display: inline-flex; }
+}
+
+/* Same gold Book Now in the mobile menu. */
+.btn.site-nav__book {
+    background: linear-gradient(135deg, #f9d26c 0%, #f4a623 55%, #ef8d1d 100%);
+    color: #1c2c24;
+    box-shadow: 0 14px 28px rgba(244, 166, 35, 0.38);
+    font-weight: 900;
+}
+
+.btn.site-nav__book:hover {
+    background: linear-gradient(135deg, #fbe588 0%, #f7b53b 52%, #ef951d 100%);
+    color: #1c2c24;
 }
 
 .nav-toggle {
@@ -298,7 +386,22 @@ p { margin: 0 0 var(--space-3); }
     font-weight: 600;
 }
 
-@media (min-width: 75rem) {
+.site-nav--mobile__heading {
+    display: block;
+    padding: var(--space-2) var(--space-2) 0;
+    font-size: var(--font-size-sm);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-ink-300);
+}
+
+.site-nav--mobile .site-nav--mobile__sub {
+    gap: 0;
+    padding-left: var(--space-3);
+}
+
+@media (min-width: 64rem) {
     .site-nav--mobile { display: none; }
 }
 
@@ -969,9 +1072,28 @@ p { margin: 0 0 var(--space-3); }
     text-decoration: none;
 }
 
+/* Stacked just above the WhatsApp button. */
+.tripadvisor-float {
+    position: fixed;
+    right: var(--space-3);
+    bottom: calc(var(--space-3) + 56px + var(--space-2) + env(safe-area-inset-bottom, 0px));
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #34e0a1;
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-md);
+    z-index: 90;
+    text-decoration: none;
+}
+
 /* Leave room above the sticky mobile book bar on small screens. */
 @media (max-width: 47.99rem) {
     .whatsapp-float { bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)); }
+    .tripadvisor-float { bottom: calc(4.5rem + 56px + var(--space-2) + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ---------- Sticky mobile "Book Now" bar ---------- */
@@ -1092,6 +1214,7 @@ p { margin: 0 0 var(--space-3); }
 
 .site-header { view-transition-name: site-header; }
 .whatsapp-float { view-transition-name: whatsapp-float; }
+.tripadvisor-float { view-transition-name: tripadvisor-float; }
 
 /* The old page stays fully opaque underneath while the new one fades in
    on top. Fading both at once (especially at different speeds) let the
@@ -1109,7 +1232,8 @@ p { margin: 0 0 var(--space-3); }
 }
 
 ::view-transition-group(site-header),
-::view-transition-group(whatsapp-float) { animation-duration: 0s; }
+::view-transition-group(whatsapp-float),
+::view-transition-group(tripadvisor-float) { animation-duration: 0s; }
 
 @keyframes vt-fade-in { from { opacity: 0; transform: translateY(6px); } }
 
@@ -1121,16 +1245,6 @@ p { margin: 0 0 var(--space-3); }
 
 @keyframes img-fade-in { from { opacity: 0; } }
 
-/* Header: frosted glass over a green gradient */
-.site-header {
-    background: linear-gradient(180deg, rgba(12, 90, 63, 0.92), rgba(9, 74, 51, 0.92));
-    -webkit-backdrop-filter: saturate(160%) blur(14px);
-    backdrop-filter: saturate(160%) blur(14px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 6px 24px rgba(9, 74, 51, 0.18);
-}
-
-.site-nav a[aria-current="page"] { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); }
 
 /* Buttons: gradient, soft glow, springy hover */
 .btn {
@@ -2359,3 +2473,177 @@ p { margin: 0 0 var(--space-3); }
 }
 
 .hourly-picker select { width: 100%; min-height: var(--touch-target-min); }
+
+/* ======================================================================
+   Header — a floating white pill (logo · links · language · Book Now).
+   Placed last so it wins over the earlier green-bar header rules.
+   ====================================================================== */
+
+/* Header height (top gap + pill): how far the home hero slides up under it.
+   On :root so the hero (not a child of the header) can use it too. */
+:root { --header-overlap: calc(0.75rem + 64px); }
+
+.site-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    padding-top: 0.75rem;
+    padding-inline: 0.75rem;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    pointer-events: none; /* only the pill itself takes clicks */
+}
+
+.site-header > * { pointer-events: auto; }
+
+.site-header__bar {
+    min-height: 64px;
+    padding: 0.5rem 0.6rem 0.5rem 1.1rem;
+    gap: 0.75rem;
+    background: rgba(255, 255, 255, 0.92);
+    -webkit-backdrop-filter: saturate(160%) blur(16px);
+    backdrop-filter: saturate(160%) blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    border-radius: 999px;
+    box-shadow: 0 10px 34px rgba(9, 74, 51, 0.14), 0 2px 6px rgba(9, 74, 51, 0.06);
+}
+
+/* Brand: green tuk tuk + two-line name, then a thin divider. */
+.site-header__brand { color: var(--color-primary-600); gap: 0.55rem; }
+
+.site-header__logo-icon { width: 3rem; height: 2rem; color: var(--color-primary-500); }
+
+.site-header__brand-name {
+    font-size: clamp(1.05rem, 0.95rem + 0.35vw, 1.35rem);
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    color: var(--color-primary-600);
+}
+
+.site-header__brand-text small {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--color-ink-700);
+}
+
+@media (min-width: 64rem) {
+    .site-nav {
+        border-left: 1px solid var(--color-border);
+        margin-left: 0.4rem;
+        padding-left: 0.9rem;
+    }
+}
+
+/* Links: dark with icons; the current page is a filled green pill. */
+.site-nav ul { gap: 0.15rem; justify-content: flex-start; }
+
+.site-nav a,
+.site-nav__trigger {
+    color: var(--color-ink-700);
+    font-size: 0.9rem;
+    font-weight: 800;
+    padding: 0.62rem 0.95rem;
+    gap: 0.45rem;
+}
+
+.site-nav__icon { display: inline-flex; width: 1.15rem; height: 1.15rem; }
+
+.site-nav a:hover,
+.site-nav__trigger:hover,
+.site-nav__dropdown:focus-within .site-nav__trigger {
+    background: var(--color-primary-50);
+    color: var(--color-primary-600);
+}
+
+.site-nav > ul > li > a[aria-current="page"],
+.site-nav__trigger[aria-current="page"] {
+    color: #fff;
+    background: linear-gradient(135deg, var(--color-primary-400, #1f8a5f), var(--color-primary-600));
+    box-shadow: 0 8px 18px rgba(15, 107, 76, 0.3);
+}
+
+.site-nav > ul > li > a[aria-current="page"]::after { display: none; }
+
+/* Wide screens only: on smaller laptops the labels alone fit better. */
+@media (max-width: 79.99rem) {
+    .site-nav a,
+    .site-nav__trigger { padding-inline: 0.7rem; }
+    .site-nav > ul > li > a .site-nav__icon,
+    .site-nav__trigger .site-nav__icon { display: none; }
+}
+
+/* Language pill */
+.site-header .locale-switcher__trigger {
+    min-height: 44px;
+    padding: 0.4rem 0.85rem;
+    gap: 0.45rem;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    color: var(--color-ink-700);
+    font-size: 0.85rem;
+    font-weight: 800;
+    box-shadow: 0 2px 8px rgba(9, 74, 51, 0.06);
+}
+
+.site-header .locale-switcher__trigger:hover { background: var(--color-primary-50); border-color: var(--color-primary-100); }
+
+.site-header .locale-switcher__flag { width: 24px; height: 17px; }
+
+/* Gold Book Now pill: calendar · label · arrow */
+.btn.site-header__book-btn {
+    min-height: 48px;
+    padding: 0.7rem 1.35rem;
+    gap: 0.5rem;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    background: linear-gradient(135deg, #ffd65a 0%, #f9b923 55%, #f4a623 100%);
+    color: #1c2c24;
+    box-shadow: 0 10px 24px rgba(244, 166, 35, 0.42);
+}
+
+.btn.site-header__book-btn:hover { background: linear-gradient(135deg, #ffe07a 0%, #fbc43e 55%, #f6ae2f 100%); }
+
+/* Hamburger (below 64rem): a round button inside the pill. */
+.nav-toggle {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--color-primary-50);
+    border: 1px solid var(--color-primary-100);
+    color: var(--color-primary-600);
+}
+
+/* Phone menu: a white card under the pill. */
+.site-nav--mobile {
+    margin: 0.5rem var(--space-3) 0;
+    border: 0;
+    border-radius: 1.25rem;
+    box-shadow: 0 16px 40px rgba(9, 74, 51, 0.18);
+    pointer-events: auto;
+}
+
+/* Home: the hero runs up behind the floating pill, as in the design. */
+@media (min-width: 64rem) {
+    .site-header:has(~ #main-content > .hero:first-child) { margin-bottom: calc(-1 * var(--header-overlap)); }
+    #main-content > .hero:first-child { padding-top: calc(var(--header-overlap) + var(--space-5)); }
+}
+
+/* Small phones: compact brand, flag-only language pill, so the menu
+   button always fits inside the pill. */
+@media (max-width: 30rem) {
+    .site-header__bar { padding-left: 0.8rem; gap: 0.4rem; }
+    .site-header__logo-icon { width: 2.4rem; height: 1.6rem; }
+    .site-header__brand-name { font-size: 1rem; }
+    .site-header__brand-text small { font-size: 0.72rem; }
+    .site-header .locale-switcher__label { display: none; }
+    .site-header .locale-switcher__trigger { padding-inline: 0.6rem; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .site-header__bar { background: #fff; }
+}

@@ -15,9 +15,15 @@ final class UpdatePackageRequest extends FormRequest
         return $this->user()?->can('update', $this->route('package')) ?? false;
     }
 
+    protected function prepareForValidation(): void
+    {
+        SimplePackageForm::prepare($this, $this->route('package'));
+    }
+
     public function rules(): array
     {
         return [
+            ...SimplePackageForm::rules(),
             ...TranslatableRules::forField('name', max: 150),
             ...TranslatableRules::forField('description', max: 4000, requireDefault: false),
             ...PackageKindRules::rules(creating: false),
@@ -50,6 +56,13 @@ final class UpdatePackageRequest extends FormRequest
                 $this->input('extra_km_rate'),
                 (array) $this->input('category_ids', []),
                 (array) $this->input('vehicle_ids', []),
+                $this->input('product_category_id', $this->route('package')?->product_category_id),
+            ),
+            fn (Validator $validator) => SimplePackageForm::validate(
+                $validator,
+                $this,
+                PackageKindRules::kindFor($this->input('product_category_id'), $this->route('package')),
+                $this->route('package'),
             ),
         ];
     }

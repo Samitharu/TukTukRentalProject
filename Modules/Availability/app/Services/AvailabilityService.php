@@ -10,7 +10,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Modules\Availability\Exceptions\SlotConflictException;
-use Modules\Availability\Models\AvailabilityBlackout;
 use Modules\Availability\Models\VehicleReservationSlot;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Fleet\Models\VehicleMaintenanceLog;
@@ -39,8 +38,7 @@ final class AvailabilityService
      */
     public function isRangeFree(int $vehicleId, CarbonImmutable $start, CarbonImmutable $end): bool
     {
-        return ! $this->hasBlackoutConflict($vehicleId, $start, $end)
-            && ! $this->hasMaintenanceConflict($vehicleId, $start, $end)
+        return ! $this->hasMaintenanceConflict($vehicleId, $start, $end)
             && ! $this->hasReservationConflict($vehicleId, $start, $end);
     }
 
@@ -63,8 +61,8 @@ final class AvailabilityService
 
     /**
      * Of $vehicleIds, the ones that are NOT free for the whole range — the
-     * same three rules as isRangeFree(), but 3-4 queries for the whole list
-     * instead of 3 per vehicle. Advisory only (e.g. the public package step
+     * same rules as isRangeFree(), but 2 queries for the whole list instead
+     * of 2 per vehicle. Advisory only (e.g. the public package step
      * flagging fully-booked packages): every write still re-checks with
      * isRangeFree() under the vehicle lock.
      *
@@ -75,16 +73,6 @@ final class AvailabilityService
     {
         if ($vehicleIds === []) {
             return [];
-        }
-
-        $fleetWideBlackout = AvailabilityBlackout::query()
-            ->whereNull('vehicle_id')
-            ->where('starts_on', '<=', $end->toDateString())
-            ->where('ends_on', '>=', $start->toDateString())
-            ->exists();
-
-        if ($fleetWideBlackout) {
-            return array_values(array_map('intval', $vehicleIds));
         }
 
         $bufferDays = (int) config('availability.buffer_days');
@@ -98,28 +86,17 @@ final class AvailabilityService
             ->distinct()
             ->pluck('vehicle_id');
 
-        $blackedOut = AvailabilityBlackout::query()
-            ->whereIn('vehicle_id', $vehicleIds)
-            ->where('starts_on', '<=', $end->toDateString())
-            ->where('ends_on', '>=', $start->toDateString())
-            ->pluck('vehicle_id');
-
         $inMaintenance = VehicleMaintenanceLog::query()
             ->whereIn('vehicle_id', $vehicleIds)
             ->where('starts_at', '<=', $end->endOfDay())
             ->where('ends_at', '>=', $start->startOfDay())
             ->pluck('vehicle_id');
 
-        return $reserved->concat($blackedOut)->concat($inMaintenance)
+        return $reserved->concat($inMaintenance)
             ->map(fn ($id) => (int) $id)
             ->unique()
             ->values()
             ->all();
-    }
-
-    public function hasBlackoutConflict(int $vehicleId, CarbonImmutable $start, CarbonImmutable $end): bool
-    {
-        return AvailabilityBlackout::query()->overlapping($vehicleId, $start, $end)->exists();
     }
 
     /**

@@ -1,9 +1,10 @@
 /*
- * Admin package form: the category's booking style (data-kind on its
- * option) decides which pricing types are offered and which sections show;
- * the pricing type then shows/hides its own sections (hourly length, day
- * range). Inputs in hidden sections are disabled so they aren't submitted.
- * The server validates all of this again — this is only convenience.
+ * Admin package form (simple version): the category's booking style
+ * (data-kind on its option) decides which "How is it charged?" answers and
+ * which vehicle types are offered; the chosen answer then shows only its own
+ * fields (price label, hours, km). Inputs in hidden sections are disabled so
+ * they aren't submitted. The server validates all of this again — this is
+ * only convenience.
  */
 (function () {
     'use strict';
@@ -21,42 +22,63 @@
 
     function init(form) {
         var category = form.querySelector('[data-package-category]');
-        var pricing = form.querySelector('[data-pricing-model]');
+        var vehicleType = form.querySelector('[data-vehicle-type]');
 
-        if (!category || !pricing) {
+        if (!category) {
             return;
+        }
+
+        function checkedCharge() {
+            var checked = form.querySelector('input[name="charge"]:checked:not([disabled])');
+
+            return checked ? checked.value : '';
         }
 
         function apply() {
             var option = category.options[category.selectedIndex];
             var kind = option ? option.getAttribute('data-kind') : 'vehicle';
+            var line = option ? option.value : '';
 
-            Array.prototype.forEach.call(pricing.options, function (model) {
-                model.disabled = !listHas(model.getAttribute('data-kinds'), kind);
+            // Charging answers for this booking style; keep or pick one.
+            var options = form.querySelectorAll('[data-charge-option]');
+            options.forEach(function (label) {
+                toggle(label, listHas(label.getAttribute('data-kinds'), kind));
             });
-
-            if (pricing.options[pricing.selectedIndex] && pricing.options[pricing.selectedIndex].disabled) {
-                var firstAllowed = Array.prototype.find.call(pricing.options, function (model) { return !model.disabled; });
-                if (firstAllowed) {
-                    pricing.value = firstAllowed.value;
+            if (checkedCharge() === '') {
+                var first = Array.prototype.find.call(options, function (label) { return !label.hidden; });
+                if (first) {
+                    first.querySelector('input').checked = true;
                 }
             }
 
-            var model = pricing.value;
+            // Vehicle types of the chosen line only.
+            if (vehicleType) {
+                Array.prototype.forEach.call(vehicleType.options, function (type) {
+                    var typeLine = type.getAttribute('data-line');
+                    type.hidden = typeLine !== null && typeLine !== line;
+                    type.disabled = type.hidden;
+                });
+                if (vehicleType.selectedOptions[0] && vehicleType.selectedOptions[0].disabled) {
+                    vehicleType.value = '';
+                }
+            }
+
+            var charge = checkedCharge();
 
             form.querySelectorAll('[data-package-kind]').forEach(function (section) {
                 toggle(section, listHas(section.getAttribute('data-package-kind'), kind));
             });
-            form.querySelectorAll('[data-pricing-shown-for]').forEach(function (section) {
-                toggle(section, listHas(section.getAttribute('data-pricing-shown-for'), model));
-            });
-            form.querySelectorAll('[data-pricing-hidden-for]').forEach(function (section) {
-                toggle(section, !listHas(section.getAttribute('data-pricing-hidden-for'), model));
+            form.querySelectorAll('[data-charge]').forEach(function (section) {
+                toggle(section, listHas(section.getAttribute('data-charge'), charge));
             });
         }
 
         category.addEventListener('change', apply);
-        pricing.addEventListener('change', apply);
+        form.addEventListener('change', function (event) {
+            if (event.target.name === 'charge') {
+                apply();
+            }
+        });
         apply();
     }
 

@@ -26,8 +26,9 @@
         </div>
     @endif
 
-    <div class="admin-card">
-        <h2>{{ __('Pricing tiers') }}</h2>
+    <details class="admin-card" @if ($usesLengthPrices) open @endif>
+        <summary style="cursor:pointer;font-weight:600;">{{ __('Prices by rental length (advanced)') }}</summary>
+        <p class="admin-hint">{{ __('Only if longer rentals get a different price, e.g. 1–3 days 25, 4+ days 20. Otherwise just use the price in the form above.') }}</p>
         <table class="admin-table">
             <thead>
                 <tr>
@@ -71,10 +72,11 @@
             </div>
             <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Add tier') }}</button>
         </form>
-    </div>
+    </details>
 
-    <div class="admin-card">
-        <h2>{{ __('Seasonal overrides') }}</h2>
+    <details class="admin-card" @if ($package->seasons->isNotEmpty()) open @endif>
+        <summary style="cursor:pointer;font-weight:600;">{{ __('Seasonal prices (advanced)') }}</summary>
+        <p class="admin-hint">{{ __('Raise or lower the price between two dates, e.g. +20% in peak season.') }}</p>
         <table class="admin-table">
             <thead>
                 <tr>
@@ -137,7 +139,7 @@
             </fieldset>
             <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Add season') }}</button>
         </form>
-    </div>
+    </details>
 
     <div class="admin-card">
         <h2>{{ __('Add-ons') }}</h2>

@@ -57,7 +57,7 @@
                             <td><input type="checkbox" name="booking_ids[]" value="{{ $booking->id }}" checked aria-label="{{ $booking->reference }}"></td>
                             <td><code>{{ $booking->reference }}</code> <small>({{ __('this booking') }})</small></td>
                             <td>{{ $booking->customer->full_name }}</td>
-                            <td>{{ $booking->vehicle->adminLabel() }}</td>
+                            <td>{{ $booking->vehicle?->adminLabel() ?? __('Needs a vehicle') }}</td>
                             <td>{{ $booking->start_at->format('Y-m-d') }} → {{ $booking->checkOutDate()->format('Y-m-d') }}</td>
                             <td>{{ $booking->created_at?->format('Y-m-d H:i') }}</td>
                             <td>—</td>
@@ -68,7 +68,7 @@
                             <td><input type="checkbox" name="booking_ids[]" value="{{ $other->id }}" checked aria-label="{{ $other->reference }}"></td>
                             <td><a href="{{ route('admin.bookings.show', $other) }}"><code>{{ $other->reference }}</code></a></td>
                             <td>{{ $other->customer->full_name }}<br><small>{{ $other->customer->email }}</small></td>
-                            <td>{{ $other->vehicle->adminLabel() }}</td>
+                            <td>{{ $other->vehicle?->adminLabel() ?? __('Needs a vehicle') }}</td>
                             <td>{{ $other->start_at->format('Y-m-d') }} → {{ $other->checkOutDate()->format('Y-m-d') }}</td>
                             <td>{{ $other->created_at?->format('Y-m-d H:i') }}</td>
                             <td>{{ implode(', ', array_map('__', $other->matched_signals)) }}</td>

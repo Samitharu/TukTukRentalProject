@@ -22,6 +22,7 @@ use Illuminate\Support\Str;
 use Modules\Admin\Models\BlockedIp;
 use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\DeliveryZone;
+use Modules\Availability\Models\TransferArea;
 use Modules\Availability\Services\AvailabilityService;
 use Modules\Booking\Exceptions\CouponUnavailableException;
 use Modules\Booking\Exceptions\HoldExpiredException;
@@ -33,14 +34,17 @@ use Modules\Booking\Http\Requests\Front\StepPackageRequest;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Models\BookingHold;
 use Modules\Booking\Services\BookingService;
+use Modules\Booking\Services\TransferAvailability;
 use Modules\Booking\Support\BookingFlowState;
 use Modules\Booking\Support\BookingReference;
 use Modules\Booking\Support\HourlySchedule;
+use Modules\Booking\Support\TransferSchedule;
 use Modules\CMS\Models\Review;
 use Modules\Core\Support\Countries;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Fleet\Models\VehicleCategory;
 use Modules\Package\Models\Package;
+use Modules\Package\Models\ProductCategory;
 use Modules\Pricing\DataObjects\PriceBreakdown;
 use Modules\Pricing\Models\Coupon;
 use Modules\Pricing\Services\PricingService;
@@ -70,32 +74,42 @@ final class BookingFlowController extends Controller
         private readonly BookingService $bookings,
         private readonly PricingService $pricing,
         private readonly AvailabilityService $availability,
+        private readonly TransferAvailability $transfers,
     ) {
     }
 
     public function start(Request $request): View
     {
         $this->switchKindFor($request);
+        $this->defaultLine();
 
         // Activity packages (surfing…) are booked by message, not here.
         if ($request->filled('package') && Package::query()->bookable()->inVisibleCategory()->whereKey($request->integer('package'))->exists()) {
             BookingFlowState::put(['package_id' => $request->integer('package')]);
         }
 
-        if ($request->filled('vehicle')) {
+        // Customers never pick a vehicle: rentals and airport pickups get
+        // one assigned. Only a stay keeps the cabana or room they opened.
+        if (! BookingFlowState::isStay()) {
+            BookingFlowState::put(['vehicle_id' => null]);
+        } elseif ($request->filled('vehicle')) {
             BookingFlowState::put(['vehicle_id' => $request->integer('vehicle')]);
         }
 
         return view('booking::front.steps.dates', [
             'state' => BookingFlowState::get(),
             'isStay' => BookingFlowState::isStay(),
-            'locations' => BusinessLocation::query()->active()->get(),
-            'deliveryZones' => DeliveryZone::query()->active()->get(),
+            'isTransfer' => BookingFlowState::isTransfer(),
+            'lines' => $this->bookableLines(),
+            'currentLineId' => BookingFlowState::lineId(),
+            'office' => BusinessLocation::office(),
+            'transferAreas' => BookingFlowState::isTransfer() ? TransferArea::query()->active()->ordered()->get() : collect(),
         ]);
     }
 
     public function storeDates(StepDatesRequest $request): RedirectResponse
     {
+        $this->defaultLine();
         BookingFlowState::put([...$request->flowData(), 'hold_key' => null]);
 
         return redirect()->route('booking.package');
@@ -109,11 +123,7 @@ final class BookingFlowController extends Controller
 
         $days = $this->daysFromState();
 
-        $packages = Package::query()
-            ->active()
-            ->currentlyValid()
-            ->inVisibleCategory()
-            ->ofKind(BookingFlowState::kind())
+        $packages = $this->flowPackages()
             ->where('min_days', '<=', $days)
             ->where(fn ($q) => $q->whereNull('max_days')->orWhere('max_days', '>=', $days))
             ->with(['pricingTiers', 'images', 'vehicles:id,status', 'categories:id'])
@@ -123,13 +133,19 @@ final class BookingFlowController extends Controller
         $vehicleId = BookingFlowState::value('vehicle_id');
         [$start, $end] = $this->datesFromState();
         $unavailable = [];
-        $freeCounts = $this->freeVehicleCounts($packages, $start, $end, $unavailable);
+        // Rentals are always bookable (see takesEveryBooking()); stays and
+        // airport pickups still can't be double-booked, so a full package is
+        // disabled — but no "N left" counts are shown for any of them.
+        $checksAvailability = ! $this->takesEveryBooking();
+        $freeCounts = $checksAvailability ? $this->freeVehicleCounts($packages, $start, $end, $unavailable) : [];
 
         return view('booking::front.steps.package', [
             'state' => BookingFlowState::get(),
             'isStay' => BookingFlowState::isStay(),
+            'isTransfer' => BookingFlowState::isTransfer(),
             'packages' => $packages,
             'days' => $days,
+            'checksAvailability' => $checksAvailability,
             'freeCounts' => $freeCounts,
             'hourlyStartTimes' => $packages->filter->isHourly()->mapWithKeys(fn (Package $p) => [$p->id => HourlySchedule::startTimes($p)])->all(),
             'hourlyLengths' => $packages->filter->isHourly()->mapWithKeys(fn (Package $p) => [$p->id => HourlySchedule::lengths($p)])->all(),
@@ -144,30 +160,32 @@ final class BookingFlowController extends Controller
             return redirect()->route('booking.start');
         }
 
-        $package = Package::query()->active()->currentlyValid()->inVisibleCategory()->ofKind(BookingFlowState::kind())->findOrFail($request->validated('package_id'));
+        $package = $this->flowPackages()->findOrFail($request->validated('package_id'));
         $days = $this->daysFromState();
 
         if ($days < $package->min_days || ($package->max_days !== null && $days > $package->max_days)) {
             return back()->withErrors(['package_id' => $this->notEligibleMessage()]);
         }
 
-        [$start, $end] = $this->datesFromState();
-        $eligibleIds = $package->eligibleVehicleIds();
-        $unavailable = $this->availability->unavailableVehicleIds($eligibleIds, $start, $end);
+        if (! $this->takesEveryBooking()) {
+            [$start, $end] = $this->datesFromState();
+            $eligibleIds = $package->eligibleVehicleIds();
+            $unavailable = $this->unavailableIds($eligibleIds, $start, $end);
 
-        if (array_diff($eligibleIds, $unavailable) === []) {
-            return back()->withErrors(['package_id' => __('core::front.booking_package_fully_booked_error')]);
-        }
+            if (array_diff($eligibleIds, $unavailable) === []) {
+                return back()->withErrors(['package_id' => __('core::front.booking_package_fully_booked_error')]);
+            }
 
-        $vehicleId = BookingFlowState::value('vehicle_id');
+            $vehicleId = BookingFlowState::value('vehicle_id');
 
-        if ($vehicleId !== null
-            && (! in_array((int) $vehicleId, $eligibleIds, true) || in_array((int) $vehicleId, $unavailable, true))) {
-            // The tuk tuk they picked from the fleet page isn't covered by
-            // this package, or is already booked for these dates — drop it
-            // (the package step told them so), and BookingService falls
-            // back to auto-assigning a free, eligible one.
-            BookingFlowState::put(['vehicle_id' => null]);
+            if ($vehicleId !== null
+                && (! in_array((int) $vehicleId, $eligibleIds, true) || in_array((int) $vehicleId, $unavailable, true))) {
+                // The cabana they opened isn't covered by this package, or
+                // is already booked for these dates — drop it (the package
+                // step told them so), and BookingService falls back to
+                // auto-assigning a free, eligible one.
+                BookingFlowState::put(['vehicle_id' => null]);
+            }
         }
 
         [$startTime, $hours] = $package->isHourly() ? $request->hourlyChoice() : [null, null];
@@ -223,6 +241,7 @@ final class BookingFlowController extends Controller
         return view('booking::front.steps.details', [
             'state' => BookingFlowState::get(),
             'isStay' => BookingFlowState::isStay(),
+            'isTransfer' => BookingFlowState::isTransfer(),
             'countries' => Countries::all(),
         ]);
     }
@@ -262,6 +281,8 @@ final class BookingFlowController extends Controller
         return view('booking::front.steps.review', [
             'state' => $state,
             'isStay' => BookingFlowState::isStay(),
+            'isTransfer' => BookingFlowState::isTransfer(),
+            'transferArea' => $this->transferAreaFromState(),
             'package' => $package,
             'hourlyRange' => $package->isHourly() ? HourlySchedule::range($state['start_date'], $state['start_time'], (int) $state['hours']) : null,
             'price' => $this->calculatePrice($state),
@@ -328,10 +349,14 @@ final class BookingFlowController extends Controller
         $holdKey = is_string($state['hold_key'] ?? null) ? $state['hold_key'] : (string) Str::uuid();
 
         // An hourly rental keeps its real times on the booking; slots are
-        // still reserved by whole day (BookingService::createHold()).
-        [$startAt, $endAt] = $price->hours !== null
-            ? array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), HourlySchedule::range($state['start_date'], $state['start_time'], $price->hours))
-            : [$state['start_date'], $state['end_date']];
+        // still reserved by whole day (BookingService::createHold()). An
+        // airport pickup reserves exactly its trip's time slot.
+        [$startAt, $endAt] = match (true) {
+            BookingFlowState::isTransfer() => array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), $this->datesFromState()),
+            $price->hours !== null => array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), HourlySchedule::range($state['start_date'], $state['start_time'], $price->hours)),
+            default => [$state['start_date'], $state['end_date']],
+        };
+        $isTransfer = BookingFlowState::isTransfer();
 
         // The review page showed a discounted total; if the coupon stopped
         // applying since (limit reached, expired), never book the higher
@@ -350,6 +375,10 @@ final class BookingFlowController extends Controller
             'pickup_type' => $state['pickup_type'],
             'business_location_id' => $state['business_location_id'] ?? null,
             'delivery_zone_id' => $state['delivery_zone_id'] ?? null,
+            'transfer_direction' => $isTransfer ? $state['transfer_direction'] : null,
+            'flight_number' => $isTransfer ? $state['flight_number'] : null,
+            'transfer_address' => $isTransfer ? $state['transfer_address'] : null,
+            'transfer_area_id' => $isTransfer ? (int) $state['transfer_area_id'] : null,
             'has_international_permit' => (bool) ($state['has_international_permit'] ?? false),
             'special_requests' => $state['special_requests'] ?? null,
         ];
@@ -361,9 +390,12 @@ final class BookingFlowController extends Controller
                     'hold_key' => $holdKey,
                     'start_at' => $startAt,
                     'end_at' => $endAt,
-                    'vehicle_id' => $state['vehicle_id'] ?? null,
+                    'vehicle_id' => BookingFlowState::isStay() ? ($state['vehicle_id'] ?? null) : null,
                     'package_id' => $state['package_id'],
                     'customer_session_id' => $request->session()->getId(),
+                    // A rental is never refused: with every vehicle out it is
+                    // taken unassigned and staff assign one later.
+                    'allow_unassigned' => $this->takesEveryBooking(),
                 ],
                 customerData: $customerData,
                 price: $price,
@@ -383,7 +415,11 @@ final class BookingFlowController extends Controller
                 }
 
                 return redirect()->route('booking.package')
-                    ->withErrors(['package_id' => __(BookingFlowState::isStay() ? 'core::front.booking_no_unit_available_stay' : 'core::front.booking_no_vehicle_available')]);
+                    ->withErrors(['package_id' => __(match (true) {
+                        BookingFlowState::isStay() => 'core::front.booking_no_unit_available_stay',
+                        $isTransfer => 'core::front.booking_no_transfer_available',
+                        default => 'core::front.booking_no_vehicle_available',
+                    })]);
             }
 
             $booking = $this->bookings->confirmHold($ownHold, $customerData, $price, $source);
@@ -406,7 +442,7 @@ final class BookingFlowController extends Controller
 
     public function confirmation(string $locale, string $reference): View
     {
-        $booking = $this->findBookingOrFail($reference, ['vehicle.category', 'package', 'addons.addon']);
+        $booking = $this->findBookingOrFail($reference, ['vehicle.category', 'package', 'addons.addon', 'transferArea']);
         $review = Review::query()->where('booking_id', $booking->id)->first();
 
         return view('booking::front.steps.confirmation', [
@@ -418,7 +454,7 @@ final class BookingFlowController extends Controller
 
     public function status(string $locale, string $reference): View
     {
-        $booking = $this->findBookingOrFail($reference, ['vehicle.category', 'package']);
+        $booking = $this->findBookingOrFail($reference, ['vehicle.category', 'package', 'transferArea']);
 
         return view('booking::front.steps.status', ['booking' => $booking]);
     }
@@ -430,7 +466,7 @@ final class BookingFlowController extends Controller
      */
     public function receipt(string $locale, string $reference): Response
     {
-        $booking = $this->findBookingOrFail($reference, ['customer', 'vehicle.category', 'package', 'businessLocation', 'deliveryZone']);
+        $booking = $this->findBookingOrFail($reference, ['customer', 'vehicle.category', 'package', 'businessLocation', 'deliveryZone', 'transferArea']);
         $statusUrl = route('booking.status', ['locale' => $locale, 'reference' => $booking->reference]);
         $statusQrCode = base64_encode((new Writer(new ImageRenderer(new RendererStyle(240, 2), new SvgImageBackEnd())))
             ->writeString($statusUrl));
@@ -533,31 +569,145 @@ final class BookingFlowController extends Controller
     }
 
     /**
-     * Arriving from a stay's or a package's page (?vehicle=, ?package=, or
-     * ?kind=stay) decides whether this is a tuk tuk rental or a stay.
-     * Switching kind drops earlier choices: a stored end_date means the
-     * return day for one and the last night for the other.
+     * Arriving from a line switch, a unit's or a package's page (?line=,
+     * ?package=, ?vehicle=, or the older ?kind=) decides what is booked:
+     * which product line, and with it the kind (rental, stay or airport
+     * pickup). Switching kind drops earlier choices — a stored end_date
+     * means the return day for a rental, the last night for a stay and the
+     * trip day for a pickup; switching only the line (Tuk Tuk → Vehicle
+     * Rent) keeps the dates but drops the package and unit.
      */
     private function switchKindFor(Request $request): void
     {
-        $requested = match (true) {
-            $request->filled('package') => Package::query()->find($request->integer('package'))?->kind,
-            $request->filled('vehicle') => Vehicle::query()->with('category')->find($request->integer('vehicle'))?->kind(),
-            default => $request->query('kind'),
+        [$kind, $lineId] = match (true) {
+            $request->filled('line') => $this->lineFromRequest($request->integer('line')),
+            $request->filled('package') => (function () use ($request): array {
+                $package = Package::query()->find($request->integer('package'));
+
+                return [$package?->kind, $package?->product_category_id];
+            })(),
+            $request->filled('vehicle') => (function () use ($request): array {
+                $vehicle = Vehicle::query()->with('category')->find($request->integer('vehicle'));
+
+                return [$vehicle?->kind(), $vehicle?->category?->product_category_id];
+            })(),
+            default => [$request->query('kind'), null],
         };
 
-        if (! in_array($requested, VehicleCategory::KINDS, true) || $requested === BookingFlowState::kind()) {
+        if (! in_array($kind, VehicleCategory::KINDS, true)) {
             return;
         }
 
-        BookingFlowState::put([
-            'kind' => $requested,
-            'package_id' => null,
-            'vehicle_id' => null,
-            'start_date' => null,
-            'end_date' => null,
-            'hold_key' => null,
-        ]);
+        if ($kind !== BookingFlowState::kind()) {
+            BookingFlowState::put([
+                'kind' => $kind,
+                'line_id' => $lineId,
+                'package_id' => null,
+                'vehicle_id' => null,
+                'start_date' => null,
+                'end_date' => null,
+                'hold_key' => null,
+            ]);
+
+            return;
+        }
+
+        if ($lineId !== null && (int) $lineId !== BookingFlowState::lineId()) {
+            BookingFlowState::put(['line_id' => (int) $lineId, 'package_id' => null, 'vehicle_id' => null, 'hold_key' => null]);
+        }
+    }
+
+    /**
+     * Day rentals (Tuk Tuk, Vehicle Rent) are taken whatever the fleet's
+     * availability: the customer never sees counts or "fully booked", and a
+     * booking with no free vehicle is saved unassigned for staff to sort
+     * out. Stays and airport pickups are still never double-booked.
+     */
+    private function takesEveryBooking(): bool
+    {
+        return BookingFlowState::kind() === VehicleCategory::KIND_VEHICLE;
+    }
+
+    /**
+     * No line chosen yet (straight to /booking/start, or an old session):
+     * the first line of the flow's kind — Tuk Tuk for rentals — so the
+     * package step never mixes tuk tuk and Vehicle Rent packages.
+     */
+    private function defaultLine(): void
+    {
+        if (BookingFlowState::lineId() !== null) {
+            return;
+        }
+
+        $lineId = $this->bookableLines()->firstWhere('kind', BookingFlowState::kind())?->id;
+
+        if ($lineId !== null) {
+            BookingFlowState::put(['line_id' => $lineId]);
+        }
+    }
+
+    /** @return array{0: string|null, 1: int|null} */
+    private function lineFromRequest(int $lineId): array
+    {
+        $line = $this->bookableLines()->firstWhere('id', $lineId);
+
+        return [$line?->kind, $line?->id];
+    }
+
+    /**
+     * The lines the wizard's switch offers: active, visible, and booked
+     * online (activities like Kite & Surfing are booked by message).
+     *
+     * @return \Illuminate\Support\Collection<int, ProductCategory>
+     */
+    private function bookableLines(): \Illuminate\Support\Collection
+    {
+        return ProductCategory::query()
+            ->active()
+            ->whereIn('kind', VehicleCategory::KINDS)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * Packages the wizard may book right now: of the flow's kind, and of
+     * its product line when one is chosen (so Vehicle Rent never lists
+     * tuk tuk packages).
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<Package>
+     */
+    private function flowPackages(): \Illuminate\Database\Eloquent\Builder
+    {
+        return Package::query()
+            ->active()
+            ->currentlyValid()
+            ->inVisibleCategory()
+            ->ofKind(BookingFlowState::kind())
+            ->when(BookingFlowState::lineId() !== null, fn ($q) => $q->where('product_category_id', BookingFlowState::lineId()));
+    }
+
+    /**
+     * Busy vehicles among $vehicleIds: by time slot for an airport pickup,
+     * by whole days otherwise. Advisory — BookingService re-checks under lock.
+     *
+     * @param  int[]  $vehicleIds
+     * @return int[]
+     */
+    private function unavailableIds(array $vehicleIds, CarbonImmutable $start, CarbonImmutable $end): array
+    {
+        return BookingFlowState::isTransfer()
+            ? $this->transfers->unavailableVehicleIds($vehicleIds, $start, $end)
+            : $this->availability->unavailableVehicleIds($vehicleIds, $start, $end);
+    }
+
+    private function transferAreaFromState(): ?TransferArea
+    {
+        $areaId = BookingFlowState::value('transfer_area_id');
+
+        return BookingFlowState::isTransfer() && $areaId !== null
+            ? TransferArea::query()->active()->find((int) $areaId)
+            : null;
     }
 
     private function notEligibleMessage(): string
@@ -592,7 +742,21 @@ final class BookingFlowController extends Controller
                 ->withErrors(['start_date' => __('core::front.booking_dates_no_longer_valid')]);
         }
 
-        $package = Package::query()->active()->currentlyValid()->inVisibleCategory()->ofKind(BookingFlowState::kind())->find(BookingFlowState::value('package_id'));
+        if (BookingFlowState::isTransfer()) {
+            // The area may have been switched off, or the pickup time come
+            // too close, since step 1.
+            $problem = $this->transferAreaFromState() === null
+                ? __('core::front.booking_dates_no_longer_valid')
+                : TransferSchedule::problem((string) BookingFlowState::value('start_date'), BookingFlowState::value('transfer_time'));
+
+            if ($problem !== null) {
+                BookingFlowState::put(['hold_key' => null]);
+
+                return redirect()->route('booking.start')->withErrors(['transfer_time' => $problem]);
+            }
+        }
+
+        $package = $this->flowPackages()->find(BookingFlowState::value('package_id'));
 
         if ($package === null || $days < $package->min_days || ($package->max_days !== null && $days > $package->max_days)) {
             BookingFlowState::put(['package_id' => null, 'hold_key' => null]);
@@ -634,20 +798,30 @@ final class BookingFlowController extends Controller
     private function freeVehicleCounts(Collection $packages, CarbonImmutable $start, CarbonImmutable $end, array &$unavailable): array
     {
         $activeFleet = Vehicle::query()->active()->ofKind(BookingFlowState::kind())->pluck('category_id', 'id')->all();
-        $eligible = $packages->mapWithKeys(fn (Package $package) => [$package->id => $package->eligibleVehicleIdsAmong($activeFleet)]);
+        $unitTypeLines = VehicleCategory::query()->ofKind(BookingFlowState::kind())->pluck('product_category_id', 'id')->all();
+        $eligible = $packages->mapWithKeys(fn (Package $package) => [$package->id => $package->eligibleVehicleIdsAmong($activeFleet, $unitTypeLines)]);
 
         $vehicleId = BookingFlowState::value('vehicle_id');
         $allIds = $eligible->flatten()->push(...($vehicleId !== null ? [(int) $vehicleId] : []))->unique()->values()->all();
-        $unavailable = $this->availability->unavailableVehicleIds($allIds, $start, $end);
+        $unavailable = $this->unavailableIds($allIds, $start, $end);
 
         return $eligible->map(fn (array $ids) => count(array_diff($ids, $unavailable)))->all();
     }
 
     /**
+     * The booked range: whole days for a rental or stay; for an airport
+     * pickup the real trip times (pickup time → pickup + area duration).
+     *
      * @return array{0: CarbonImmutable, 1: CarbonImmutable}
      */
     private function datesFromState(): array
     {
+        $area = $this->transferAreaFromState();
+
+        if ($area !== null && is_string(BookingFlowState::value('transfer_time'))) {
+            return TransferSchedule::range((string) BookingFlowState::value('start_date'), BookingFlowState::value('transfer_time'), $area);
+        }
+
         return [
             CarbonImmutable::parse(BookingFlowState::value('start_date'))->startOfDay(),
             CarbonImmutable::parse(BookingFlowState::value('end_date'))->startOfDay(),
@@ -688,8 +862,14 @@ final class BookingFlowController extends Controller
             : null;
 
         return $this->pricing->calculate(
-            $package, $start, $days, $addonSelections, $coupon, $deliveryZone,
+            $package,
+            $start,
+            $days,
+            $addonSelections,
+            $coupon,
+            $deliveryZone,
             hours: $package->isHourly() ? (int) ($state['hours'] ?? 0) : null,
+            transferArea: $this->transferAreaFromState(),
         );
     }
 }

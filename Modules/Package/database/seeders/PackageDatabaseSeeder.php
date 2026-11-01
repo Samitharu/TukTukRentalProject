@@ -44,9 +44,9 @@ class PackageDatabaseSeeder extends Seeder
         $package->pricingTiers()->updateOrCreate(['min_days' => 4, 'max_days' => 7], ['price' => 20]);
         $package->pricingTiers()->updateOrCreate(['min_days' => 8, 'max_days' => null], ['price' => 15]);
 
-        $standard = VehicleCategory::query()->where('name->en', 'Standard')->first();
-        if ($standard !== null) {
-            $package->categories()->syncWithoutDetaching([$standard->id]);
+        $tukTuk = VehicleCategory::query()->where('name->en', 'Tuk Tuk')->first();
+        if ($tukTuk !== null) {
+            $package->categories()->syncWithoutDetaching([$tukTuk->id]);
         }
 
         $package->addons()->syncWithoutDetaching([

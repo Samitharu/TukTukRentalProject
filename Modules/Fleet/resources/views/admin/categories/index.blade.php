@@ -16,7 +16,7 @@
                 @foreach ($categories as $category)
                     <tr>
                         <td>{{ $category->name }}</td>
-                        <td>{{ $category->isStay() ? __('Stay') : __('Tuk tuk') }}</td>
+                        <td>{{ $category->isStay() ? __('Stay') : ($category->isTransfer() ? __('Airport vehicle') : __('Rental vehicle')) }}@if ($category->productCategory) · {{ $category->productCategory->name }}@endif</td>
                         <td>{{ $category->vehicles_count }}</td>
                         <td>{{ $category->is_active ? __('Yes') : __('No') }}</td>
                         <td>

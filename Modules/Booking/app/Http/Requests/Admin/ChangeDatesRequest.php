@@ -20,6 +20,15 @@ final class ChangeDatesRequest extends FormRequest
 
     public function rules(): array
     {
+        // An airport pickup moves to a new day and pickup time, keeping its
+        // trip length (the area's duration when it was booked).
+        if ($this->booking()->isTransfer()) {
+            return [
+                'start_date' => ['required', 'date'],
+                'transfer_time' => ['required', 'date_format:H:i'],
+            ];
+        }
+
         // An hourly rental moves to a new day and start time, keeping its
         // length (its price was for that many hours).
         if ($this->booking()->isHourly()) {
@@ -65,6 +74,13 @@ final class ChangeDatesRequest extends FormRequest
     public function range(): array
     {
         $start = CarbonImmutable::parse($this->string('start_date')->toString());
+
+        if ($this->booking()->isTransfer()) {
+            $pickup = CarbonImmutable::parse($start->toDateString().' '.$this->string('transfer_time')->toString());
+            $minutes = (int) $this->booking()->start_at->diffInMinutes($this->booking()->end_at);
+
+            return [$pickup, $pickup->addMinutes(max($minutes, 1))];
+        }
 
         if ($this->booking()->isHourly()) {
             return HourlySchedule::range($start->toDateString(), $this->string('start_time')->toString(), (int) $this->booking()->hours());

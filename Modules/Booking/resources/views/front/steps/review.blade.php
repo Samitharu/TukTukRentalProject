@@ -111,7 +111,10 @@
                         {{ __('core::front.booking_review_dates') }}
                         <a href="{{ route('booking.start') }}" style="font-weight:400;font-size:var(--font-size-sm);">{{ __('core::front.booking_review_edit') }}</a>
                     </h2>
-                    @if ($isStay)
+                    @if ($isTransfer)
+                        <p>{{ \Illuminate\Support\Carbon::parse($state['start_date'])->format('d M Y') }}, {{ $state['transfer_time'] }} &middot; {{ __($state['transfer_direction'] === 'departure' ? 'core::front.transfer_departure' : 'core::front.transfer_arrival') }}</p>
+                        <p class="text-muted">{{ __('core::front.transfer_flight_number') }}: {{ $state['flight_number'] }} &middot; {{ $transferArea?->name }} &middot; {{ $state['transfer_address'] }}</p>
+                    @elseif ($isStay)
                         @php
                             $checkIn = \Illuminate\Support\Carbon::parse($state['start_date']);
                             $checkOut = \Illuminate\Support\Carbon::parse($state['end_date'])->addDay();
@@ -132,7 +135,9 @@
                         <a href="{{ route('booking.package') }}" style="font-weight:400;font-size:var(--font-size-sm);">{{ __('core::front.booking_review_edit') }}</a>
                     </h2>
                     <p>{{ $package->name }}</p>
-                    @include('package::front._km-allowance', ['package' => $package])
+                    @unless ($isTransfer)
+                        @include('package::front._km-allowance', ['package' => $package])
+                    @endunless
 
                     @if (!empty($state['addons']))
                         <h2 style="font-size:var(--font-size-base);">
@@ -145,7 +150,7 @@
                     @endif
 
                     <h2 style="font-size:var(--font-size-base);">
-                        {{ __($isStay ? 'core::front.booking_review_guest' : 'core::front.booking_review_driver') }}
+                        {{ __($isStay || $isTransfer ? 'core::front.booking_review_guest' : 'core::front.booking_review_driver') }}
                         <a href="{{ route('booking.details') }}" style="font-weight:400;font-size:var(--font-size-sm);">{{ __('core::front.booking_review_edit') }}</a>
                     </h2>
                     <p>{{ $state['first_name'] }} {{ $state['last_name'] }} &middot; {{ $state['email'] }} &middot; {{ $state['phone'] }}</p>
@@ -166,6 +171,13 @@
             <div class="price-breakdown" style="margin-bottom:var(--space-4);">
                 <dl>
                     <dt>{{ __($isStay ? 'core::front.price_accommodation' : 'core::front.price_base_amount') }}</dt><dd x-text="money(price.base_amount) + ' {{ $currency }}'"></dd>
+
+                    <template x-if="price.transfer_fee > 0">
+                        <dt>{{ __('core::front.price_transfer_fee') }}</dt>
+                    </template>
+                    <template x-if="price.transfer_fee > 0">
+                        <dd x-text="money(price.transfer_fee) + ' {{ $currency }}'"></dd>
+                    </template>
 
                     <template x-if="price.seasonal_adjustment != 0">
                         <dt>{{ __('core::front.price_seasonal_adjustment') }}</dt>
@@ -203,7 +215,11 @@
                 </dl>
             </div>
 
-            <p class="text-muted">{{ __($isStay ? 'core::front.booking_pay_on_arrival_notice' : 'core::front.booking_pay_on_pickup_notice') }}</p>
+            <p class="text-muted">{{ __(match (true) {
+                $isStay => 'core::front.booking_pay_on_arrival_notice',
+                $isTransfer => 'core::front.booking_pay_driver_notice',
+                default => 'core::front.booking_pay_on_pickup_notice',
+            }) }}</p>
 
             <form method="POST" action="{{ route('booking.confirm') }}" data-confirm-booking>
                 @csrf

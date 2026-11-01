@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
-use Modules\Availability\Models\AvailabilityBlackout;
 use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\VehicleReservationSlot;
 use Modules\Availability\Services\AvailabilityService;
@@ -113,68 +112,101 @@ it('shows date errors in the visitor\'s language', function (): void {
     ])->assertSessionHasErrors(['start_date' => 'Das Abholdatum darf nicht in der Vergangenheit liegen.']);
 });
 
-// ---- Package step: availability shown up front ----------------------------
+// ---- Package step: rentals are always bookable ----------------------------
 
-it('labels a package available, "only N left", or fully booked for the chosen dates', function (): void {
+it('never shows how many vehicles are left, and keeps every rental package selectable', function (): void {
     safetyDates($this);
-    $this->get('/en/booking/package')->assertOk()->assertSee('Only 2 tuk tuks left for your dates');
+    $this->get('/en/booking/package')->assertOk()
+        ->assertDontSee('left for your dates')
+        ->assertDontSee('Fully booked for your dates');
 
-    occupy($this->vehicleA, $this->start, $this->end);
-    $this->get('/en/booking/package')->assertSee('Only 1 tuk tuk left for your dates');
-
-    occupy($this->vehicleB, $this->start->addDay(), $this->start->addDay());
-    $this->get('/en/booking/package')
-        ->assertSee('Fully booked for your dates')
-        ->assertSee('All our tuk tuks are booked for these dates.')
-        ->assertSee('disabled', false)
-        ->assertDontSee('Only 1 tuk tuk left');
-});
-
-it('counts blackouts and maintenance as unavailable too', function (): void {
-    AvailabilityBlackout::query()->create(['vehicle_id' => $this->vehicleA->id, 'starts_on' => $this->end->toDateString(), 'ends_on' => $this->end->addDays(3)->toDateString(), 'reason' => 'Festival']);
-    VehicleMaintenanceLog::query()->create([
-        'vehicle_id' => $this->vehicleB->id,
-        // Starts mid-morning on the return day — the whole day is rented.
-        'starts_at' => $this->end->setTime(9, 30), 'ends_at' => $this->end->addDay()->setTime(17, 0),
-        'description' => 'Service', 'type' => 'service',
-    ]);
-
-    safetyDates($this);
-
-    $this->get('/en/booking/package')->assertSee('Fully booked for your dates');
-});
-
-it('refuses to continue with a fully booked package and says why', function (): void {
     occupy($this->vehicleA, $this->start, $this->end);
     occupy($this->vehicleB, $this->start, $this->end);
-    safetyDates($this);
 
-    $this->from('/en/booking/package')
-        ->post('/en/booking/package', ['package_id' => $this->package->id])
-        ->assertRedirect('/en/booking/package')
-        ->assertSessionHasErrors(['package_id' => 'Sorry, that package is fully booked for your dates. Please choose another package or change your dates.']);
+    $this->get('/en/booking/package')->assertOk()
+        ->assertDontSee('Fully booked for your dates')
+        ->assertDontSee('All vehicles are booked for these dates.')
+        ->assertDontSee('disabled', false);
+
+    $this->post('/en/booking/package', ['package_id' => $this->package->id])->assertRedirect('/en/booking/addons');
 });
 
-it('warns when the tuk tuk picked on the fleet page is already booked, then auto-assigns another', function (): void {
+it('takes a rental when every vehicle is out, unassigned, for staff to sort out', function (): void {
+    occupy($this->vehicleA, $this->start, $this->end);
+    occupy($this->vehicleB, $this->start, $this->end);
+
+    safetyThroughDetails($this);
+    $this->get('/en/booking/review')->assertOk();
+    $this->post('/en/booking/confirm', ['terms_accepted' => '1'])->assertRedirect();
+
+    $booking = Booking::query()->sole();
+    expect($booking->status)->toBe(Booking::STATUS_CONFIRMED)
+        ->and($booking->isUnassigned())->toBeTrue()
+        ->and($booking->reservationSlots()->count())->toBe(0);
+
+    $this->get('/en/booking/confirmation/'.$booking->reference)->assertOk()->assertSee('Assigned before your pickup');
+});
+
+it('ignores a vehicle picked on the fleet page and assigns a free one', function (): void {
     occupy($this->vehicleA, $this->start, $this->end);
 
     $this->get('/en/booking/start?vehicle='.$this->vehicleA->id)->assertOk();
     safetyDates($this);
 
-    $this->get('/en/booking/package')->assertSee('is already booked for these dates', false);
+    $this->get('/en/booking/package')->assertDontSee($this->vehicleA->name);
 
     $this->post('/en/booking/package', ['package_id' => $this->package->id])->assertRedirect('/en/booking/addons');
     $this->post('/en/booking/addons', []);
     $this->post('/en/booking/details', safetyDriver());
-    $this->get('/en/booking/review')->assertOk();
     $this->post('/en/booking/confirm', ['terms_accepted' => '1'])->assertRedirect();
 
     expect(Booking::query()->sole()->vehicle_id)->toBe($this->vehicleB->id);
 });
 
+it('still never assigns a vehicle that is in maintenance', function (): void {
+    VehicleMaintenanceLog::query()->create([
+        'vehicle_id' => $this->vehicleA->id,
+        // Starts mid-morning on the return day — the whole day is rented.
+        'starts_at' => $this->end->setTime(9, 30), 'ends_at' => $this->end->addDay()->setTime(17, 0),
+        'description' => 'Service', 'type' => 'service',
+    ]);
+
+    safetyThroughDetails($this);
+    $this->post('/en/booking/confirm', ['terms_accepted' => '1'])->assertRedirect();
+
+    expect(Booking::query()->sole()->vehicle_id)->toBe($this->vehicleB->id);
+});
+
+it('shows staff which bookings need a vehicle and lets them assign one', function (): void {
+    \Spatie\Permission\Models\Permission::findOrCreate('bookings.view');
+    \Spatie\Permission\Models\Permission::findOrCreate('bookings.manage');
+    $admin = \App\Models\User::factory()->create();
+    $admin->givePermissionTo(['bookings.view', 'bookings.manage']);
+
+    occupy($this->vehicleA, $this->start, $this->end);
+    occupy($this->vehicleB, $this->start, $this->end);
+    safetyThroughDetails($this);
+    $this->post('/en/booking/confirm', ['terms_accepted' => '1']);
+    $booking = Booking::query()->sole();
+
+    $this->actingAs($admin)->get('/control-panel/bookings?unassigned=1')->assertOk()->assertSee($booking->reference)->assertSee('Needs a vehicle');
+    $this->actingAs($admin)->get('/control-panel/bookings/'.$booking->id)->assertOk()->assertSee('Not assigned yet')->assertSee('Assign vehicle');
+
+    BookingHold::query()->where('vehicle_id', $this->vehicleB->id)->get()->each(fn ($hold) => app(BookingService::class)->releaseHold($hold));
+    $this->actingAs($admin)->put('/control-panel/bookings/'.$booking->id.'/vehicle', ['vehicle_id' => $this->vehicleB->id])->assertSessionHasNoErrors();
+
+    expect($booking->fresh()->vehicle_id)->toBe($this->vehicleB->id);
+    $this->actingAs($admin)->get('/control-panel/bookings?unassigned=1')->assertOk()->assertDontSee($booking->reference);
+});
+
+it('has no blackout dates any more', function (): void {
+    expect(\Illuminate\Support\Facades\Route::has('admin.blackouts.index'))->toBeFalse()
+        ->and(\Illuminate\Support\Facades\Schema::hasTable('availability_blackouts'))->toBeFalse();
+});
+
 // ---- Confirm: races, stale and crafted sessions ---------------------------
 
-it('turns "someone else just booked the last tuk tuk" into a friendly message, not an error page', function (): void {
+it('still takes the booking when the last vehicle goes between review and confirm', function (): void {
     safetyThroughDetails($this);
     $this->get('/en/booking/review')->assertOk();
 
@@ -182,11 +214,27 @@ it('turns "someone else just booked the last tuk tuk" into a friendly message, n
     occupy($this->vehicleA, $this->start, $this->end);
     occupy($this->vehicleB, $this->start, $this->end);
 
-    $this->post('/en/booking/confirm', ['terms_accepted' => '1'])
-        ->assertRedirect('/en/booking/package')
-        ->assertSessionHasErrors(['package_id' => 'Sorry, the last available tuk tuk for these dates was just booked by someone else. Please choose another package or change your dates.']);
+    $this->post('/en/booking/confirm', ['terms_accepted' => '1'])->assertRedirect();
 
-    expect(Booking::query()->count())->toBe(0);
+    expect(Booking::query()->sole()->isUnassigned())->toBeTrue();
+});
+
+it('lets staff assign a vehicle to an unassigned booking once one is free', function (): void {
+    occupy($this->vehicleA, $this->start, $this->end);
+    occupy($this->vehicleB, $this->start, $this->end);
+    safetyThroughDetails($this);
+    $this->post('/en/booking/confirm', ['terms_accepted' => '1']);
+    $booking = Booking::query()->sole();
+
+    // Still nothing free: staff can't double-book a vehicle.
+    expect(fn () => app(BookingService::class)->reassignVehicle($booking, $this->vehicleA->id))
+        ->toThrow(\Modules\Booking\Exceptions\NoVehicleAvailableException::class);
+
+    BookingHold::query()->where('vehicle_id', $this->vehicleA->id)->get()->each(fn ($hold) => app(BookingService::class)->releaseHold($hold));
+    app(BookingService::class)->reassignVehicle($booking, $this->vehicleA->id);
+
+    expect($booking->fresh()->vehicle_id)->toBe($this->vehicleA->id)
+        ->and($booking->fresh()->reservationSlots()->count())->toBe(3);
 });
 
 it('creates exactly one booking when "Confirm" is submitted twice', function (): void {
@@ -353,12 +401,6 @@ it('treats maintenance starting during the return day as a conflict', function (
         'starts_at' => $this->end->setTime(14, 0), 'ends_at' => $this->end->setTime(18, 0),
         'description' => 'Brake check', 'type' => 'service',
     ]);
-
-    expect(app(AvailabilityService::class)->isRangeFree($this->vehicleA->id, $this->start, $this->end))->toBeFalse();
-});
-
-it('treats a blackout ending on the pickup day as a conflict', function (): void {
-    AvailabilityBlackout::query()->create(['vehicle_id' => $this->vehicleA->id, 'starts_on' => $this->start->subDays(3)->toDateString(), 'ends_on' => $this->start->toDateString(), 'reason' => 'Holiday']);
 
     expect(app(AvailabilityService::class)->isRangeFree($this->vehicleA->id, $this->start, $this->end))->toBeFalse();
 });

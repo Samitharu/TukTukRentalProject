@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
-use Modules\Availability\Http\Controllers\Admin\AvailabilityBlackoutController;
 use Modules\Availability\Http\Controllers\Admin\BusinessLocationController;
+use Modules\Availability\Http\Controllers\Admin\TransferAreaController;
 
 // Prefixed with config('admin.path') and named 'admin.' by
 // Modules\Availability\Providers\RouteServiceProvider::mapAdminRoutes().
@@ -17,8 +17,11 @@ Route::prefix('locations')->name('locations.')->group(function (): void {
     Route::delete('/{location}', [BusinessLocationController::class, 'destroy'])->name('destroy');
 });
 
-Route::prefix('blackouts')->name('blackouts.')->group(function (): void {
-    Route::get('/', [AvailabilityBlackoutController::class, 'index'])->name('index');
-    Route::post('/', [AvailabilityBlackoutController::class, 'store'])->name('store');
-    Route::delete('/{blackout}', [AvailabilityBlackoutController::class, 'destroy'])->name('destroy');
+Route::prefix('transfer-areas')->name('transfer-areas.')->group(function (): void {
+    Route::get('/', [TransferAreaController::class, 'index'])->name('index');
+    Route::get('/create', [TransferAreaController::class, 'create'])->name('create');
+    Route::post('/', [TransferAreaController::class, 'store'])->name('store');
+    Route::get('/{area}/edit', [TransferAreaController::class, 'edit'])->name('edit');
+    Route::put('/{area}', [TransferAreaController::class, 'update'])->name('update');
+    Route::delete('/{area}', [TransferAreaController::class, 'destroy'])->name('destroy');
 });

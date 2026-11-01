@@ -23,6 +23,7 @@ final class UpdateVehicleCategoryRequest extends FormRequest
             ...TranslatableRules::forField('name', max: 120),
             ...TranslatableRules::forField('description', max: 2000, requireDefault: false),
             'kind' => ['sometimes', Rule::in(VehicleCategory::KINDS)],
+            'product_category_id' => ['sometimes', 'integer', 'exists:product_categories,id'],
             'icon' => ['nullable', 'string', 'max:40'],
             'sort_order' => ['required', 'integer', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
@@ -43,6 +44,10 @@ final class UpdateVehicleCategoryRequest extends FormRequest
 
                 if ($this->filled('kind') && $this->input('kind') !== $category->kind && $category->vehicles()->withTrashed()->exists()) {
                     $validator->errors()->add('kind', __('This category already has units, so its type can no longer be changed. Create a new category instead.'));
+                }
+
+                if ($this->filled('product_category_id')) {
+                    UnitTypeLineRule::check($validator, $this->input('kind', $category->kind), $this->input('product_category_id'));
                 }
             },
         ];

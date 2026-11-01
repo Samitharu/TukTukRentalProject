@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Modules\Fleet\Http\Requests\Admin\StoreVehicleCategoryRequest;
 use Modules\Fleet\Http\Requests\Admin\UpdateVehicleCategoryRequest;
 use Modules\Fleet\Models\VehicleCategory;
+use Modules\Package\Models\ProductCategory;
 
 final class VehicleCategoryController extends Controller
 {
@@ -17,7 +18,7 @@ final class VehicleCategoryController extends Controller
     {
         $this->authorize('viewAny', VehicleCategory::class);
 
-        $categories = VehicleCategory::query()->withCount('vehicles')->orderBy('sort_order')->get();
+        $categories = VehicleCategory::query()->with('productCategory')->withCount('vehicles')->orderBy('sort_order')->get();
 
         return view('fleet::admin.categories.index', compact('categories'));
     }
@@ -33,6 +34,7 @@ final class VehicleCategoryController extends Controller
     {
         $data = $request->validated();
         $data['kind'] = $data['kind'] ?? VehicleCategory::KIND_VEHICLE;
+        $data['product_category_id'] ??= ProductCategory::query()->where('kind', $data['kind'])->orderBy('sort_order')->orderBy('id')->value('id');
         $data['is_active'] = $request->boolean('is_active', true);
 
         VehicleCategory::query()->create($data);

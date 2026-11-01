@@ -21,7 +21,7 @@ beforeEach(function (): void {
 
     $this->tukTuks = ProductCategory::query()->where('kind', Package::KIND_VEHICLE)->firstOrFail();
     $this->stays = ProductCategory::query()->where('kind', Package::KIND_STAY)->firstOrFail();
-    $this->surfing = ProductCategory::query()->where('name->en', 'Surfing')->firstOrFail();
+    $this->surfing = ProductCategory::query()->where('name->en', 'Kite & Surfing')->firstOrFail();
 });
 
 function packageFormPayload(array $overrides = []): array
@@ -34,13 +34,34 @@ function packageFormPayload(array $overrides = []): array
     ], $overrides);
 }
 
-it('starts with the four default categories', function (): void {
+it('starts with the five product lines, in website order', function (): void {
     $this->actingAs($this->admin)->get('/control-panel/package-categories')
         ->assertOk()
-        ->assertSee('Tuk Tuk Rental')
-        ->assertSee('Stays')
-        ->assertSee('Surfing')
-        ->assertSee('Kitesurfing');
+        ->assertSeeInOrder(['Tuk Tuk Rental', 'Vehicle Rent', 'Airport Pickup', 'Stays', 'Kite & Surfing']);
+
+    expect(ProductCategory::query()->orderBy('sort_order')->pluck('kind')->all())
+        ->toBe([Package::KIND_VEHICLE, Package::KIND_VEHICLE, Package::KIND_TRANSFER, Package::KIND_STAY, Package::KIND_ACTIVITY])
+        ->and(ProductCategory::query()->where('name->en', 'Kitesurfing')->exists())->toBeFalse();
+});
+
+it('restructures an existing database safely: merges surf categories, keeps packages, can run again', function (): void {
+    // A live database from before: Surfing and Kitesurfing separate, each with a package.
+    ProductCategory::query()->delete();
+    $tukTuk = ProductCategory::query()->create(['kind' => Package::KIND_VEHICLE, 'name' => ['en' => 'Tuk Tuk Rental'], 'sort_order' => 1, 'is_active' => true]);
+    $surf = ProductCategory::query()->create(['kind' => Package::KIND_ACTIVITY, 'name' => ['en' => 'Surfing'], 'sort_order' => 3, 'is_active' => true]);
+    $kite = ProductCategory::query()->create(['kind' => Package::KIND_ACTIVITY, 'name' => ['en' => 'Kitesurfing'], 'sort_order' => 4, 'is_active' => true]);
+    $yoga = ProductCategory::query()->create(['kind' => Package::KIND_ACTIVITY, 'name' => ['en' => 'Yoga'], 'sort_order' => 2, 'is_active' => true]);
+    $kitePackage = Package::factory()->create(['product_category_id' => $kite->id, 'pricing_model' => Package::MODEL_PER_PERSON]);
+    $rental = Package::factory()->create(['product_category_id' => $tukTuk->id]);
+
+    DefaultProductCategories::restructure();
+    DefaultProductCategories::restructure();
+
+    expect(ProductCategory::query()->orderBy('sort_order')->get()->map(fn ($c) => $c->getTranslation('name', 'en'))->all())
+        ->toBe(['Tuk Tuk Rental', 'Vehicle Rent', 'Airport Pickup', 'Stays', 'Kite & Surfing', 'Yoga'])
+        ->and($kitePackage->fresh()->product_category_id)->toBe($surf->id)
+        ->and($rental->fresh()->product_category_id)->toBe($tukTuk->id)
+        ->and(ProductCategory::query()->find($kite->id))->toBeNull();
 });
 
 it('lets an Admin create a category with a cover photo', function (): void {
@@ -150,7 +171,7 @@ it('moves uncategorised packages into the default category for their kind', func
     DefaultProductCategories::install();
 
     expect($legacy->fresh()->product_category_id)->toBe($this->stays->id)
-        ->and(ProductCategory::query()->count())->toBe(4); // defaults not duplicated
+        ->and(ProductCategory::query()->count())->toBe(5); // defaults not duplicated
 });
 
 it('renders the category and package admin screens', function (): void {
@@ -158,7 +179,7 @@ it('renders the category and package admin screens', function (): void {
 
     $this->actingAs($this->admin)->get('/control-panel/package-categories/create')->assertOk()->assertSee('Booking style');
     $this->actingAs($this->admin)->get("/control-panel/package-categories/{$this->tukTuks->id}/edit")->assertOk()->assertSee('booking style is locked');
-    $this->actingAs($this->admin)->get('/control-panel/packages/create?category='.$this->surfing->id)->assertOk()->assertSee('Pricing type');
+    $this->actingAs($this->admin)->get('/control-panel/packages/create?category='.$this->surfing->id)->assertOk()->assertSee('How is it charged?')->assertSee('Per person');
     $this->actingAs($this->admin)->get("/control-panel/packages/{$hourly->id}/edit")->assertOk()->assertSee('From (hours)')->assertSee('Price per hour for this tier');
     $this->actingAs($this->admin)->get('/control-panel/packages?category='.$this->tukTuks->id)->assertOk()->assertSee($hourly->name);
 });

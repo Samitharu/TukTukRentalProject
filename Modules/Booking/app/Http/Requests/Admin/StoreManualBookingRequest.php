@@ -10,6 +10,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Support\HourlySchedule;
+use Modules\Booking\Support\TransferSchedule;
 use Modules\Core\Support\Countries;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Package\Models\Package;
@@ -28,6 +29,20 @@ final class StoreManualBookingRequest extends FormRequest
         if ($this->filled('nationality')) {
             $this->merge(['nationality' => mb_strtoupper((string) $this->input('nationality'))]);
         }
+
+        // An airport pickup is a single trip on one day: no return date.
+        if ($this->isTransferPackage()) {
+            $this->merge([
+                'end_date' => $this->input('start_date'),
+                'flight_number' => TransferSchedule::normalizeFlightNumber($this->input('flight_number')),
+            ]);
+        }
+    }
+
+    public function isTransferPackage(): bool
+    {
+        return is_numeric($this->input('package_id'))
+            && Package::query()->whereKey((int) $this->input('package_id'))->value('kind') === Package::KIND_TRANSFER;
     }
 
     public function rules(): array
@@ -39,9 +54,17 @@ final class StoreManualBookingRequest extends FormRequest
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'start_time' => ['nullable', 'string'],
             'hours' => ['nullable', 'integer'],
-            'pickup_type' => ['required', Rule::in(['office', 'delivery'])],
-            'business_location_id' => ['nullable', 'integer', 'exists:business_locations,id'],
-            'delivery_zone_id' => ['nullable', 'integer', 'exists:delivery_zones,id'],
+            // Tuk tuks are always collected at the office (see
+            // BookingController::priceFor()), so pickup is never posted.
+            'pickup_type' => ['exclude'],
+            'business_location_id' => ['exclude'],
+            'delivery_zone_id' => ['exclude'],
+            // Airport pickup packages only (required for those in after()).
+            'transfer_direction' => ['nullable', Rule::in(Booking::TRANSFER_DIRECTIONS)],
+            'transfer_time' => ['nullable', 'date_format:H:i'],
+            'flight_number' => ['nullable', 'string', 'max:10', 'regex:'.TransferSchedule::FLIGHT_NUMBER_PATTERN],
+            'transfer_area_id' => ['nullable', 'integer', Rule::exists('transfer_areas', 'id')->where('is_active', true)],
+            'transfer_address' => ['nullable', 'string', 'max:255'],
             'addons' => ['nullable', 'array'],
             'addons.*' => ['integer', 'min:0', 'max:50'],
             'addon_ids' => ['nullable', 'array'],
@@ -132,6 +155,16 @@ final class StoreManualBookingRequest extends FormRequest
                     }
                 }
 
+                if ($package?->isTransfer()) {
+                    // Staff may book at short notice (a phone call from the
+                    // arrivals hall), so no minimum-notice rule here.
+                    foreach (['transfer_direction', 'transfer_time', 'flight_number', 'transfer_area_id', 'transfer_address'] as $field) {
+                        if (! $this->filled($field)) {
+                            $validator->errors()->add($field, __('Required for an airport pickup package.'));
+                        }
+                    }
+                }
+
                 if ($package?->isStay() && ! CarbonImmutable::parse($this->input('end_date'))->gt(CarbonImmutable::parse($this->input('start_date')))) {
                     $validator->errors()->add('end_date', __('Check-out must be at least one night after check-in.'));
                 }
@@ -139,9 +172,11 @@ final class StoreManualBookingRequest extends FormRequest
                 $vehicle = $this->filled('vehicle_id') ? Vehicle::query()->with('category')->find($this->integer('vehicle_id')) : null;
 
                 if ($package !== null && $vehicle !== null && $vehicle->kind() !== $package->kind) {
-                    $validator->errors()->add('vehicle_id', $package->isStay()
-                        ? __('This is a stay package — pick a cabana or room, not a tuk tuk.')
-                        : __('This is a tuk tuk package — pick a tuk tuk, not a cabana or room.'));
+                    $validator->errors()->add('vehicle_id', match (true) {
+                        $package->isStay() => __('This is a stay package — pick a cabana or room, not a tuk tuk.'),
+                        $package->isTransfer() => __('This is an airport pickup package — pick an airport vehicle.'),
+                        default => __('This is a rental package — pick a rental vehicle, not a cabana, room or airport vehicle.'),
+                    });
                 }
             },
         ];

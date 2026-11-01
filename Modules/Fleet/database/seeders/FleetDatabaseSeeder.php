@@ -7,41 +7,26 @@ namespace Modules\Fleet\Database\Seeders;
 use Illuminate\Database\Seeder;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Fleet\Models\VehicleCategory;
+use Modules\Fleet\Support\DefaultUnitTypes;
 
 /**
- * Modest local-dev/demo dataset — the full "10 tuk tuks, 6 packages, all
- * 4 languages" realistic demo data set is a Phase 9 deliverable. This just
- * gives Phase 3's admin screens and the Pricing/Availability services
- * something real to operate on while building/testing.
+ * Modest local-dev/demo dataset: the business's three vehicle types
+ * (Tuk Tuk, SUV, Bike) and a few tuk tuks to book.
  */
 class FleetDatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $standard = VehicleCategory::query()->updateOrCreate(
-            ['name->en' => 'Standard'],
-            ['name' => ['en' => 'Standard'], 'description' => ['en' => 'Reliable everyday tuk tuks.'], 'sort_order' => 1, 'is_active' => true],
-        );
+        DefaultUnitTypes::install();
 
-        $premium = VehicleCategory::query()->updateOrCreate(
-            ['name->en' => 'Premium'],
-            ['name' => ['en' => 'Premium'], 'description' => ['en' => 'Newer, better-equipped tuk tuks.'], 'sort_order' => 2, 'is_active' => true],
-        );
+        $tukTuk = VehicleCategory::query()->where('name->en', DefaultUnitTypes::TUK_TUK['en'])->firstOrFail();
 
-        $vehicles = [
-            ['plate_no' => 'WP-CAB-1001', 'category_id' => $standard->id, 'name' => 'Standard Tuk Tuk 1'],
-            ['plate_no' => 'WP-CAB-1002', 'category_id' => $standard->id, 'name' => 'Standard Tuk Tuk 2'],
-            ['plate_no' => 'WP-CAB-1003', 'category_id' => $standard->id, 'name' => 'Standard Tuk Tuk 3'],
-            ['plate_no' => 'WP-CAB-2001', 'category_id' => $premium->id, 'name' => 'Premium Tuk Tuk 1'],
-            ['plate_no' => 'WP-CAB-2002', 'category_id' => $premium->id, 'name' => 'Premium Tuk Tuk 2'],
-        ];
-
-        foreach ($vehicles as $vehicle) {
+        foreach (['WP-CAB-1001', 'WP-CAB-1002', 'WP-CAB-1003', 'WP-CAB-2001', 'WP-CAB-2002'] as $index => $plate) {
             Vehicle::query()->updateOrCreate(
-                ['plate_no' => $vehicle['plate_no']],
+                ['plate_no' => $plate],
                 [
-                    'category_id' => $vehicle['category_id'],
-                    'name' => ['en' => $vehicle['name']],
+                    'category_id' => $tukTuk->id,
+                    'name' => ['en' => 'Tuk Tuk '.($index + 1)],
                     'model' => 'Bajaj RE',
                     'year' => 2023,
                     'colour' => 'Yellow',

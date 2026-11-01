@@ -12,8 +12,9 @@
         <input type="hidden" name="kind" value="{{ $category->kind }}">
     @endif
     <select id="kind" name="kind" required @disabled($hasPackages ?? false)>
-        <option value="vehicle" @selected($currentKind === 'vehicle')>{{ __('Rental — customer picks dates and pickup/delivery; a tuk tuk is assigned') }}</option>
+        <option value="vehicle" @selected($currentKind === 'vehicle')>{{ __('Rental — customer picks dates and collects at the office; a vehicle of this line is assigned') }}</option>
         <option value="stay" @selected($currentKind === 'stay')>{{ __('Stay — check-in / check-out; a cabana or room is assigned') }}</option>
+        <option value="transfer" @selected($currentKind === 'transfer')>{{ __('Airport pickup — customer picks direction, time, flight and area; an airport vehicle is reserved for the trip') }}</option>
         <option value="activity" @selected($currentKind === 'activity')>{{ __('Activity — surfing, kitesurfing…; shown with prices, booked on WhatsApp') }}</option>
     </select>
     <p class="admin-hint">

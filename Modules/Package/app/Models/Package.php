@@ -76,8 +76,15 @@ final class Package extends Model
      */
     public const string KIND_ACTIVITY = 'activity';
 
+    /**
+     * Airport pickup / drop-off: one trip at a set time, reserving a
+     * transfer car/van for that time slot only (start + the destination
+     * area's duration) — see AvailabilityService::isTimeRangeFree().
+     */
+    public const string KIND_TRANSFER = VehicleCategory::KIND_TRANSFER;
+
     /** @var string[] */
-    public const array KINDS = [self::KIND_VEHICLE, self::KIND_STAY, self::KIND_ACTIVITY];
+    public const array KINDS = [self::KIND_VEHICLE, self::KIND_STAY, self::KIND_ACTIVITY, self::KIND_TRANSFER];
 
     /**
      * Which pricing models make sense for each booking style. Enforced by
@@ -89,6 +96,9 @@ final class Package extends Model
         self::KIND_VEHICLE => [self::MODEL_TIERED, self::MODEL_PER_DAY, self::MODEL_PER_WEEK, self::MODEL_PER_MONTH, self::MODEL_FIXED_BUNDLE, self::MODEL_PER_HOUR],
         self::KIND_STAY => [self::MODEL_TIERED, self::MODEL_PER_DAY, self::MODEL_FIXED_BUNDLE],
         self::KIND_ACTIVITY => [self::MODEL_PER_PERSON, self::MODEL_FIXED_BUNDLE],
+        // The package price is per trip (0 or a vehicle surcharge); the
+        // destination area adds its own price on top.
+        self::KIND_TRANSFER => [self::MODEL_FIXED_BUNDLE],
     ];
 
     public array $translatable = ['name', 'description', 'inclusions', 'exclusions', 'cancellation_policy'];
@@ -139,7 +149,7 @@ final class Package extends Model
             'is_active' => 'boolean',
             'is_featured' => 'boolean',
             'sort_order' => 'integer',
-            // Explicit Y-m-d format — see AvailabilityBlackout::casts() for why.
+            // Explicit Y-m-d format — see VehicleReservationSlot::casts() for why.
             'valid_from' => 'date:Y-m-d',
             'valid_until' => 'date:Y-m-d',
         ];
@@ -218,6 +228,11 @@ final class Package extends Model
         return $this->kind === self::KIND_ACTIVITY;
     }
 
+    public function isTransfer(): bool
+    {
+        return $this->kind === self::KIND_TRANSFER;
+    }
+
     public function isHourly(): bool
     {
         return $this->pricing_model === self::MODEL_PER_HOUR;
@@ -253,7 +268,7 @@ final class Package extends Model
             self::MODEL_PER_PERSON => 'core::front.packages_per_person',
             self::MODEL_PER_WEEK => 'core::front.packages_per_week',
             self::MODEL_PER_MONTH => 'core::front.packages_per_month',
-            self::MODEL_FIXED_BUNDLE => 'core::front.packages_total',
+            self::MODEL_FIXED_BUNDLE => $this->isTransfer() ? 'core::front.packages_per_trip' : 'core::front.packages_total',
             default => $this->isStay() ? 'core::front.packages_per_night' : 'core::front.packages_per_day',
         };
     }
@@ -332,8 +347,10 @@ final class Package extends Model
      * Which specific vehicles this package can be booked with — either the
      * explicit vehicle list, or every active vehicle in the allowed
      * categories, or (if neither is restricted) every active unit of the
-     * package's kind — an unrestricted tuk tuk package must never
-     * auto-assign a cabana, nor a stay package a tuk tuk.
+     * package's kind and product line — an unrestricted tuk tuk package
+     * must never auto-assign a cabana or a scooter, nor a stay package a
+     * tuk tuk. Unit types not yet assigned to any line count for every
+     * line of their kind.
      */
     public function eligibleVehicleIds(): array
     {
@@ -351,7 +368,25 @@ final class Package extends Model
                 ->all();
         }
 
-        return Vehicle::query()->active()->ofKind($this->kind)->pluck('id')->all();
+        return Vehicle::query()->active()
+            ->whereIn('category_id', $this->unitTypesOfOwnLine()->select('id'))
+            ->pluck('id')
+            ->all();
+    }
+
+    /**
+     * Unit types an unrestricted package may assign from: of its kind, in
+     * its product line or in no line at all.
+     *
+     * @return Builder<VehicleCategory>
+     */
+    public function unitTypesOfOwnLine(): Builder
+    {
+        return VehicleCategory::query()
+            ->where('kind', $this->kind)
+            ->when($this->product_category_id !== null, fn ($q) => $q->where(fn ($line) => $line
+                ->whereNull('product_category_id')
+                ->orWhere('product_category_id', $this->product_category_id)));
     }
 
     /**
@@ -361,9 +396,10 @@ final class Package extends Model
      * the caller must already have narrowed to this package's kind.
      *
      * @param  array<int, int>  $activeFleet  active vehicle id => category id
+     * @param  array<int, int|null>  $unitTypeLines  unit type (category) id => its product line id
      * @return int[]
      */
-    public function eligibleVehicleIdsAmong(array $activeFleet): array
+    public function eligibleVehicleIdsAmong(array $activeFleet, array $unitTypeLines = []): array
     {
         if ($this->vehicles->isNotEmpty()) {
             return $this->vehicles
@@ -380,6 +416,14 @@ final class Package extends Model
             return array_keys(array_filter($activeFleet, fn ($categoryId) => in_array((int) $categoryId, $categoryIds, true)));
         }
 
-        return array_keys($activeFleet);
+        if ($this->product_category_id === null) {
+            return array_keys($activeFleet);
+        }
+
+        return array_keys(array_filter($activeFleet, function ($categoryId) use ($unitTypeLines): bool {
+            $line = $unitTypeLines[(int) $categoryId] ?? null;
+
+            return $line === null || (int) $line === (int) $this->product_category_id;
+        }));
     }
 }

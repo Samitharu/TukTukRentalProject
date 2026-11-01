@@ -1,14 +1,15 @@
-<x-core::layouts.public :title="__('core::front.fleet_title').' · '.config('app.name')" :description="__('core::front.fleet_intro')">
+{{-- Shared by /tuk-tuks (Tuk Tuk line) and /vehicles (Vehicle Rent line). --}}
+<x-core::layouts.public :title="$title.' · '.config('app.name')" :description="$intro">
     <section class="section">
         <div class="container">
-            <h1>{{ __('core::front.fleet_title') }}</h1>
-            <p class="text-muted">{{ __('core::front.fleet_intro') }}</p>
+            <h1>{{ $title }}</h1>
+            <p class="text-muted">{{ $intro }}</p>
 
             @if ($categories->count() > 1)
-                <nav aria-label="{{ __('core::front.nav_fleet') }}" style="margin-bottom:1.5rem;">
-                    <a href="{{ route('fleet.index') }}" class="btn btn--secondary" style="min-height:36px;padding:0.4rem 1rem;{{ request()->missing('category') ? 'background:var(--color-primary-500);color:#fff;' : '' }}">{{ __('core::front.nav_fleet') }}</a>
+                <nav aria-label="{{ $title }}" style="margin-bottom:1.5rem;">
+                    <a href="{{ route($listRoute) }}" class="btn btn--secondary" style="min-height:36px;padding:0.4rem 1rem;{{ request()->missing('category') ? 'background:var(--color-primary-500);color:#fff;' : '' }}">{{ $title }}</a>
                     @foreach ($categories as $category)
-                        <a href="{{ route('fleet.index', ['category' => $category->id]) }}" class="btn btn--secondary" style="min-height:36px;padding:0.4rem 1rem;{{ (int) request('category') === $category->id ? 'background:var(--color-primary-500);color:#fff;' : '' }}">{{ $category->name }}</a>
+                        <a href="{{ route($listRoute, ['category' => $category->id]) }}" class="btn btn--secondary" style="min-height:36px;padding:0.4rem 1rem;{{ (int) request('category') === $category->id ? 'background:var(--color-primary-500);color:#fff;' : '' }}">{{ $category->name }}</a>
                     @endforeach
                 </nav>
             @endif
@@ -31,6 +32,10 @@
                         </article>
                     @endforeach
                 </div>
+            @endif
+
+            @if ($bookLine)
+                <p style="margin-top:var(--space-4);"><a href="{{ route('booking.start', ['line' => $bookLine]) }}" class="btn btn--primary">{{ __('core::front.book_now') }}</a></p>
             @endif
         </div>
     </section>

@@ -7,6 +7,7 @@ namespace Modules\Pricing\Services;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Modules\Availability\Models\DeliveryZone;
+use Modules\Availability\Models\TransferArea;
 use Modules\Package\Models\Addon;
 use Modules\Package\Models\Package;
 use Modules\Package\Models\PackageSeason;
@@ -36,6 +37,7 @@ final class PricingService
         ?DeliveryZone $deliveryZone = null,
         ?string $currencyCode = null,
         ?int $hours = null,
+        ?TransferArea $transferArea = null,
     ): PriceBreakdown {
         // An hourly package is a single-day rental priced by the hour;
         // add-ons and coupons see it as the one day it is.
@@ -48,8 +50,10 @@ final class PricingService
         $seasonalAdjustment = $this->calculateSeasonalAdjustment($package, $startDate, $endDate, $baseAmount);
         [$addonLines, $addonsTotal] = $this->calculateAddons($package, $addonSelections, $days);
         $deliveryFee = (float) ($deliveryZone?->extra_fee ?? 0);
+        // Airport pickup: package price (per trip) + the destination's price.
+        $transferFee = $package->isTransfer() ? (float) ($transferArea?->price ?? 0) : 0.0;
 
-        $rentalSubtotal = round($baseAmount + $seasonalAdjustment + $addonsTotal, 2);
+        $rentalSubtotal = round($baseAmount + $seasonalAdjustment + $addonsTotal + $transferFee, 2);
 
         $couponDiscount = 0.0;
         $couponCode = null;
@@ -74,6 +78,7 @@ final class PricingService
             total: $total,
             depositAmount: $depositAmount,
             hours: $hours,
+            transferFee: $transferFee,
         );
 
         return $currencyCode === config('pricing.default_currency')
@@ -215,6 +220,7 @@ final class PricingService
             total: $round($breakdown->total),
             depositAmount: $round($breakdown->depositAmount),
             hours: $breakdown->hours,
+            transferFee: $round($breakdown->transferFee),
         );
     }
 }

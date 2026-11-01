@@ -39,7 +39,7 @@ final class PackageSeason extends Model
     protected function casts(): array
     {
         return [
-            // Explicit Y-m-d format — see AvailabilityBlackout::casts() for why.
+            // Explicit Y-m-d format — see VehicleReservationSlot::casts() for why.
             'starts_on' => 'date:Y-m-d',
             'ends_on' => 'date:Y-m-d',
             'price_modifier_value' => 'decimal:2',

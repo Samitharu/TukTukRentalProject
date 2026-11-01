@@ -12,7 +12,7 @@
 
 {{ __('core::front.email_confirm_greeting', ['name' => $md($booking->customer?->full_name)]) }}
 
-{{ __($isStay ? 'core::front.email_confirm_intro_stay' : 'core::front.email_confirm_intro', ['app' => config('app.name')]) }}
+{{ __($isStay ? 'core::front.email_confirm_intro_stay' : ($booking->isTransfer() ? 'core::front.email_confirm_intro_transfer' : 'core::front.email_confirm_intro'), ['app' => config('app.name')]) }}
 
 <x-mail::panel>
 {{ __('core::front.booking_confirmation_reference') }}: **{{ $booking->reference }}**
@@ -21,7 +21,14 @@
 <x-mail::table>
 | | |
 |:--|:--|
-@if ($isStay)
+@if ($booking->isTransfer())
+| **{{ __('core::front.transfer_direction') }}** | {{ $booking->transferRouteLabel() }} |
+| **{{ __('core::front.transfer_pickup_time') }}** | {{ $booking->start_at->translatedFormat('D j M Y') }}, {{ $booking->start_at->format('H:i') }} |
+| **{{ __('core::front.transfer_flight_number') }}** | {{ $md($booking->flight_number) }} |
+| **{{ __('core::front.transfer_area') }}** | {{ $md($booking->transferArea?->name ?? '—') }} |
+| **{{ __('core::front.transfer_address') }}** | {{ $md($booking->transfer_address) }} |
+| **{{ __('core::front.booking_status_vehicle') }}** | {{ $md($booking->vehicle?->name) }} |
+@elseif ($isStay)
 | **{{ __('core::front.booking_check_in') }}** | {{ $booking->start_at->translatedFormat('D j M Y') }} |
 | **{{ __('core::front.booking_check_out') }}** | {{ $booking->checkOutDate()->translatedFormat('D j M Y') }} |
 | **{{ __('core::front.receipt_nights') }}** | {{ $days }} |
@@ -33,7 +40,7 @@
 | **{{ __('core::front.booking_status_dates') }}** | {{ $booking->start_at->translatedFormat('D j M Y') }} → {{ $booking->end_at->translatedFormat('D j M Y') }} |
 | **{{ __('core::front.receipt_days') }}** | {{ $days }} |
 @endif
-| **{{ __('core::front.booking_status_vehicle') }}** | {{ $md($booking->vehicle?->name) }} |
+| **{{ __('core::front.booking_status_vehicle') }}** | {{ $booking->vehicle ? $md($booking->vehicle->name) : __('core::front.booking_vehicle_assigned_later') }} |
 | **{{ __('core::front.receipt_pickup') }}** | {{ $booking->pickup_type === 'delivery' ? __('core::front.booking_pickup_delivery').($booking->deliveryZone ? ' — '.$md($booking->deliveryZone->name) : '') : __('core::front.booking_pickup_office').($location ? ' — '.$md($location->name) : '') }} |
 @endif
 | **{{ __('core::front.booking_status_package') }}** | {{ $md($booking->package?->name ?? '—') }} |
@@ -54,7 +61,7 @@
 **{{ __('core::front.location_title') }}:** {{ $place->address ? $md($place->address).' — ' : '' }}[{{ __('core::front.location_open_map') }}]({{ $place->mapUrl() }})@if ($place->directionsUrl()) · [{{ __('core::front.location_directions') }}]({{ $place->directionsUrl() }})@endif
 
 @endif
-{{ __($isStay ? 'core::front.booking_confirmation_next_steps_stay' : 'core::front.booking_confirmation_next_steps') }}
+{{ __($isStay ? 'core::front.booking_confirmation_next_steps_stay' : ($booking->isTransfer() ? 'core::front.booking_confirmation_next_steps_transfer' : 'core::front.booking_confirmation_next_steps')) }}
 
 <x-mail::button :url="$bookingUrl">
 {{ __('core::front.email_confirm_view_booking') }}

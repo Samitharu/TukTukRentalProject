@@ -53,4 +53,16 @@ final class BusinessLocation extends Model
     {
         return $query->where('is_active', true);
     }
+
+    /**
+     * The office tuk tuks are collected from — customers never choose a
+     * pickup location. The first active pickup point.
+     */
+    public static function office(): ?self
+    {
+        return self::query()->active()
+            ->orderByDesc('is_pickup_point')
+            ->orderBy('id')
+            ->first();
+    }
 }

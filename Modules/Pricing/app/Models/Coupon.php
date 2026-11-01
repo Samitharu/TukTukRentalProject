@@ -47,7 +47,7 @@ final class Coupon extends Model
         return [
             'value' => 'decimal:2',
             'min_days' => 'integer',
-            // Explicit Y-m-d format — see AvailabilityBlackout::casts() for why.
+            // Explicit Y-m-d format — see VehicleReservationSlot::casts() for why.
             'valid_from' => 'date:Y-m-d',
             'valid_until' => 'date:Y-m-d',
             'usage_limit' => 'integer',

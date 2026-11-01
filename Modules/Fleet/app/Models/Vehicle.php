@@ -117,6 +117,11 @@ final class Vehicle extends Model
         return $this->category?->isStay() ?? false;
     }
 
+    public function isTransfer(): bool
+    {
+        return $this->category?->isTransfer() ?? false;
+    }
+
     public function kind(): string
     {
         return $this->category?->kind ?? VehicleCategory::KIND_VEHICLE;
@@ -146,5 +151,11 @@ final class Vehicle extends Model
     public function scopeOfKind(Builder $query, string $kind): Builder
     {
         return $query->whereIn('category_id', VehicleCategory::query()->select('id')->where('kind', $kind));
+    }
+
+    /** Units whose unit type belongs to this product line (Tuk Tuk, Vehicle Rent…). */
+    public function scopeInProductLine(Builder $query, int $productCategoryId): Builder
+    {
+        return $query->whereIn('category_id', VehicleCategory::query()->select('id')->where('product_category_id', $productCategoryId));
     }
 }

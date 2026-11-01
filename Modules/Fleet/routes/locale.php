@@ -9,5 +9,6 @@ use Modules\Fleet\Http\Controllers\Front\FleetController;
 // {locale}-prefixed group.
 Route::get('tuk-tuks', [FleetController::class, 'index'])->name('fleet.index');
 Route::get('tuk-tuks/{slug}', [FleetController::class, 'show'])->name('fleet.show');
+Route::get('vehicles', [FleetController::class, 'vehicles'])->name('vehicles.index');
 Route::get('stays', [FleetController::class, 'stays'])->name('stays.index');
 Route::get('stays/{slug}', [FleetController::class, 'showStay'])->name('stays.show');

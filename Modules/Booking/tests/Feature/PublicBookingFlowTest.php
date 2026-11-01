@@ -131,6 +131,31 @@ it('rejects an invalid coupon code without mutating the session price', function
     $response->assertStatus(422);
 });
 
+it('does not ask where to collect the tuk tuk and always books office pickup', function (): void {
+    $this->get('/en/booking/start')
+        ->assertOk()
+        ->assertDontSee('name="pickup_type"', false)
+        ->assertDontSee('name="business_location_id"', false)
+        ->assertDontSee('name="delivery_zone_id"', false);
+
+    // Even a forged delivery choice is ignored.
+    $this->post('/en/booking/start', [
+        'start_date' => '2027-06-01',
+        'end_date' => '2027-06-02',
+        'pickup_type' => 'delivery',
+        'delivery_zone_id' => 999,
+    ])->assertRedirect('/en/booking/package');
+    $this->post('/en/booking/package', ['package_id' => $this->package->id]);
+    $this->post('/en/booking/addons', []);
+    $this->post('/en/booking/details', driverDetailsPayload());
+    $this->post('/en/booking/confirm', ['terms_accepted' => '1']);
+
+    $booking = Booking::query()->sole();
+    expect($booking->pickup_type)->toBe('office')
+        ->and($booking->business_location_id)->toBe($this->location->id)
+        ->and($booking->delivery_zone_id)->toBeNull();
+});
+
 it('redirects back to the start step when arriving at a later step without prior state', function (): void {
     $this->get('/en/booking/review')->assertRedirect('/en/booking/start');
     $this->get('/en/booking/package')->assertRedirect('/en/booking/start');

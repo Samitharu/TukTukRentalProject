@@ -98,7 +98,20 @@
             </td>
             <td style="width:4%;"></td>
             <td style="width:48%;vertical-align:top;">
-                @if ($isStay)
+                @if ($booking->isTransfer())
+                    <h2>{{ __('core::front.receipt_transfer') }}</h2>
+                    <table class="kv">
+                        <tr><td class="k">{{ __('core::front.transfer_direction') }}</td><td>{{ $booking->transferRouteLabel() }}</td></tr>
+                        <tr><td class="k">{{ __('core::front.transfer_pickup_time') }}</td><td>{{ $booking->rentalPeriod() }}</td></tr>
+                        <tr><td class="k">{{ __('core::front.transfer_flight_number') }}</td><td>{{ $booking->flight_number }}</td></tr>
+                        <tr><td class="k">{{ __('core::front.transfer_area') }}</td><td>{{ $booking->transferArea?->name }}</td></tr>
+                        <tr><td class="k">{{ __('core::front.transfer_address') }}</td><td>{{ $booking->transfer_address }}</td></tr>
+                        @if ($booking->package)
+                            <tr><td class="k">{{ __('core::front.booking_review_package') }}</td><td>{{ $booking->package->name }}</td></tr>
+                        @endif
+                        <tr><td class="k">{{ __('core::front.receipt_vehicle') }}</td><td>{{ $booking->vehicle ? $booking->vehicle->name.' ('.$booking->vehicle->plate_no.')' : __('core::front.booking_vehicle_assigned_later') }}</td></tr>
+                    </table>
+                @elseif ($isStay)
                     <h2>{{ __('core::front.receipt_stay') }}</h2>
                     <table class="kv">
                         <tr><td class="k">{{ __('core::front.booking_check_in') }}</td><td>{{ $booking->start_at->format('d M Y') }}</td></tr>
@@ -125,7 +138,7 @@
                         @if ($booking->package)
                             <tr><td class="k">{{ __('core::front.booking_review_package') }}</td><td>{{ $booking->package->name }}</td></tr>
                         @endif
-                        <tr><td class="k">{{ __('core::front.receipt_vehicle') }}</td><td>{{ $booking->vehicle?->name }} ({{ $booking->vehicle?->plate_no }})</td></tr>
+                        <tr><td class="k">{{ __('core::front.receipt_vehicle') }}</td><td>{{ $booking->vehicle ? $booking->vehicle->name.' ('.$booking->vehicle->plate_no.')' : __('core::front.booking_vehicle_assigned_later') }}</td></tr>
                         <tr><td class="k">{{ __('core::front.receipt_pickup') }}</td><td>{{ $pickup }}</td></tr>
                     </table>
                 @endif
@@ -147,6 +160,10 @@
                 <td class="amt">{{ $money($line['amount'] ?? 0) }}</td>
             </tr>
         @endforeach
+
+        @if ((float) ($p['transfer_fee'] ?? 0) > 0)
+            <tr><td>{{ __('core::front.price_transfer_fee') }}@if ($booking->transferArea) — {{ $booking->transferArea->name }}@endif</td><td class="amt">{{ $money($p['transfer_fee']) }}</td></tr>
+        @endif
 
         @if ((float) ($p['delivery_fee'] ?? 0) > 0)
             <tr><td>{{ __('core::front.price_delivery_fee') }}</td><td class="amt">{{ $money($p['delivery_fee']) }}</td></tr>

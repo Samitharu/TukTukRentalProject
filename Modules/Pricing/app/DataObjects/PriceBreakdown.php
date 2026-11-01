@@ -30,12 +30,15 @@ final readonly class PriceBreakdown
         public float $depositAmount,
         // Set only for an hourly package: the hours priced (days is then 1).
         public ?int $hours = null,
+        // Airport pickups: the destination area's trip price. Part of the
+        // subtotal (unlike the delivery fee), so coupons apply to it.
+        public float $transferFee = 0.0,
     ) {
     }
 
     public function rentalSubtotal(): float
     {
-        return round($this->baseAmount + $this->seasonalAdjustment + $this->addonsTotal, 2);
+        return round($this->baseAmount + $this->seasonalAdjustment + $this->addonsTotal + $this->transferFee, 2);
     }
 
     public function balanceDue(): float
@@ -54,6 +57,7 @@ final readonly class PriceBreakdown
             'addon_lines' => $this->addonLines,
             'addons_total' => $this->addonsTotal,
             'delivery_fee' => $this->deliveryFee,
+            'transfer_fee' => $this->transferFee,
             'rental_subtotal' => $this->rentalSubtotal(),
             'coupon_code' => $this->couponCode,
             'coupon_discount' => $this->couponDiscount,

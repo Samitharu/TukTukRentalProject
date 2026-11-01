@@ -41,7 +41,8 @@ final class UnitRules
             'model' => $isStay ? ['exclude'] : ['nullable', 'string', 'max:120'],
             'year' => $isStay ? ['exclude'] : ['nullable', 'integer', 'min:1990', 'max:'.(date('Y') + 1)],
             'colour' => $isStay ? ['exclude'] : ['nullable', 'string', 'max:60'],
-            'seats' => ['required', 'integer', 'min:1', 'max:'.($isStay ? 30 : 6)],
+            // Vehicles go up to airport vans; stays count guests.
+            'seats' => ['required', 'integer', 'min:1', 'max:'.($isStay ? 30 : 15)],
             'transmission' => $isStay ? ['exclude'] : ['required', Rule::in(['manual', 'automatic'])],
             'fuel_type' => $isStay ? ['exclude'] : ['required', Rule::in(['petrol', 'diesel', 'electric'])],
             'features' => ['nullable', 'array'],

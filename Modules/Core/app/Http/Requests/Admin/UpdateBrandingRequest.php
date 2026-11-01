@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Core\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Modules\Core\Rules\TripadvisorUrl;
 
 final class UpdateBrandingRequest extends FormRequest
 {
@@ -22,6 +23,7 @@ final class UpdateBrandingRequest extends FormRequest
             // against carefully (brief §8).
             'logo' => ['nullable', 'image', 'max:2048', 'mimes:jpg,jpeg,png,webp'],
             'hero_image' => ['nullable', 'image', 'max:8192', 'mimes:jpg,jpeg,png,webp'],
+            'tripadvisor_url' => ['nullable', 'string', 'max:500', new TripadvisorUrl()],
         ];
     }
 }

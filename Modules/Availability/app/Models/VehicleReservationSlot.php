@@ -35,8 +35,11 @@ final class VehicleReservationSlot extends Model
     protected function casts(): array
     {
         return [
-            // See the comment on AvailabilityBlackout's casts() — the
-            // explicit format matters for cross-database consistency.
+            // Explicit Y-m-d format, not the bare 'date' cast: the bare cast
+            // still serializes through the connection's full datetime
+            // format on write, which MySQL's DATE column silently truncates
+            // but SQLite (used in tests) stores verbatim — breaking string
+            // range comparisons like whereBetween.
             'slot_date' => 'date:Y-m-d',
         ];
     }

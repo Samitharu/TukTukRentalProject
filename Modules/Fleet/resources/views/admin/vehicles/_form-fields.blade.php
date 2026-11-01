@@ -1,7 +1,9 @@
 @php
     $vehicle = $vehicle ?? null;
     $selectedCategoryId = (string) old('category_id', $vehicle?->category_id ?? $categories->first()?->id);
-    $selectedKind = $categories->firstWhere('id', (int) $selectedCategoryId)?->kind ?? 'vehicle';
+    // Airport vehicles have the same fields as rental vehicles (plate,
+    // gearbox, fuel), so the form only tells stays and vehicles apart.
+    $selectedKind = $categories->firstWhere('id', (int) $selectedCategoryId)?->isStay() ? 'stay' : 'vehicle';
     $currentFeatures = old('features', $vehicle?->features ?? []);
     $featureLabels = [
         'helmet_included' => __('Helmet included'), 'phone_holder' => __('Phone holder'), 'gps' => __('GPS'),
@@ -19,8 +21,8 @@
     <label for="category_id">{{ __('Category') }}</label>
     <select id="category_id" name="category_id" required data-unit-category>
         @foreach ($categories as $category)
-            <option value="{{ $category->id }}" data-kind="{{ $category->kind }}" @selected($selectedCategoryId === (string) $category->id)>
-                {{ $category->name }} ({{ $category->isStay() ? __('Stay') : __('Tuk tuk') }})
+            <option value="{{ $category->id }}" data-kind="{{ $category->isStay() ? 'stay' : 'vehicle' }}" @selected($selectedCategoryId === (string) $category->id)>
+                {{ $category->name }} ({{ $category->isStay() ? __('Stay') : ($category->isTransfer() ? __('Airport vehicle') : __('Rental vehicle')) }})
             </option>
         @endforeach
     </select>

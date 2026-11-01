@@ -180,6 +180,10 @@
                 html += line(labels.seasonal, price.seasonal_adjustment, currency);
             }
 
+            if (Number(price.transfer_fee) > 0) {
+                html += line(labels.transfer, price.transfer_fee, currency);
+            }
+
             if (Number(price.addons_total) > 0) {
                 html += line(labels.addons, price.addons_total, currency);
             }
@@ -212,9 +216,10 @@
         }
 
         var refresh = debounce(function () {
+            // An airport pickup has no return date (the server sets it to
+            // the pickup day), so only package and start date are needed.
             if (form.querySelector('[data-package-select]').value === ''
-                || form.querySelector('#start_date').value === ''
-                || form.querySelector('#end_date').value === '') {
+                || form.querySelector('#start_date').value === '') {
                 return;
             }
 
@@ -264,7 +269,7 @@
             }
         });
         form.addEventListener('input', function (event) {
-            if (event.target.matches('[name^="addons"], #coupon_code, #hours')) {
+            if (event.target.matches('[name^="addons"], #coupon_code, #hours, #transfer_time')) {
                 refresh();
             }
         });

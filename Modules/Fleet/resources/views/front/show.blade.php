@@ -38,7 +38,12 @@
                         </ul>
                     @endif
 
-                    <a href="{{ route('booking.start', ['vehicle' => $vehicle->id]) }}" class="btn btn--primary btn--block">{{ $vehicle->isStay() ? __('core::front.stays_book_this') : __('core::front.fleet_book_this') }}</a>
+                    {{-- A stay books this very cabana/room; a vehicle is assigned, so book its line. --}}
+                    @if ($vehicle->isStay())
+                        <a href="{{ route('booking.start', ['vehicle' => $vehicle->id]) }}" class="btn btn--primary btn--block">{{ __('core::front.stays_book_this') }}</a>
+                    @else
+                        <a href="{{ route('booking.start', array_filter(['line' => $vehicle->category?->product_category_id, 'kind' => 'vehicle'])) }}" class="btn btn--primary btn--block">{{ __('core::front.book_now') }}</a>
+                    @endif
                 </div>
             </div>
 

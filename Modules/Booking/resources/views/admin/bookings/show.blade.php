@@ -8,12 +8,25 @@
         </div>
     @endif
 
+    @if ($booking->isUnassigned())
+        <div class="admin-alert admin-alert--warn">
+            <strong>{{ __('Needs a vehicle') }}:</strong>
+            {{ __('No vehicle was free for these dates when the customer booked, so none is reserved yet. Assign one below (free up a vehicle first, or change the dates).') }}
+        </div>
+    @endif
+
     <div class="admin-card">
         <p><strong>{{ __('Status') }}:</strong> {{ ucfirst(str_replace('_', ' ', $booking->status)) }}</p>
         <p><strong>{{ __('Customer') }}:</strong> <a href="{{ route('admin.customers.show', $booking->customer) }}">{{ $booking->customer->full_name }}</a> ({{ $booking->customer->email }})</p>
-        <p><strong>{{ $booking->isStay() ? __('Stay') : __('Vehicle') }}:</strong> {{ $booking->vehicle->adminLabel() }}</p>
+        <p><strong>{{ $booking->isStay() ? __('Stay') : __('Vehicle') }}:</strong> {{ $booking->vehicle?->adminLabel() ?? __('Not assigned yet') }}</p>
         <p><strong>{{ __('Package') }}:</strong> {{ $booking->package?->name }}</p>
-        @if ($booking->isStay())
+        @if ($booking->isTransfer())
+            <p><strong>{{ __('Airport pickup') }}:</strong> {{ $booking->transfer_direction === 'departure' ? __('Address → airport (departure)') : __('Airport → address (arrival)') }}</p>
+            <p><strong>{{ __('Pickup time') }}:</strong> {{ $booking->start_at->format('Y-m-d H:i') }} — {{ __('vehicle busy until :time', ['time' => $booking->end_at->format('H:i')]) }}</p>
+            <p><strong>{{ __('Flight number') }}:</strong> {{ $booking->flight_number }}</p>
+            <p><strong>{{ __('Destination area') }}:</strong> {{ $booking->transferArea?->name ?? '—' }}</p>
+            <p><strong>{{ __('Hotel / address') }}:</strong> {{ $booking->transfer_address }}</p>
+        @elseif ($booking->isStay())
             <p><strong>{{ __('Check-in') }}:</strong> {{ $booking->start_at->format('Y-m-d') }}</p>
             <p><strong>{{ __('Check-out') }}:</strong> {{ $booking->checkOutDate()->format('Y-m-d') }} ({{ trans_choice(':count night|:count nights', $booking->lengthInDays(), ['count' => $booking->lengthInDays()]) }})</p>
             @if ($booking->vehicle->mapUrl())
@@ -42,7 +55,7 @@
             </ul>
             <p><strong>{{ __('Total incl. extra charges') }}:</strong> {{ number_format((float) $booking->total_amount + (float) $booking->extraCharges->sum('amount'), 2, '.', '') }} {{ $booking->currency_code }}</p>
         @endif
-        @unless ($booking->isStay())
+        @unless ($booking->isStay() || $booking->isTransfer())
             <p><strong>{{ __('International Driving Permit') }}:</strong> {{ $booking->has_international_permit ? __('Yes') : __('No') }}</p>
         @endunless
         @if ($booking->special_requests)
@@ -123,7 +136,16 @@
         <form method="POST" action="{{ route('admin.bookings.dates.update', $booking) }}">
             @csrf
             @method('PUT')
-            @if ($booking->isHourly())
+            @if ($booking->isTransfer())
+                <div class="admin-form-field">
+                    <label for="start_date">{{ __('New pickup date') }}</label>
+                    <input type="date" id="start_date" name="start_date" value="{{ $booking->start_at->toDateString() }}" required>
+                </div>
+                <div class="admin-form-field">
+                    <label for="transfer_time">{{ __('New pickup time (keeps the :minutes min trip)', ['minutes' => (int) $booking->start_at->diffInMinutes($booking->end_at)]) }}</label>
+                    <input type="time" id="transfer_time" name="transfer_time" value="{{ $booking->start_at->format('H:i') }}" required>
+                </div>
+            @elseif ($booking->isHourly())
                 <div class="admin-form-field">
                     <label for="start_date">{{ __('New date') }}</label>
                     <input type="date" id="start_date" name="start_date" value="{{ $booking->start_at->toDateString() }}" required>
@@ -151,7 +173,7 @@
     </div>
 
     <div class="admin-card">
-        <h2>{{ $booking->isStay() ? __('Move to another cabana / room') : __('Reassign vehicle') }}</h2>
+        <h2>{{ $booking->isStay() ? __('Move to another cabana / room') : ($booking->isUnassigned() ? __('Assign vehicle') : __('Reassign vehicle')) }}</h2>
         <form method="POST" action="{{ route('admin.bookings.vehicle.update', $booking) }}">
             @csrf
             @method('PUT')
@@ -163,7 +185,7 @@
                     @endforeach
                 </select>
             </div>
-            <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Reassign') }}</button>
+            <button type="submit" class="admin-btn {{ $booking->isUnassigned() ? '' : 'admin-btn--secondary' }}">{{ $booking->isUnassigned() ? __('Assign') : __('Reassign') }}</button>
         </form>
     </div>
 

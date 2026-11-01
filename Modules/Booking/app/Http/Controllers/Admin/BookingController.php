@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Admin\Models\BlockedIp;
 use Modules\Availability\Models\BusinessLocation;
-use Modules\Availability\Models\DeliveryZone;
+use Modules\Availability\Models\TransferArea;
 use Modules\Availability\Services\AvailabilityService;
 use Modules\Booking\Exceptions\CouponUnavailableException;
 use Modules\Booking\Exceptions\NoVehicleAvailableException;
@@ -22,7 +22,9 @@ use Modules\Booking\Http\Requests\Admin\StoreManualBookingRequest;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Services\BookingService;
 use Modules\Booking\Services\SuspiciousBookingDetector;
+use Modules\Booking\Services\TransferAvailability;
 use Modules\Booking\Support\HourlySchedule;
+use Modules\Booking\Support\TransferSchedule;
 use Modules\Core\Support\Countries;
 use Modules\Customer\Models\Customer;
 use Modules\Fleet\Models\Vehicle;
@@ -48,6 +50,8 @@ final class BookingController extends Controller
             ->with(['customer', 'vehicle.category'])
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
             ->when($request->boolean('suspicious'), fn ($q) => $this->detector->scopeToSuspicious($q))
+            // Online rentals taken while every vehicle was out.
+            ->when($request->boolean('unassigned'), fn ($q) => $q->whereNull('vehicle_id'))
             ->when($request->filled('q'), function ($q) use ($request) {
                 // Escape LIKE wildcards so "_" or "%" in the search box are
                 // matched literally rather than as "any character(s)".
@@ -132,8 +136,8 @@ final class BookingController extends Controller
             'countries' => Countries::all(),
             'hourlyStartTimes' => HourlySchedule::startTimes(new Package(['min_hours' => 1])),
             'vehicles' => Vehicle::query()->active()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
-            'locations' => BusinessLocation::query()->active()->get(),
-            'deliveryZones' => DeliveryZone::query()->active()->get(),
+            'office' => BusinessLocation::office(),
+            'transferAreas' => TransferArea::query()->active()->ordered()->get(),
         ]);
     }
 
@@ -161,8 +165,12 @@ final class BookingController extends Controller
                     'nationality' => $data['nationality'] ?? null,
                     'passport_number' => $data['passport_number'] ?? null,
                     'pickup_type' => $quote['data']['pickup_type'],
-                    'business_location_id' => $quote['data']['business_location_id'] ?? null,
-                    'delivery_zone_id' => $quote['delivery_zone']?->id,
+                    'business_location_id' => $quote['data']['business_location_id'],
+                    'delivery_zone_id' => null,
+                    'transfer_direction' => $quote['data']['transfer_direction'] ?? null,
+                    'flight_number' => $quote['data']['flight_number'] ?? null,
+                    'transfer_address' => $quote['data']['transfer_address'] ?? null,
+                    'transfer_area_id' => isset($quote['data']['transfer_area_id']) ? (int) $quote['data']['transfer_area_id'] : null,
                     'has_international_permit' => (bool) ($quote['data']['has_international_permit'] ?? false),
                     'special_requests' => $data['special_requests'] ?? null,
                 ],
@@ -186,13 +194,15 @@ final class BookingController extends Controller
      * total that will be booked. Availability is advisory — store()
      * re-checks under the vehicle lock.
      */
-    public function quote(StoreManualBookingRequest $request, AvailabilityService $availability): JsonResponse
+    public function quote(StoreManualBookingRequest $request, AvailabilityService $availability, TransferAvailability $transfers): JsonResponse
     {
         $quote = $this->priceFor($request);
         $price = $quote['price'];
 
         $vehicleIds = $request->filled('vehicle_id') ? [$request->integer('vehicle_id')] : $quote['package']->eligibleVehicleIds();
-        $busy = $availability->unavailableVehicleIds($vehicleIds, $quote['start'], $quote['end']);
+        $busy = $quote['package']->isTransfer()
+            ? $transfers->unavailableVehicleIds($vehicleIds, $quote['start'], $quote['end'])
+            : $availability->unavailableVehicleIds($vehicleIds, $quote['start'], $quote['end']);
 
         return response()->json([
             ...$price->toArray(),
@@ -235,7 +245,7 @@ final class BookingController extends Controller
      * The booking period and server-side price for a manual booking form
      * submission — shared by store() and quote().
      *
-     * @return array{package: Package, price: PriceBreakdown, start: CarbonImmutable, end: CarbonImmutable, start_at: string, end_at: string, delivery_zone: DeliveryZone|null, data: array<string, mixed>}
+     * @return array{package: Package, price: PriceBreakdown, start: CarbonImmutable, end: CarbonImmutable, start_at: string, end_at: string, data: array<string, mixed>}
      */
     private function priceFor(StoreManualBookingRequest $request): array
     {
@@ -245,11 +255,22 @@ final class BookingController extends Controller
         $start = CarbonImmutable::parse($data['start_date']);
         $end = CarbonImmutable::parse($data['end_date']);
 
+        // A rental is always collected at the office — no delivery.
+        $data = [...$data, 'pickup_type' => 'office', 'business_location_id' => BusinessLocation::office()?->id];
+        $transferArea = null;
+
         if ($package->isStay()) {
             // The form's end date is the check-out day; a stay is stored up
             // to its last night (see Booking::isStay()), and has no pickup.
             $end = $end->subDay();
-            $data = [...$data, 'pickup_type' => 'office', 'business_location_id' => null, 'delivery_zone_id' => null, 'has_international_permit' => false];
+            $data = [...$data, 'business_location_id' => null, 'has_international_permit' => false];
+        }
+
+        if ($package->isTransfer()) {
+            $transferArea = TransferArea::query()->findOrFail($data['transfer_area_id']);
+            $data = [...$data, 'business_location_id' => null, 'has_international_permit' => false];
+        } else {
+            $data = [...$data, 'transfer_direction' => null, 'flight_number' => null, 'transfer_address' => null, 'transfer_area_id' => null];
         }
 
         // Carbon's diffInDays() returns float (fractional-day precision) —
@@ -259,26 +280,28 @@ final class BookingController extends Controller
         $hours = $package->isHourly() ? (int) $data['hours'] : null;
 
         // An hourly rental is one day; it keeps its real start/return times.
-        [$startAt, $endAt] = $hours !== null
-            ? array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), HourlySchedule::range($start->toDateString(), $data['start_time'], $hours))
-            : [$start->toDateString(), $end->toDateString()];
+        // An airport pickup reserves its trip's real time slot.
+        [$startAt, $endAt] = match (true) {
+            $transferArea !== null => array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), TransferSchedule::range($start->toDateString(), $data['transfer_time'], $transferArea)),
+            $hours !== null => array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), HourlySchedule::range($start->toDateString(), $data['start_time'], $hours)),
+            default => [$start->toDateString(), $end->toDateString()],
+        };
+
+        if ($transferArea !== null) {
+            [$start, $end] = [CarbonImmutable::parse($startAt), CarbonImmutable::parse($endAt)];
+        }
 
         $coupon = ! empty($data['coupon_code'])
             ? Coupon::query()->where('code', mb_strtoupper($data['coupon_code']))->active()->first()
             : null;
 
-        $deliveryZone = $data['pickup_type'] === 'delivery' && ! empty($data['delivery_zone_id'])
-            ? DeliveryZone::query()->find($data['delivery_zone_id'])
-            : null;
-
         return [
             'package' => $package,
-            'price' => $this->pricing->calculate($package, $start, $days, $request->addonSelections(), $coupon, $deliveryZone, hours: $hours),
+            'price' => $this->pricing->calculate($package, $start, $days, $request->addonSelections(), $coupon, null, hours: $hours, transferArea: $transferArea),
             'start' => $start,
             'end' => $end,
             'start_at' => $startAt,
             'end_at' => $endAt,
-            'delivery_zone' => $deliveryZone,
             'data' => $data,
         ];
     }
@@ -287,7 +310,7 @@ final class BookingController extends Controller
     {
         $this->authorize('view', $booking);
 
-        $booking->load(['customer', 'vehicle.category', 'package', 'addons.addon', 'statusHistory.changedBy', 'extraCharges']);
+        $booking->load(['customer', 'vehicle.category', 'package', 'addons.addon', 'statusHistory.changedBy', 'extraCharges', 'transferArea']);
         $hourlyPackage = $booking->isHourly() ? ($booking->package ?? new Package(['min_hours' => 1])) : null;
 
         return view('booking::admin.bookings.show', [
@@ -298,7 +321,7 @@ final class BookingController extends Controller
             'ipBlock' => $booking->ip_address !== null ? BlockedIp::query()->currentlyBlocking($booking->ip_address)->first() : null,
             // Reassign only to the same kind of unit: a tuk tuk rental can't
             // move into a cabana (its dates mean days, not nights).
-            'vehicles' => Vehicle::query()->active()->ofKind($booking->vehicle->kind())->orderBy('plate_no')->orderBy('id')->get(),
+            'vehicles' => Vehicle::query()->active()->ofKind($booking->kind())->orderBy('plate_no')->orderBy('id')->get(),
             'hourlyStartTimes' => $hourlyPackage !== null ? HourlySchedule::startTimes($hourlyPackage) : [],
         ]);
     }

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\DeliveryZone;
+use Modules\Availability\Models\TransferArea;
 use Modules\Availability\Models\VehicleReservationSlot;
 use Modules\Customer\Models\Customer;
 use Modules\Fleet\Models\Vehicle;
@@ -21,11 +22,15 @@ use Modules\Package\Models\Package;
  * @property int $id
  * @property string $reference
  * @property int $customer_id
- * @property int $vehicle_id
+ * @property int|null $vehicle_id null: a rental taken while every vehicle was out — staff assign one (see isUnassigned())
  * @property int|null $package_id
  * @property int|null $business_location_id
  * @property int|null $delivery_zone_id
  * @property string $pickup_type
+ * @property string|null $transfer_direction
+ * @property string|null $flight_number
+ * @property string|null $transfer_address
+ * @property int|null $transfer_area_id
  * @property bool $has_international_permit
  * @property string|null $special_requests
  * @property \Illuminate\Support\Carbon $start_at
@@ -67,6 +72,15 @@ final class Booking extends Model
 
     public const string STATUS_EXPIRED = 'expired';
 
+    /** Airport pickup: from the airport to the customer's address. */
+    public const string TRANSFER_ARRIVAL = 'arrival';
+
+    /** Airport drop-off: from the customer's address to the airport. */
+    public const string TRANSFER_DEPARTURE = 'departure';
+
+    /** @var string[] */
+    public const array TRANSFER_DIRECTIONS = [self::TRANSFER_ARRIVAL, self::TRANSFER_DEPARTURE];
+
     /**
      * Statuses that still hold a live vehicle reservation — used by the
      * admin Gantt calendar and the conflict-check composite index.
@@ -95,6 +109,10 @@ final class Booking extends Model
         'business_location_id',
         'delivery_zone_id',
         'pickup_type',
+        'transfer_direction',
+        'flight_number',
+        'transfer_address',
+        'transfer_area_id',
         'has_international_permit',
         'special_requests',
         'start_at',
@@ -163,6 +181,46 @@ final class Booking extends Model
         return $this->belongsTo(DeliveryZone::class);
     }
 
+    public function transferArea(): BelongsTo
+    {
+        return $this->belongsTo(TransferArea::class);
+    }
+
+    /**
+     * A rental taken online while no vehicle was free for its dates: it has
+     * no vehicle and reserves nothing until staff assign one from the
+     * booking page (BookingService::reassignVehicle()).
+     */
+    public function isUnassigned(): bool
+    {
+        return $this->vehicle_id === null;
+    }
+
+    /** What was booked: from the vehicle, or the package while unassigned. */
+    public function kind(): string
+    {
+        return $this->vehicle?->kind() ?? $this->package?->kind ?? Package::KIND_VEHICLE;
+    }
+
+    /**
+     * An airport pickup/drop-off rather than a rental or stay. start_at is
+     * the pickup time and end_at when the vehicle is free again (start +
+     * the area's duration) — real times, never whole days, and no
+     * vehicle_reservation_slots rows (see AvailabilityService::isTimeRangeFree()).
+     */
+    public function isTransfer(): bool
+    {
+        return $this->transfer_direction !== null;
+    }
+
+    /** "Airport → your address" or "Your address → airport", translated. */
+    public function transferRouteLabel(): string
+    {
+        return __($this->transfer_direction === self::TRANSFER_DEPARTURE
+            ? 'core::front.transfer_departure'
+            : 'core::front.transfer_arrival');
+    }
+
     public function addons(): HasMany
     {
         return $this->hasMany(BookingAddon::class);
@@ -227,6 +285,10 @@ final class Booking extends Model
      */
     public function rentalPeriod(string $dateFormat = 'd M Y'): string
     {
+        if ($this->isTransfer()) {
+            return $this->start_at->format($dateFormat).', '.$this->start_at->format('H:i');
+        }
+
         if ($this->isHourly()) {
             return $this->start_at->format($dateFormat).', '.$this->start_at->format('H:i').'–'.$this->end_at->format('H:i')
                 .' ('.trans_choice('core::front.booking_hours_count', (int) $this->hours(), ['count' => $this->hours()]).')';

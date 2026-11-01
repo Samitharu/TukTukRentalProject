@@ -42,7 +42,7 @@ final class PackageKindRules
         return $kind ?? $existing?->kind ?? Package::KIND_VEHICLE;
     }
 
-    public static function validate(Validator $validator, string $kind, mixed $pricingModel, mixed $includedKm, mixed $extraKmRate, array $categoryIds, array $vehicleIds): void
+    public static function validate(Validator $validator, string $kind, mixed $pricingModel, mixed $includedKm, mixed $extraKmRate, array $categoryIds, array $vehicleIds, mixed $productCategoryId = null): void
     {
         if ($validator->errors()->hasAny(['product_category_id', 'pricing_model', 'category_ids.*', 'vehicle_ids.*'])) {
             return;
@@ -73,6 +73,22 @@ final class PackageKindRules
 
         if ($wrongUnits) {
             $validator->errors()->add('vehicle_ids', __('Only units of the package\'s booking style can be selected.'));
+        }
+
+        // …and of its product line: a Tuk Tuk package restricted to the
+        // scooter unit type would sell scooters under the tuk tuk line.
+        if (! is_numeric($productCategoryId)) {
+            return;
+        }
+
+        $otherLine = fn ($query) => $query->whereNotNull('product_category_id')->where('product_category_id', '!=', (int) $productCategoryId);
+
+        if ($categoryIds !== [] && $otherLine(VehicleCategory::query()->whereIn('id', $categoryIds))->exists()) {
+            $validator->errors()->add('category_ids', __('Only unit types of the package\'s own product line can be selected.'));
+        }
+
+        if ($vehicleIds !== [] && Vehicle::query()->whereIn('id', $vehicleIds)->whereIn('category_id', $otherLine(VehicleCategory::query())->select('id'))->exists()) {
+            $validator->errors()->add('vehicle_ids', __('Only units of the package\'s own product line can be selected.'));
         }
     }
 }

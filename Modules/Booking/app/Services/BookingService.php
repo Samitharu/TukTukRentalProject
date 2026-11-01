@@ -46,6 +46,7 @@ final class BookingService
     public function __construct(
         private readonly AvailabilityService $availability,
         private readonly CustomerService $customers,
+        private readonly TransferAvailability $transfers,
     ) {
     }
 
@@ -53,8 +54,11 @@ final class BookingService
      * @param array{
      *   hold_key: string, start_at: string, end_at: string,
      *   vehicle_id?: int|null, category_id?: int|null, package_id?: int|null,
-     *   customer_session_id?: string|null,
+     *   customer_session_id?: string|null, allow_unassigned?: bool,
      * } $data
+     *   allow_unassigned: when no vehicle is free, take the booking anyway
+     *   with no vehicle (and no reservation slots) for staff to assign later
+     *   — the public rental flow never turns a customer away. Day rentals only.
      */
     public function createHold(array $data): BookingHold
     {
@@ -64,13 +68,20 @@ final class BookingService
             return $existing;
         }
 
-        $start = CarbonImmutable::parse($data['start_at'])->startOfDay();
-        $end = CarbonImmutable::parse($data['end_at'])->startOfDay();
+        // A transfer reserves its real time slot; everything else whole days.
+        $isTransfer = $this->isTransferHold($data);
+        $start = CarbonImmutable::parse($data['start_at']);
+        $end = CarbonImmutable::parse($data['end_at']);
 
-        return $this->transaction(fn () => $this->createHoldWithinTransaction($data, $start, $end));
+        if (! $isTransfer) {
+            $start = $start->startOfDay();
+            $end = $end->startOfDay();
+        }
+
+        return $this->transaction(fn () => $this->createHoldWithinTransaction($data, $start, $end, $isTransfer));
     }
 
-    private function createHoldWithinTransaction(array $data, CarbonImmutable $start, CarbonImmutable $end): BookingHold
+    private function createHoldWithinTransaction(array $data, CarbonImmutable $start, CarbonImmutable $end, bool $isTransfer): BookingHold
     {
         // Request-array input is loosely typed (HTTP form values arrive
         // as strings) — normalize once, here, rather than trusting
@@ -80,13 +91,22 @@ final class BookingService
         if ($vehicleId !== null) {
             $this->availability->lockVehicle($vehicleId);
 
-            if (! $this->availability->isRangeFree($vehicleId, $start, $end)) {
+            if (! $this->isFree($vehicleId, $start, $end, $isTransfer)) {
                 throw NoVehicleAvailableException::make();
             }
         } else {
             $categoryId = isset($data['category_id']) ? (int) $data['category_id'] : null;
             $packageId = isset($data['package_id']) ? (int) $data['package_id'] : null;
-            $vehicleId = $this->pickAvailableVehicle($categoryId, $packageId, $start, $end);
+
+            try {
+                $vehicleId = $this->pickAvailableVehicle($categoryId, $packageId, $start, $end, $isTransfer);
+            } catch (NoVehicleAvailableException $exception) {
+                if ($isTransfer || ! ($data['allow_unassigned'] ?? false)) {
+                    throw $exception;
+                }
+
+                $vehicleId = null; // staff assign one from the booking page
+            }
         }
 
         $hold = BookingHold::query()->create([
@@ -101,9 +121,31 @@ final class BookingService
             'status' => BookingHold::STATUS_ACTIVE,
         ]);
 
-        $this->availability->reserveSlots($vehicleId, $start, $end, $hold);
+        // Transfers have no day slots: the hold row itself (with its times)
+        // is what TransferAvailability sees until it converts or expires.
+        if (! $isTransfer && $vehicleId !== null) {
+            $this->availability->reserveSlots($vehicleId, $start, $end, $hold);
+        }
 
         return $hold;
+    }
+
+    private function isTransferHold(array $data): bool
+    {
+        if (isset($data['package_id'])) {
+            return Package::query()->whereKey((int) $data['package_id'])->value('kind') === Package::KIND_TRANSFER;
+        }
+
+        return isset($data['vehicle_id'])
+            && (Vehicle::query()->with('category')->find((int) $data['vehicle_id'])?->isTransfer() ?? false);
+    }
+
+    /** Under the caller's vehicle lock: by time slot for a transfer, by whole days otherwise. */
+    private function isFree(int $vehicleId, CarbonImmutable $start, CarbonImmutable $end, bool $isTransfer, ?int $ignoreBookingId = null): bool
+    {
+        return $isTransfer
+            ? $this->transfers->isFree($vehicleId, $start, $end, $ignoreBookingId)
+            : $this->availability->isRangeFree($vehicleId, $start, $end);
     }
 
     /**
@@ -117,7 +159,7 @@ final class BookingService
      * walking the same vehicles in different orders would otherwise each
      * hold one lock while waiting for the other's — a deadlock.
      */
-    private function pickAvailableVehicle(?int $categoryId, ?int $packageId, CarbonImmutable $start, CarbonImmutable $end): int
+    private function pickAvailableVehicle(?int $categoryId, ?int $packageId, CarbonImmutable $start, CarbonImmutable $end, bool $isTransfer = false): int
     {
         $candidateIds = $packageId !== null
             ? Package::query()->findOrFail($packageId)->eligibleVehicleIds()
@@ -129,7 +171,7 @@ final class BookingService
         foreach ($candidateIds as $candidateId) {
             $this->availability->lockVehicle($candidateId);
 
-            if ($this->availability->isRangeFree($candidateId, $start, $end)) {
+            if ($this->isFree($candidateId, $start, $end, $isTransfer)) {
                 return $candidateId;
             }
         }
@@ -142,6 +184,8 @@ final class BookingService
      *   email: string, full_name: string, phone?: string|null, nationality?: string|null,
      *   passport_number?: string|null, locale_preference?: string|null,
      *   pickup_type?: string, business_location_id?: int|null, delivery_zone_id?: int|null,
+     *   transfer_direction?: string|null, flight_number?: string|null,
+     *   transfer_address?: string|null, transfer_area_id?: int|null,
      *   has_international_permit?: bool, special_requests?: string|null,
      * } $customerData
      * @param array{ip_address?: string|null, user_agent?: string|null} $source
@@ -164,7 +208,9 @@ final class BookingService
                 throw HoldExpiredException::make();
             }
 
-            $this->availability->lockVehicle($hold->vehicle_id);
+            if ($hold->vehicle_id !== null) {
+                $this->availability->lockVehicle($hold->vehicle_id);
+            }
 
             $customer = $this->customers->findOrCreateGuest($customerData);
             $initialStatus = config('pricing.online_payment_enabled')
@@ -179,6 +225,10 @@ final class BookingService
                 'business_location_id' => $customerData['business_location_id'] ?? null,
                 'delivery_zone_id' => $customerData['delivery_zone_id'] ?? null,
                 'pickup_type' => $customerData['pickup_type'] ?? 'office',
+                'transfer_direction' => $customerData['transfer_direction'] ?? null,
+                'flight_number' => $customerData['flight_number'] ?? null,
+                'transfer_address' => $customerData['transfer_address'] ?? null,
+                'transfer_area_id' => $customerData['transfer_area_id'] ?? null,
                 'has_international_permit' => $customerData['has_international_permit'] ?? false,
                 'special_requests' => $customerData['special_requests'] ?? null,
                 'start_at' => $hold->start_at,
@@ -318,20 +368,37 @@ final class BookingService
         return $this->transaction(function () use ($booking, $newStart, $newEnd, $admin) {
             /** @var Booking $booking */
             $booking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
-            $this->availability->lockVehicle($booking->vehicle_id);
 
-            $this->availability->releaseSlots($booking);
+            if ($booking->vehicle_id === null) {
+                // Not assigned yet: nothing is reserved, so just move it.
+                $booking->update(['start_at' => $newStart, 'end_at' => $newEnd]);
+                $this->recordHistory($booking, $booking->status, $booking->status, $admin, 'Dates changed.');
 
-            // Slots are whole days; an hourly booking's range carries times
-            // (stored on the booking as-is), so reserve by its calendar days.
-            $slotStart = $newStart->startOfDay();
-            $slotEnd = $newEnd->startOfDay();
-
-            if (! $this->availability->isRangeFree($booking->vehicle_id, $slotStart, $slotEnd)) {
-                throw NoVehicleAvailableException::make();
+                return $booking;
             }
 
-            $this->availability->reserveSlots($booking->vehicle_id, $slotStart, $slotEnd, $booking);
+            $this->availability->lockVehicle($booking->vehicle_id);
+
+            if ($booking->isTransfer()) {
+                // A trip has no slot rows: check the new time against every
+                // other trip on this vehicle (not against itself).
+                if (! $this->transfers->isFree($booking->vehicle_id, $newStart, $newEnd, $booking->id)) {
+                    throw NoVehicleAvailableException::make();
+                }
+            } else {
+                $this->availability->releaseSlots($booking);
+
+                // Slots are whole days; an hourly booking's range carries times
+                // (stored on the booking as-is), so reserve by its calendar days.
+                $slotStart = $newStart->startOfDay();
+                $slotEnd = $newEnd->startOfDay();
+
+                if (! $this->availability->isRangeFree($booking->vehicle_id, $slotStart, $slotEnd)) {
+                    throw NoVehicleAvailableException::make();
+                }
+
+                $this->availability->reserveSlots($booking->vehicle_id, $slotStart, $slotEnd, $booking);
+            }
 
             $booking->update(['start_at' => $newStart, 'end_at' => $newEnd]);
 
@@ -388,15 +455,24 @@ final class BookingService
             $start = CarbonImmutable::parse($booking->start_at);
             $end = CarbonImmutable::parse($booking->end_at);
 
-            if (! $this->availability->isRangeFree($newVehicleId, $start, $end)) {
-                throw NoVehicleAvailableException::make();
+            if ($booking->isTransfer()) {
+                if (! $this->transfers->isFree($newVehicleId, $start, $end, $booking->id)) {
+                    throw NoVehicleAvailableException::make();
+                }
+            } else {
+                if (! $this->availability->isRangeFree($newVehicleId, $start->startOfDay(), $end->startOfDay())) {
+                    throw NoVehicleAvailableException::make();
+                }
+
+                $this->availability->reserveSlots($newVehicleId, $start->startOfDay(), $end->startOfDay(), $booking);
             }
 
-            $this->availability->reserveSlots($newVehicleId, $start, $end, $booking);
-
+            $wasUnassigned = $booking->vehicle_id === null;
             $booking->update(['vehicle_id' => $newVehicleId]);
 
-            $this->recordHistory($booking, $booking->status, $booking->status, $admin, "Reassigned to vehicle #{$newVehicleId}.");
+            $this->recordHistory($booking, $booking->status, $booking->status, $admin, $wasUnassigned
+                ? "Assigned to vehicle #{$newVehicleId}."
+                : "Reassigned to vehicle #{$newVehicleId}.");
 
             return $booking;
         });
@@ -461,7 +537,6 @@ final class BookingService
      *
      * @template T
      *
-     * @param  Closure(): T  $callback
      * @return T
      */
     /**

@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Cache;
  * @property int $id
  * @property string|null $logo_path
  * @property string|null $hero_image_path
+ * @property string|null $tripadvisor_url
  */
 final class SiteSetting extends Model
 {
@@ -19,6 +20,7 @@ final class SiteSetting extends Model
     protected $fillable = [
         'logo_path',
         'hero_image_path',
+        'tripadvisor_url',
     ];
 
     protected static function booted(): void

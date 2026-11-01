@@ -33,7 +33,7 @@
                     <li><a href="{{ route('admin.users.index') }}" @if(request()->routeIs('admin.users.*')) aria-current="page" @endif>{{ __('Users') }}</a></li>
                 @endcan
                 @can('viewAny', \Modules\Fleet\Models\Vehicle::class)
-                    <li><a href="{{ route('admin.fleet.vehicles.index') }}" @if(request()->routeIs('admin.fleet.vehicles.*')) aria-current="page" @endif>{{ __('Tuk Tuks & Stays') }}</a></li>
+                    <li><a href="{{ route('admin.fleet.vehicles.index') }}" @if(request()->routeIs('admin.fleet.vehicles.*')) aria-current="page" @endif>{{ __('Vehicles & Stays') }}</a></li>
                     <li><a href="{{ route('admin.fleet.categories.index') }}" @if(request()->routeIs('admin.fleet.categories.*')) aria-current="page" @endif>{{ __('Unit Types') }}</a></li>
                 @endcan
                 @can('viewAny', \Modules\Package\Models\Package::class)
@@ -47,8 +47,7 @@
                 @endcan
                 @can('viewAny', \Modules\Availability\Models\BusinessLocation::class)
                     <li><a href="{{ route('admin.locations.index') }}" @if(request()->routeIs('admin.locations.*')) aria-current="page" @endif>{{ __('Locations') }}</a></li>
-                    <li><a href="{{ route('admin.blackouts.index') }}" @if(request()->routeIs('admin.blackouts.*')) aria-current="page" @endif>{{ __('Blackout Dates') }}</a></li>
-                @endcan
+                    <li><a href="{{ route('admin.transfer-areas.index') }}" @if(request()->routeIs('admin.transfer-areas.*')) aria-current="page" @endif>{{ __('Airport Pickup Areas') }}</a></li>                @endcan
                 @can('cms.view')
                     <li><a href="{{ route('admin.pages.index') }}" @if(request()->routeIs('admin.pages.*')) aria-current="page" @endif>{{ __('Pages') }}</a></li>
                     <li><a href="{{ route('admin.faqs.index') }}" @if(request()->routeIs('admin.faqs.*')) aria-current="page" @endif>{{ __('FAQs') }}</a></li>

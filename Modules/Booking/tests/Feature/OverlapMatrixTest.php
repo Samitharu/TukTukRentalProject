@@ -83,7 +83,7 @@ it('rejects an hourly rental on a day the tuk tuk is already out on a daily rent
     ]))->toThrow(NoVehicleAvailableException::class);
 });
 
-it('shows the tuk tuk as fully booked on the website to a second hourly customer for that day', function (): void {
+it('takes a second hourly customer for that day without double-booking the only tuk tuk', function (): void {
     Locale::query()->create(['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]);
     $location = BusinessLocation::factory()->create(['is_active' => true]);
 
@@ -101,12 +101,20 @@ it('shows the tuk tuk as fully booked on the website to a second hourly customer
     // Customer B wants 14:00–16:00 the same day on the website.
     $this->post('/en/booking/start', ['start_date' => '2027-05-20', 'end_date' => '2027-05-20', 'pickup_type' => 'office', 'business_location_id' => $location->id]);
 
-    $this->get('/en/booking/package')->assertOk()->assertSee('City Hop')->assertSee('Fully booked for your dates');
+    $this->get('/en/booking/package')->assertOk()->assertSee('City Hop')->assertDontSee('Fully booked for your dates');
 
     $this->post('/en/booking/package', [
         'package_id' => $hourly->id,
         'hourly' => [$hourly->id => ['start_time' => '14:00', 'hours' => '2']],
-    ])->assertSessionHasErrors('package_id');
+    ])->assertRedirect('/en/booking/addons');
+    $this->post('/en/booking/addons', []);
+    $this->post('/en/booking/details', [
+        'first_name' => 'Hourly', 'last_name' => 'B', 'email' => 'hourly-b@example.test', 'phone' => '+44 7911 111111',
+        'nationality' => 'GB', 'passport_number' => 'P2', 'has_valid_licence' => '1', 'has_international_permit' => '0', 'marketing_opt_in' => '0',
+    ]);
+    $this->post('/en/booking/confirm', ['terms_accepted' => '1'])->assertRedirect();
 
-    expect(Booking::query()->where('vehicle_id', $this->vehicle->id)->whereDate('start_at', '2027-05-20')->count())->toBe(1);
+    // Customer B is taken unassigned; the tuk tuk still has only one booking that day.
+    expect(Booking::query()->where('vehicle_id', $this->vehicle->id)->whereDate('start_at', '2027-05-20')->count())->toBe(1)
+        ->and(Booking::query()->whereNull('vehicle_id')->whereDate('start_at', '2027-05-20')->count())->toBe(1);
 });

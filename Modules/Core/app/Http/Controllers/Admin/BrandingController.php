@@ -36,6 +36,11 @@ final class BrandingController extends Controller
             $this->branding->updateHeroImage($settings, $request->file('hero_image'));
         }
 
+        // Its own form on the page: blank removes the floating button.
+        if ($request->has('tripadvisor_url')) {
+            $settings->update(['tripadvisor_url' => $request->validated('tripadvisor_url') ?: null]);
+        }
+
         return redirect()->route('admin.branding.edit')->with('status', __('Branding updated.'));
     }
 

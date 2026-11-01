@@ -50,4 +50,19 @@
             <button type="submit" class="admin-btn">{{ __('Save') }}</button>
         </form>
     </div>
+
+    <div class="admin-card">
+        <h2>{{ __('Tripadvisor') }}</h2>
+        <p style="color:#5b6b64;">{{ __('Shows a floating Tripadvisor button on every page of the website, linking to your reviews. Leave empty to hide it.') }}</p>
+
+        <form method="POST" action="{{ route('admin.branding.update') }}" novalidate>
+            @csrf
+            <div class="admin-form-field">
+                <label for="tripadvisor_url">{{ __('Tripadvisor page link') }}</label>
+                <input type="url" id="tripadvisor_url" name="tripadvisor_url" value="{{ old('tripadvisor_url', $settings->tripadvisor_url) }}" placeholder="https://www.tripadvisor.com/Attraction_Review-..." inputmode="url">
+                @error('tripadvisor_url')<p style="color:#b3261e;">{{ $message }}</p>@enderror
+            </div>
+            <button type="submit" class="admin-btn">{{ __('Save') }}</button>
+        </form>
+    </div>
 </x-admin::layouts.app>

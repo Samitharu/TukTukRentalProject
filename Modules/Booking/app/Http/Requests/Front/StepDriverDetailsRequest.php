@@ -28,9 +28,10 @@ final class StepDriverDetailsRequest extends FormRequest
 
     public function rules(): array
     {
-        // Nobody drives a cabana: stays skip the licence/permit questions
-        // (the view doesn't render them either).
-        if (BookingFlowState::isStay()) {
+        // Nobody drives a cabana, and an airport pickup comes with our
+        // driver: both skip the licence/permit questions (the view doesn't
+        // render them either).
+        if (BookingFlowState::isStay() || BookingFlowState::isTransfer()) {
             return [
                 ...$this->commonRules(),
                 'has_valid_licence' => ['exclude'],
