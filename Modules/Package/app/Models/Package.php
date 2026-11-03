@@ -238,6 +238,12 @@ final class Package extends Model
         return $this->pricing_model === self::MODEL_PER_HOUR;
     }
 
+    /** Its line's vehicles come from partners: always bookable, reserves no unit. */
+    public function hasUnlimitedUnits(): bool
+    {
+        return $this->productCategory?->unlimited_units ?? false;
+    }
+
     /** Whether the package goes through the online booking flow (Phase 1: not activities). */
     public function isBookableOnline(): bool
     {
@@ -354,6 +360,10 @@ final class Package extends Model
      */
     public function eligibleVehicleIds(): array
     {
+        if ($this->hasUnlimitedUnits()) {
+            return [];
+        }
+
         if ($this->isRestrictedToSpecificVehicles()) {
             // Same active-only rule as the two branches below: a vehicle
             // attached to the package but since retired or sent to the

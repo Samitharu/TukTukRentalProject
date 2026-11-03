@@ -29,7 +29,9 @@ beforeEach(function (): void {
     Locale::query()->create(['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]);
     config(['booking.transfer_buffer_minutes' => 30]);
 
+    // The time-slot engine, with a line that still reserves registered units.
     $this->line = ProductCategory::query()->where('kind', Package::KIND_TRANSFER)->firstOrFail();
+    $this->line->update(['unlimited_units' => false]);
     $this->vanType = VehicleCategory::factory()->create(['kind' => VehicleCategory::KIND_TRANSFER, 'name' => ['en' => 'Airport vans'], 'product_category_id' => $this->line->id]);
     $this->van = Vehicle::factory()->create(['category_id' => $this->vanType->id, 'name' => ['en' => 'Toyota KDH'], 'seats' => 10]);
 

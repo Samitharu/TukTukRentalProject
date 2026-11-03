@@ -41,14 +41,10 @@
                         <dt class="text-muted">{{ __('core::front.booking_review_package') }}</dt>
                         <dd>{{ $booking->package?->name }}</dd>
 
-                        <dt class="text-muted">{{ $booking->isStay() ? __('core::front.booking_status_unit') : __('core::front.booking_status_vehicle') }}</dt>
-                        <dd>
-                            @if ($booking->vehicle)
-                                {{ $booking->vehicle->name }}@if ($booking->vehicle->plate_no) ({{ $booking->vehicle->plate_no }})@endif
-                            @else
-                                {{ __('core::front.booking_vehicle_assigned_later') }}
-                            @endif
-                        </dd>
+                        @if ($booking->vehicle)
+                            <dt class="text-muted">{{ $booking->isStay() ? __('core::front.booking_status_unit') : __('core::front.booking_status_vehicle') }}</dt>
+                            <dd>{{ $booking->vehicle->name }}@if ($booking->vehicle->plate_no) ({{ $booking->vehicle->plate_no }})@endif</dd>
+                        @endif
 
                         <dt class="text-muted">{{ __('core::front.price_total') }}</dt>
                         <dd>{{ $booking->total_amount }} {{ $booking->currency_code }}</dd>

@@ -208,9 +208,12 @@
                 html += '<p class="admin-hint">' + labels.couponIgnored + '</p>';
             }
 
-            html += price.units_free > 0
-                ? '<p class="admin-hint">' + labels.free.replace(':free', price.units_free).replace(':total', price.units_total) + '</p>'
-                : '<p class="admin-price-preview__warn">' + labels.none + '</p>';
+            // Tuk tuks come from partners: there is no availability to report.
+            if (!price.unlimited_units) {
+                html += price.units_free > 0
+                    ? '<p class="admin-hint">' + labels.free.replace(':free', price.units_free).replace(':total', price.units_total) + '</p>'
+                    : '<p class="admin-price-preview__warn">' + labels.none + '</p>';
+            }
 
             show(html);
         }

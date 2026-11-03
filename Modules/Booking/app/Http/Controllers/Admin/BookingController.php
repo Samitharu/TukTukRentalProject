@@ -47,12 +47,9 @@ final class BookingController extends Controller
         $this->authorize('viewAny', Booking::class);
 
         $bookings = Booking::query()
-            ->with(['customer', 'vehicle.category'])
+            ->with(['customer', 'vehicle.category', 'package.productCategory'])
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
-            ->when($request->boolean('suspicious'), fn ($q) => $this->detector->scopeToSuspicious($q))
-            // Online rentals taken while every vehicle was out.
-            ->when($request->boolean('unassigned'), fn ($q) => $q->whereNull('vehicle_id'))
-            ->when($request->filled('q'), function ($q) use ($request) {
+            ->when($request->boolean('suspicious'), fn ($q) => $this->detector->scopeToSuspicious($q))            ->when($request->filled('q'), function ($q) use ($request) {
                 // Escape LIKE wildcards so "_" or "%" in the search box are
                 // matched literally rather than as "any character(s)".
                 $term = addcslashes(trim((string) $request->string('q')), '%_\\');
@@ -135,7 +132,7 @@ final class BookingController extends Controller
             'selectedCustomer' => $customer,
             'countries' => Countries::all(),
             'hourlyStartTimes' => HourlySchedule::startTimes(new Package(['min_hours' => 1])),
-            'vehicles' => Vehicle::query()->active()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
+            'vehicles' => Vehicle::query()->active()->tracked()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
             'office' => BusinessLocation::office(),
             'transferAreas' => TransferArea::query()->active()->ordered()->get(),
         ]);
@@ -198,6 +195,15 @@ final class BookingController extends Controller
     {
         $quote = $this->priceFor($request);
         $price = $quote['price'];
+
+        // Tuk tuks come from partners: no units to count.
+        if ($quote['package']->hasUnlimitedUnits()) {
+            return response()->json([
+                ...$price->toArray(),
+                'coupon_applied' => $price->couponCode !== null,
+                'unlimited_units' => true,
+            ]);
+        }
 
         $vehicleIds = $request->filled('vehicle_id') ? [$request->integer('vehicle_id')] : $quote['package']->eligibleVehicleIds();
         $busy = $quote['package']->isTransfer()
@@ -321,7 +327,7 @@ final class BookingController extends Controller
             'ipBlock' => $booking->ip_address !== null ? BlockedIp::query()->currentlyBlocking($booking->ip_address)->first() : null,
             // Reassign only to the same kind of unit: a tuk tuk rental can't
             // move into a cabana (its dates mean days, not nights).
-            'vehicles' => Vehicle::query()->active()->ofKind($booking->kind())->orderBy('plate_no')->orderBy('id')->get(),
+            'vehicles' => Vehicle::query()->active()->tracked()->ofKind($booking->kind())->orderBy('plate_no')->orderBy('id')->get(),
             'hourlyStartTimes' => $hourlyPackage !== null ? HourlySchedule::startTimes($hourlyPackage) : [],
         ]);
     }

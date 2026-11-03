@@ -27,12 +27,16 @@
 | **{{ __('core::front.transfer_flight_number') }}** | {{ $md($booking->flight_number) }} |
 | **{{ __('core::front.transfer_area') }}** | {{ $md($booking->transferArea?->name ?? '—') }} |
 | **{{ __('core::front.transfer_address') }}** | {{ $md($booking->transfer_address) }} |
-| **{{ __('core::front.booking_status_vehicle') }}** | {{ $md($booking->vehicle?->name) }} |
+@if ($booking->vehicle)
+| **{{ __('core::front.booking_status_vehicle') }}** | {{ $md($booking->vehicle->name) }} |
+@endif
 @elseif ($isStay)
 | **{{ __('core::front.booking_check_in') }}** | {{ $booking->start_at->translatedFormat('D j M Y') }} |
 | **{{ __('core::front.booking_check_out') }}** | {{ $booking->checkOutDate()->translatedFormat('D j M Y') }} |
 | **{{ __('core::front.receipt_nights') }}** | {{ $days }} |
-| **{{ __('core::front.booking_status_unit') }}** | {{ $md($booking->vehicle?->name) }} |
+@if ($booking->vehicle)
+| **{{ __('core::front.booking_status_unit') }}** | {{ $md($booking->vehicle->name) }} |
+@endif
 @else
 @if ($booking->isHourly())
 | **{{ __('core::front.booking_status_dates') }}** | {{ $booking->rentalPeriod('D j M Y') }} |
@@ -40,7 +44,9 @@
 | **{{ __('core::front.booking_status_dates') }}** | {{ $booking->start_at->translatedFormat('D j M Y') }} → {{ $booking->end_at->translatedFormat('D j M Y') }} |
 | **{{ __('core::front.receipt_days') }}** | {{ $days }} |
 @endif
-| **{{ __('core::front.booking_status_vehicle') }}** | {{ $booking->vehicle ? $md($booking->vehicle->name) : __('core::front.booking_vehicle_assigned_later') }} |
+@if ($booking->vehicle)
+| **{{ __('core::front.booking_status_vehicle') }}** | {{ $md($booking->vehicle->name) }} |
+@endif
 | **{{ __('core::front.receipt_pickup') }}** | {{ $booking->pickup_type === 'delivery' ? __('core::front.booking_pickup_delivery').($booking->deliveryZone ? ' — '.$md($booking->deliveryZone->name) : '') : __('core::front.booking_pickup_office').($location ? ' — '.$md($location->name) : '') }} |
 @endif
 | **{{ __('core::front.booking_status_package') }}** | {{ $md($booking->package?->name ?? '—') }} |

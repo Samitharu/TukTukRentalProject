@@ -22,7 +22,7 @@ use Modules\Package\Models\Package;
  * @property int $id
  * @property string $reference
  * @property int $customer_id
- * @property int|null $vehicle_id null: a rental taken while every vehicle was out — staff assign one (see isUnassigned())
+ * @property int|null $vehicle_id null: no registered unit (see hasNoUnit()); set only on older bookings
  * @property int|null $package_id
  * @property int|null $business_location_id
  * @property int|null $delivery_zone_id
@@ -187,16 +187,21 @@ final class Booking extends Model
     }
 
     /**
-     * A rental taken online while no vehicle was free for its dates: it has
-     * no vehicle and reserves nothing until staff assign one from the
-     * booking page (BookingService::reassignVehicle()).
+     * No registered unit: the business arranges the vehicle or stay itself,
+     * so the booking reserves nothing. Only older bookings have a unit.
      */
-    public function isUnassigned(): bool
+    public function hasNoUnit(): bool
     {
         return $this->vehicle_id === null;
     }
 
-    /** What was booked: from the vehicle, or the package while unassigned. */
+    /** For staff: the unit on an older booking, otherwise the service booked. */
+    public function serviceLabel(): string
+    {
+        return $this->vehicle?->adminLabel() ?? (string) ($this->package?->productCategory?->name ?? $this->package?->name ?? '—');
+    }
+
+    /** What was booked: from the vehicle, or the package when there is none. */
     public function kind(): string
     {
         return $this->vehicle?->kind() ?? $this->package?->kind ?? Package::KIND_VEHICLE;
@@ -252,7 +257,7 @@ final class Booking extends Model
      */
     public function isStay(): bool
     {
-        return $this->vehicle?->isStay() ?? false;
+        return $this->kind() === Package::KIND_STAY;
     }
 
     /** Return day for a rental; the morning after the last night for a stay. */

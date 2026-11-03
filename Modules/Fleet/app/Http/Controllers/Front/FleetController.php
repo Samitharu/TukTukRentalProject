@@ -16,34 +16,32 @@ use Modules\Package\Models\ProductCategory;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
- * Public listing/detail pages for both kinds of unit: tuk tuks under
- * /tuk-tuks, cabanas and rooms under /stays. A unit's slug opened under
- * the other kind's URL redirects to its canonical page.
+ * Public listing/detail URLs for units. Vehicles and stays aren't registered
+ * any more, so /tuk-tuks, /vehicles and /stays open their lines' packages;
+ * the old links keep working. Unit pages remain for units not in a line.
  */
 final class FleetController extends Controller
 {
-    /** Tuk tuks: rental units of the first rental line (and any not yet in a line). */
-    public function index(Request $request): View
+    /** The Tuk Tuk line's packages; this URL is kept for existing links. */
+    public function index(): RedirectResponse
     {
-        return view('fleet::front.index', [
-            'vehicles' => $this->activeUnits(VehicleCategory::KIND_VEHICLE, $request, tukTukLine: true),
-            'categories' => $this->rentalUnitTypes(tukTukLine: true),
-            'listRoute' => 'fleet.index',
-            'title' => __('core::front.fleet_title'),
-            'intro' => __('core::front.fleet_intro'),
-            'bookLine' => $this->tukTukLineId(),
-        ]);
+        return $this->lineRedirect(VehicleCategory::KIND_VEHICLE);
     }
 
-    /** Vehicle Rent: rental units of every other rental line (scooters, cars…). */
-    public function vehicles(Request $request): View
+    /** Vehicle Rent: its packages, as no vehicles are registered. */
+    public function vehicles(Request $request): View|RedirectResponse
     {
+        if (Vehicle::query()->active()->tracked()->ofKind(VehicleCategory::KIND_VEHICLE)->doesntExist()) {
+            return $this->lineRedirect(VehicleCategory::KIND_VEHICLE, position: 1);
+        }
+
         $line = ProductCategory::query()->active()->where('kind', VehicleCategory::KIND_VEHICLE)
-            ->whereKeyNot($this->tukTukLineId() ?? 0)->orderBy('sort_order')->first();
+            ->where('unlimited_units', false)->orderBy('sort_order')->first();
 
         return view('fleet::front.index', [
-            'vehicles' => $this->activeUnits(VehicleCategory::KIND_VEHICLE, $request, tukTukLine: false),
-            'categories' => $this->rentalUnitTypes(tukTukLine: false),
+            'vehicles' => $this->activeUnits(VehicleCategory::KIND_VEHICLE, $request),
+            'categories' => VehicleCategory::query()->active()->ofKind(VehicleCategory::KIND_VEHICLE)
+                ->whereHas('vehicles', fn ($q) => $q->active()->tracked())->orderBy('sort_order')->get(),
             'listRoute' => 'vehicles.index',
             'title' => $line?->name ?? __('core::front.nav_vehicles'),
             'intro' => __('core::front.vehicles_intro'),
@@ -51,8 +49,12 @@ final class FleetController extends Controller
         ]);
     }
 
-    public function stays(Request $request): View
+    public function stays(Request $request): View|RedirectResponse
     {
+        if (Vehicle::query()->active()->tracked()->ofKind(VehicleCategory::KIND_STAY)->doesntExist()) {
+            return $this->lineRedirect(VehicleCategory::KIND_STAY);
+        }
+
         return view('fleet::front.stays', [
             'units' => $this->activeUnits(VehicleCategory::KIND_STAY, $request),
             'categories' => VehicleCategory::query()->active()->ofKind(VehicleCategory::KIND_STAY)->orderBy('sort_order')->get(),
@@ -82,6 +84,11 @@ final class FleetController extends Controller
         // Airport vehicles are booked as a trip, never shown as a unit.
         if ($vehicle->isTransfer()) {
             throw new NotFoundHttpException();
+        }
+
+        // A unit still on file: old link, send it to its line's packages.
+        if ($vehicle->category?->productCategory?->unlimited_units) {
+            return redirect()->route($vehicle->isStay() ? 'stays.index' : 'fleet.index', status: 301);
         }
 
         if ($vehicle->kind() !== $kind) {
@@ -132,15 +139,26 @@ final class FleetController extends Controller
         ], fn ($value) => $value !== null && $value !== '');
     }
 
+    /** The packages page of a product line, the $position-th of its kind. */
+    private function lineRedirect(string $kind, int $position = 0): RedirectResponse
+    {
+        $lines = ProductCategory::query()->active()->where('kind', $kind)->orderBy('sort_order')->orderBy('id')->get();
+        $slug = ($lines->get($position) ?? $lines->first())?->slugFor(app()->getLocale());
+
+        return $slug !== null
+            ? redirect()->route('packages.category', $slug, 301)
+            : redirect()->route('packages.index');
+    }
+
     /**
      * @return Collection<int, Vehicle>
      */
-    private function activeUnits(string $kind, Request $request, ?bool $tukTukLine = null): Collection
+    private function activeUnits(string $kind, Request $request): Collection
     {
         return Vehicle::query()
             ->active()
+            ->tracked()
             ->ofKind($kind)
-            ->when($tukTukLine !== null, fn ($q) => $q->whereIn('category_id', $this->rentalUnitTypesQuery($tukTukLine)->select('id')))
             // routeSlugs: the card links call slugFor() — one query per
             // vehicle without this (N+1).
             ->with(['images', 'category', 'routeSlugs' => fn ($q) => $q->where('locale', app()->getLocale())])
@@ -148,33 +166,5 @@ final class FleetController extends Controller
             ->orderBy('plate_no')
             ->orderBy('id')
             ->get();
-    }
-
-    /** The Tuk Tuk line: the first rental line on the site. */
-    private function tukTukLineId(): ?int
-    {
-        return once(fn () => ProductCategory::query()->where('kind', VehicleCategory::KIND_VEHICLE)->orderBy('sort_order')->orderBy('id')->value('id'));
-    }
-
-    /**
-     * Rental unit types of the Tuk Tuk line (plus any in no line yet), or
-     * of every other rental line.
-     *
-     * @return \Illuminate\Database\Eloquent\Builder<VehicleCategory>
-     */
-    private function rentalUnitTypesQuery(bool $tukTukLine): \Illuminate\Database\Eloquent\Builder
-    {
-        $lineId = $this->tukTukLineId();
-
-        return VehicleCategory::query()
-            ->ofKind(VehicleCategory::KIND_VEHICLE)
-            ->when($tukTukLine, fn ($q) => $q->where(fn ($line) => $line->whereNull('product_category_id')->orWhere('product_category_id', $lineId)))
-            ->when(! $tukTukLine, fn ($q) => $q->whereNotNull('product_category_id')->where('product_category_id', '!=', $lineId ?? 0));
-    }
-
-    /** @return Collection<int, VehicleCategory> */
-    private function rentalUnitTypes(bool $tukTukLine): Collection
-    {
-        return $this->rentalUnitTypesQuery($tukTukLine)->active()->orderBy('sort_order')->get();
     }
 }

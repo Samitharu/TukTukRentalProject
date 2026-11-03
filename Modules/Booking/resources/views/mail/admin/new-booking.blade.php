@@ -26,13 +26,13 @@
 | **{{ __('Flight') }}** | {{ $md($booking->flight_number) }} |
 | **{{ __('Area') }}** | {{ $md($booking->transferArea?->name ?? '—') }} |
 | **{{ __('Address') }}** | {{ $md($booking->transfer_address) }} |
-| **{{ __('Vehicle') }}** | {{ $booking->vehicle?->name }} ({{ $booking->vehicle?->plate_no }}) |
+| **{{ __('Service') }}** | {{ $booking->serviceLabel() }} |
 | **{{ __('Package') }}** | {{ $booking->package?->name ?? '—' }} |
 @elseif ($booking->isStay())
-| **{{ __('Stay') }}** | {{ $md($booking->vehicle?->name) }}{{ $booking->vehicle?->address ? ' — '.$md($booking->vehicle->address) : '' }} |
+| **{{ __('Service') }}** | {{ $md($booking->serviceLabel()) }}{{ $booking->vehicle?->address ? ' — '.$md($booking->vehicle->address) : '' }} |
 | **{{ __('Package') }}** | {{ $booking->package?->name ?? '—' }} |
 @else
-| **{{ __('Vehicle') }}** | {{ $booking->vehicle ? $booking->vehicle->name.' ('.$booking->vehicle->plate_no.')' : '⚠ '.__('Needs a vehicle — none was free; assign one in the control panel') }} |
+| **{{ __('Service') }}** | {{ $booking->serviceLabel() }} |
 | **{{ __('Package') }}** | {{ $booking->package?->name ?? '—' }} |
 | **{{ __('Pickup') }}** | {{ $booking->pickup_type === 'delivery' ? __('Delivery').': '.($booking->deliveryZone?->name ?? '—') : __('Office').': '.($booking->businessLocation?->name ?? '—') }} |
 | **{{ __('International permit') }}** | {{ $booking->has_international_permit ? __('Yes') : __('No') }} |

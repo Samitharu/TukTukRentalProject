@@ -356,7 +356,6 @@ return [
     'booking_confirmation_next_steps_transfer' => 'Сохраните номер бронирования — он понадобится, если вы свяжетесь с нами. Водитель будет на месте ко времени подачи; если рейс изменится, просто напишите нам в WhatsApp.',
     'email_confirm_intro_transfer' => 'Спасибо за бронирование в :app! Ваш трансфер подтверждён — вот подробности.',
     'receipt_transfer' => 'Детали трансфера',
-    'booking_vehicle_assigned_later' => 'Будет назначен до выдачи',
     'tripadvisor' => 'Наши отзывы на Tripadvisor',
     'nav_about' => 'О нас',
     'nav_services' => 'Услуги',

@@ -8,10 +8,9 @@ use Illuminate\Support\Facades\Schema;
 
 return new class () extends Migration {
     /**
-     * A customer can always book a rental, even when every vehicle is
-     * already out for those dates: such a booking is taken without a
-     * vehicle (vehicle_id null, no reservation slots) and staff assign one
-     * later from the booking page.
+     * Tuk tuk bookings have no vehicle: the business sources one from its
+     * partners, so vehicle_id stays null and no slots are reserved (see
+     * ProductCategory::$unlimited_units).
      */
     public function up(): void
     {
@@ -22,7 +21,7 @@ return new class () extends Migration {
 
     public function down(): void
     {
-        // Not reversible while unassigned bookings exist: they would have
-        // no vehicle to point at.
+        // Not reversible while tuk tuk bookings exist: they have no vehicle
+        // to point at.
     }
 };

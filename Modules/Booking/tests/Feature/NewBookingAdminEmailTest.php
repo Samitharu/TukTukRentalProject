@@ -16,6 +16,7 @@ use Modules\Booking\Services\BookingService;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Localization\Models\Locale;
 use Modules\Package\Models\Package;
+use Modules\Package\Models\ProductCategory;
 use Modules\Pricing\Services\PricingService;
 
 /**
@@ -115,21 +116,31 @@ it('keeps the queued payload tiny — the booking is stored by id, not as a seri
         ->and($payload)->not->toContain('walkin@example.test');
 });
 
-it('tells staff when a booking came in with no vehicle free', function (): void {
+it('sends nothing when the booking fails', function (): void {
     Mail::fake();
 
-    // The only tuk tuk is taken between the review page and "Confirm" —
-    // the rental is still taken, unassigned.
+    // The only vehicle is taken between the review page and "Confirm".
     emailTestBook($this, beforeConfirm: fn () => app(BookingService::class)->createHold([
         'hold_key' => (string) Str::uuid(), 'start_at' => $this->start->toDateString(),
         'end_at' => $this->start->addDays(5)->toDateString(), 'vehicle_id' => $this->vehicle->id,
-    ]))->assertRedirect();
+    ]))->assertSessionHasErrors('package_id');
+
+    expect(Booking::query()->count())->toBe(0);
+    Mail::assertNothingQueued();
+});
+
+it('emails staff about a booking with no vehicle, naming the service', function (): void {
+    Mail::fake();
+
+    $this->package->update(['product_category_id' => ProductCategory::query()->where('name->en', 'Tuk Tuk Rental')->value('id')]);
+
+    emailTestBook($this)->assertRedirect();
 
     $booking = Booking::query()->sole();
-    expect($booking->isUnassigned())->toBeTrue();
+    expect($booking->hasNoUnit())->toBeTrue();
 
     Mail::assertQueued(NewBookingPlacedMail::class, fn (NewBookingPlacedMail $mail) => $mail->booking->is($booking)
-        && str_contains($mail->render(), 'Needs a vehicle'));
+        && str_contains($mail->render(), 'Tuk Tuk Rental'));
 });
 
 it('sends nothing for a booking whose transaction is rolled back', function (): void {

@@ -8,17 +8,10 @@
         </div>
     @endif
 
-    @if ($booking->isUnassigned())
-        <div class="admin-alert admin-alert--warn">
-            <strong>{{ __('Needs a vehicle') }}:</strong>
-            {{ __('No vehicle was free for these dates when the customer booked, so none is reserved yet. Assign one below (free up a vehicle first, or change the dates).') }}
-        </div>
-    @endif
-
     <div class="admin-card">
         <p><strong>{{ __('Status') }}:</strong> {{ ucfirst(str_replace('_', ' ', $booking->status)) }}</p>
         <p><strong>{{ __('Customer') }}:</strong> <a href="{{ route('admin.customers.show', $booking->customer) }}">{{ $booking->customer->full_name }}</a> ({{ $booking->customer->email }})</p>
-        <p><strong>{{ $booking->isStay() ? __('Stay') : __('Vehicle') }}:</strong> {{ $booking->vehicle?->adminLabel() ?? __('Not assigned yet') }}</p>
+        <p><strong>{{ __('Service') }}:</strong> {{ $booking->serviceLabel() }}</p>
         <p><strong>{{ __('Package') }}:</strong> {{ $booking->package?->name }}</p>
         @if ($booking->isTransfer())
             <p><strong>{{ __('Airport pickup') }}:</strong> {{ $booking->transfer_direction === 'departure' ? __('Address → airport (departure)') : __('Airport → address (arrival)') }}</p>
@@ -29,7 +22,7 @@
         @elseif ($booking->isStay())
             <p><strong>{{ __('Check-in') }}:</strong> {{ $booking->start_at->format('Y-m-d') }}</p>
             <p><strong>{{ __('Check-out') }}:</strong> {{ $booking->checkOutDate()->format('Y-m-d') }} ({{ trans_choice(':count night|:count nights', $booking->lengthInDays(), ['count' => $booking->lengthInDays()]) }})</p>
-            @if ($booking->vehicle->mapUrl())
+            @if ($booking->vehicle?->mapUrl())
                 <p><strong>{{ __('Location') }}:</strong> <a href="{{ $booking->vehicle->mapUrl() }}" target="_blank" rel="noopener noreferrer">{{ $booking->vehicle->address ?: __('View on Google Maps') }}</a></p>
             @endif
         @elseif ($booking->isHourly())
@@ -172,8 +165,9 @@
         </form>
     </div>
 
+    @unless ($booking->hasNoUnit() || $vehicles->isEmpty())
     <div class="admin-card">
-        <h2>{{ $booking->isStay() ? __('Move to another cabana / room') : ($booking->isUnassigned() ? __('Assign vehicle') : __('Reassign vehicle')) }}</h2>
+        <h2>{{ $booking->isStay() ? __('Move to another cabana / room') : __('Reassign vehicle') }}</h2>
         <form method="POST" action="{{ route('admin.bookings.vehicle.update', $booking) }}">
             @csrf
             @method('PUT')
@@ -185,9 +179,10 @@
                     @endforeach
                 </select>
             </div>
-            <button type="submit" class="admin-btn {{ $booking->isUnassigned() ? '' : 'admin-btn--secondary' }}">{{ $booking->isUnassigned() ? __('Assign') : __('Reassign') }}</button>
+            <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Reassign') }}</button>
         </form>
     </div>
+    @endunless
 
     <div class="admin-card" style="padding:0;">
         <table class="admin-table">

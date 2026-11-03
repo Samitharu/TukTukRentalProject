@@ -36,7 +36,12 @@ final class ReassignVehicleRequest extends FormRequest
 
                 $target = Vehicle::query()->with('category')->find($this->integer('vehicle_id'));
 
-                // kind(): from the package while the booking has no vehicle yet.
+                if ($this->route('booking')->hasNoUnit()) {
+                    $validator->errors()->add('vehicle_id', __('This booking has no registered vehicle to change.'));
+
+                    return;
+                }
+
                 if ($target !== null && $target->kind() !== $this->route('booking')->kind()) {
                     $validator->errors()->add('vehicle_id', __('A booking can only move to a unit of the same type (tuk tuk ↔ tuk tuk, stay ↔ stay).'));
                 }

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Core\Support\HasMapLocation;
 use Modules\Localization\Support\HasTranslatableSlug;
+use Modules\Package\Models\ProductCategory;
 use Spatie\Translatable\HasTranslations;
 
 /**
@@ -151,6 +152,19 @@ final class Vehicle extends Model
     public function scopeOfKind(Builder $query, string $kind): Builder
     {
         return $query->whereIn('category_id', VehicleCategory::query()->select('id')->where('kind', $kind));
+    }
+
+    /**
+     * Units the business actually tracks: leaves out any still on file in a
+     * line whose vehicles come from partners (tuk tuks), which are neither
+     * shown nor assigned.
+     */
+    public function scopeTracked(Builder $query): Builder
+    {
+        return $query->whereNotIn('category_id', VehicleCategory::query()->select('id')->whereIn(
+            'product_category_id',
+            ProductCategory::query()->select('id')->where('unlimited_units', true),
+        ));
     }
 
     /** Units whose unit type belongs to this product line (Tuk Tuk, Vehicle Rent…). */

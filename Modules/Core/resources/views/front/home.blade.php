@@ -154,8 +154,8 @@
     @if ($vehicles->isNotEmpty())
         <section class="section">
             <div class="container">
-                <h2>{{ __('core::front.home_fleet_teaser') }}</h2>
-                <p class="text-muted">{{ __('core::front.home_fleet_teaser_body') }}</p>
+                <h2>{{ __('core::front.nav_vehicles') }}</h2>
+                <p class="text-muted">{{ __('core::front.vehicles_intro') }}</p>
                 <div class="grid grid--4">
                     @foreach ($vehicles as $vehicle)
                         <article class="card fleet-card">
@@ -169,7 +169,7 @@
                         </article>
                     @endforeach
                 </div>
-                <p class="text-center" style="margin-top:2rem;"><a href="{{ route('fleet.index') }}" class="btn btn--secondary">{{ __('core::front.nav_fleet') }}</a></p>
+                <p class="text-center" style="margin-top:2rem;"><a href="{{ route('vehicles.index') }}" class="btn btn--secondary">{{ __('core::front.nav_vehicles') }}</a></p>
             </div>
         </section>
     @endif

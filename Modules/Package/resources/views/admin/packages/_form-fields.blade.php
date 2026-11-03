@@ -4,7 +4,10 @@
 
     $package = $package ?? null;
     $selectedCategoryId = (string) old('product_category_id', $package?->product_category_id ?? $preselectedCategoryId ?? $productCategories->first()?->id);
-    $selectedKind = $productCategories->firstWhere('id', (int) $selectedCategoryId)?->kind ?? Package::KIND_VEHICLE;
+    $selectedCategory = $productCategories->firstWhere('id', (int) $selectedCategoryId);
+    $selectedKind = $selectedCategory?->kind ?? Package::KIND_VEHICLE;
+    // Tuk tuks come from partners: no vehicle type or units to pick.
+    $selectedHasUnits = ! ($selectedCategory?->unlimited_units ?? false);
     $selectedCharge = old('charge', $charge ?? PackageCharge::BY_KIND[$selectedKind][0]);
 
     // The answers offered per booking style; an older package keeps its own.
@@ -29,7 +32,7 @@
     <label for="product_category_id">{{ __('Category') }}</label>
     <select id="product_category_id" name="product_category_id" required data-package-category>
         @foreach ($productCategories as $productCategory)
-            <option value="{{ $productCategory->id }}" data-kind="{{ $productCategory->kind }}" @selected($selectedCategoryId === (string) $productCategory->id)>
+            <option value="{{ $productCategory->id }}" data-kind="{{ $productCategory->kind }}" data-unlimited="{{ $productCategory->unlimited_units ? '1' : '0' }}" @selected($selectedCategoryId === (string) $productCategory->id)>
                 {{ $productCategory->name }}{{ $productCategory->is_active ? '' : ' ('.__('hidden').')' }}
             </option>
         @endforeach
@@ -39,7 +42,7 @@
     </p>
 </div>
 
-<div class="admin-form-field" data-package-kind="vehicle transfer" @if (! in_array($selectedKind, ['vehicle', 'transfer'], true)) hidden @endif>
+<div class="admin-form-field" data-package-kind="vehicle transfer" data-needs-units @if (! $selectedHasUnits || ! in_array($selectedKind, ['vehicle', 'transfer'], true)) hidden @endif>
     <label for="vehicle_type_id">{{ __('Vehicle type') }}</label>
     <select id="vehicle_type_id" name="vehicle_type_id" data-vehicle-type>
         <option value="">{{ __('Any vehicle in this category') }}</option>
@@ -173,7 +176,7 @@
             <label><input type="checkbox" name="is_featured" value="1" @checked(old('is_featured', $package?->is_featured))> {{ __('Featured on homepage') }}</label>
         </div>
 
-        <fieldset class="admin-form-field" data-package-kind="vehicle stay transfer" @if ($selectedKind === 'activity') hidden @endif>
+        <fieldset class="admin-form-field" data-package-kind="vehicle stay transfer" data-needs-units @if (! $selectedHasUnits || $selectedKind === 'activity') hidden @endif>
             <legend style="font-weight:600;margin-bottom:0.5rem;">{{ __('Only these units (leave empty = any) — e.g. the cabanas a surf package is sold with') }}</legend>
             @foreach ($vehicles as $vehicle)
                 <label style="display:block;font-weight:400;">

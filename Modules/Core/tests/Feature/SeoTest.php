@@ -59,8 +59,8 @@ it('targets tuk tuk rental in Negombo on the home page', function (): void {
 });
 
 it('drops filter and tracking query strings from the canonical URL but keeps the page number', function (): void {
-    $this->get('/en/tuk-tuks?category=3&utm_source=fb')
-        ->assertSee('<link rel="canonical" href="'.seoBase().'/en/tuk-tuks">', false);
+    $this->get('/en/packages?category=3&utm_source=fb')
+        ->assertSee('<link rel="canonical" href="'.seoBase().'/en/packages">', false);
 
     $this->get('/en/blog?page=2')
         ->assertSee('<link rel="canonical" href="'.seoBase().'/en/blog?page=2">', false);
@@ -153,6 +153,6 @@ it('lists every public page in every language in sitemap.xml', function (): void
         ->toContain('<loc>'.seoBase().'/de/stays/sonnenuntergang-cabana</loc>')
         ->toContain('hreflang="de" href="'.seoBase().'/de/stays/sonnenuntergang-cabana"')
         ->toContain('<loc>'.seoBase().'/en/packages/surf-stay</loc>')
-        ->toContain('<loc>'.seoBase().'/de/tuk-tuks</loc>')
+        ->toContain('<loc>'.seoBase().'/de/packages</loc>')
         ->not->toContain('old-banger');
 });

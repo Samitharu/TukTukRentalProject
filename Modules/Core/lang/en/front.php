@@ -379,7 +379,6 @@ return [
     'booking_confirmation_next_steps_transfer' => 'Save your reference number — you\'ll need it if you contact us. Our driver will be there at the pickup time; if your flight changes, just let us know on WhatsApp.',
     'email_confirm_intro_transfer' => 'Thank you for booking with :app! Your airport pickup is confirmed — here are your details.',
     'receipt_transfer' => 'Airport pickup details',
-    'booking_vehicle_assigned_later' => 'Assigned before your pickup',
     'tripadvisor' => 'See our reviews on Tripadvisor',
     'nav_about' => 'About Us',
     'nav_services' => 'Services',

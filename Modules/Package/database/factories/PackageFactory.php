@@ -18,12 +18,15 @@ final class PackageFactory extends Factory
     public function definition(): array
     {
         return [
-            // The default category of the requested kind (the migration
-            // creates one per kind), so `kind` overrides keep working.
+            // A category of the requested kind that still reserves units, so
+            // tests can exercise the reservation engine; the real product
+            // lines (unlimited_units) never assign a vehicle.
             'product_category_id' => fn (array $attributes) => ProductCategory::query()
                 ->where('kind', $attributes['kind'] ?? Package::KIND_VEHICLE)
+                ->where('unlimited_units', false)
                 ->orderBy('sort_order')
-                ->value('id'),
+                ->value('id')
+                ?? ProductCategory::factory()->create(['kind' => $attributes['kind'] ?? Package::KIND_VEHICLE])->id,
             'name' => ['en' => fake()->words(3, true).' Package'],
             'description' => ['en' => fake()->sentence()],
             'pricing_model' => Package::MODEL_TIERED,

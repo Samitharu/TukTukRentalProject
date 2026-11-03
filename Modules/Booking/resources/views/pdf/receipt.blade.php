@@ -109,7 +109,9 @@
                         @if ($booking->package)
                             <tr><td class="k">{{ __('core::front.booking_review_package') }}</td><td>{{ $booking->package->name }}</td></tr>
                         @endif
-                        <tr><td class="k">{{ __('core::front.receipt_vehicle') }}</td><td>{{ $booking->vehicle ? $booking->vehicle->name.' ('.$booking->vehicle->plate_no.')' : __('core::front.booking_vehicle_assigned_later') }}</td></tr>
+                        @if ($booking->vehicle)
+                            <tr><td class="k">{{ __('core::front.receipt_vehicle') }}</td><td>{{ $booking->vehicle->name }} ({{ $booking->vehicle->plate_no }})</td></tr>
+                        @endif
                     </table>
                 @elseif ($isStay)
                     <h2>{{ __('core::front.receipt_stay') }}</h2>
@@ -120,7 +122,9 @@
                         @if ($booking->package)
                             <tr><td class="k">{{ __('core::front.booking_review_package') }}</td><td>{{ $booking->package->name }}</td></tr>
                         @endif
-                        <tr><td class="k">{{ __('core::front.receipt_unit') }}</td><td>{{ $booking->vehicle?->name }}</td></tr>
+                        @if ($booking->vehicle)
+                            <tr><td class="k">{{ __('core::front.receipt_unit') }}</td><td>{{ $booking->vehicle->name }}</td></tr>
+                        @endif
                         @if ($booking->vehicle?->address || $booking->vehicle?->hasCoordinates())
                             <tr><td class="k">{{ __('core::front.receipt_location') }}</td><td>{{ $booking->vehicle->address }}@if ($booking->vehicle->hasCoordinates())<br><span class="muted">{{ $booking->vehicle->lat }}, {{ $booking->vehicle->lng }}</span>@endif</td></tr>
                         @endif
@@ -138,7 +142,9 @@
                         @if ($booking->package)
                             <tr><td class="k">{{ __('core::front.booking_review_package') }}</td><td>{{ $booking->package->name }}</td></tr>
                         @endif
-                        <tr><td class="k">{{ __('core::front.receipt_vehicle') }}</td><td>{{ $booking->vehicle ? $booking->vehicle->name.' ('.$booking->vehicle->plate_no.')' : __('core::front.booking_vehicle_assigned_later') }}</td></tr>
+                        @if ($booking->vehicle)
+                            <tr><td class="k">{{ __('core::front.receipt_vehicle') }}</td><td>{{ $booking->vehicle->name }} ({{ $booking->vehicle->plate_no }})</td></tr>
+                        @endif
                         <tr><td class="k">{{ __('core::front.receipt_pickup') }}</td><td>{{ $pickup }}</td></tr>
                     </table>
                 @endif

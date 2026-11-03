@@ -356,7 +356,6 @@ return [
     'booking_confirmation_next_steps_transfer' => 'Notieren Sie Ihre Buchungsnummer — Sie brauchen sie, wenn Sie uns kontaktieren. Unser Fahrer ist zur Abholzeit da; ändert sich Ihr Flug, sagen Sie uns einfach per WhatsApp Bescheid.',
     'email_confirm_intro_transfer' => 'Vielen Dank für Ihre Buchung bei :app! Ihr Flughafentransfer ist bestätigt — hier sind Ihre Details.',
     'receipt_transfer' => 'Details zum Flughafentransfer',
-    'booking_vehicle_assigned_later' => 'Wird vor Ihrer Abholung zugewiesen',
     'tripadvisor' => 'Unsere Bewertungen auf Tripadvisor',
     'nav_about' => 'Über uns',
     'nav_services' => 'Leistungen',

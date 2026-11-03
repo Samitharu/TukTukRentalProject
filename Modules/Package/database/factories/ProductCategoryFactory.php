@@ -19,6 +19,7 @@ final class ProductCategoryFactory extends Factory
     {
         return [
             'kind' => Package::KIND_VEHICLE,
+            'unlimited_units' => false,
             'name' => ['en' => fake()->unique()->words(2, true)],
             'description' => ['en' => fake()->sentence()],
             'sort_order' => fake()->numberBetween(0, 10),

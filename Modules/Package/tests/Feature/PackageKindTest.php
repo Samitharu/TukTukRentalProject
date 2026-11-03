@@ -32,6 +32,8 @@ function packagePayload(array $overrides = []): array
 }
 
 it('creates a stay package restricted to particular cabanas', function (): void {
+    // A line that still reserves units: the real ones no longer do.
+    \Modules\Package\Models\ProductCategory::query()->where('kind', Package::KIND_STAY)->update(['unlimited_units' => false]);
     $cabana = Vehicle::factory()->stay()->create();
 
     $this->actingAs($this->manager)

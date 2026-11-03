@@ -356,7 +356,6 @@ return [
     'booking_confirmation_next_steps_transfer' => 'Conservez votre numéro de réservation — il vous sera demandé si vous nous contactez. Notre chauffeur sera là à l\'heure prévue ; si votre vol change, prévenez-nous simplement sur WhatsApp.',
     'email_confirm_intro_transfer' => 'Merci d\'avoir réservé avec :app ! Votre transfert aéroport est confirmé — voici les détails.',
     'receipt_transfer' => 'Détails du transfert aéroport',
-    'booking_vehicle_assigned_later' => 'Attribué avant votre prise en charge',
     'tripadvisor' => 'Nos avis sur Tripadvisor',
     'nav_about' => 'À propos',
     'nav_services' => 'Services',

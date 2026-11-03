@@ -133,10 +133,10 @@ final class BookingFlowController extends Controller
         $vehicleId = BookingFlowState::value('vehicle_id');
         [$start, $end] = $this->datesFromState();
         $unavailable = [];
-        // Rentals are always bookable (see takesEveryBooking()); stays and
-        // airport pickups still can't be double-booked, so a full package is
-        // disabled — but no "N left" counts are shown for any of them.
-        $checksAvailability = ! $this->takesEveryBooking();
+        // Tuk tuks are always bookable (see lineHasUnlimitedUnits()). Registered
+        // units can't be double-booked, so a full package is disabled — but
+        // no "N left" counts are shown for any of them.
+        $checksAvailability = ! $this->lineHasUnlimitedUnits();
         $freeCounts = $checksAvailability ? $this->freeVehicleCounts($packages, $start, $end, $unavailable) : [];
 
         return view('booking::front.steps.package', [
@@ -167,7 +167,7 @@ final class BookingFlowController extends Controller
             return back()->withErrors(['package_id' => $this->notEligibleMessage()]);
         }
 
-        if (! $this->takesEveryBooking()) {
+        if (! $package->hasUnlimitedUnits()) {
             [$start, $end] = $this->datesFromState();
             $eligibleIds = $package->eligibleVehicleIds();
             $unavailable = $this->unavailableIds($eligibleIds, $start, $end);
@@ -393,9 +393,6 @@ final class BookingFlowController extends Controller
                     'vehicle_id' => BookingFlowState::isStay() ? ($state['vehicle_id'] ?? null) : null,
                     'package_id' => $state['package_id'],
                     'customer_session_id' => $request->session()->getId(),
-                    // A rental is never refused: with every vehicle out it is
-                    // taken unassigned and staff assign one later.
-                    'allow_unassigned' => $this->takesEveryBooking(),
                 ],
                 customerData: $customerData,
                 price: $price,
@@ -618,20 +615,20 @@ final class BookingFlowController extends Controller
     }
 
     /**
-     * Day rentals (Tuk Tuk, Vehicle Rent) are taken whatever the fleet's
-     * availability: the customer never sees counts or "fully booked", and a
-     * booking with no free vehicle is saved unassigned for staff to sort
-     * out. Stays and airport pickups are still never double-booked.
+     * The chosen line's vehicles come from partners (tuk tuks): every
+     * booking is accepted and there is no availability to check. SUVs,
+     * bikes, airport vehicles and stays are registered units instead.
      */
-    private function takesEveryBooking(): bool
+    private function lineHasUnlimitedUnits(): bool
     {
-        return BookingFlowState::kind() === VehicleCategory::KIND_VEHICLE;
+        return $this->bookableLines()->firstWhere('id', BookingFlowState::lineId())?->unlimited_units ?? false;
     }
 
     /**
      * No line chosen yet (straight to /booking/start, or an old session):
-     * the first line of the flow's kind — Tuk Tuk for rentals — so the
-     * package step never mixes tuk tuk and Vehicle Rent packages.
+     * the first line of the flow's kind with something to book — Tuk Tuk for
+     * rentals — so the package step never mixes tuk tuk and Vehicle Rent
+     * packages.
      */
     private function defaultLine(): void
     {
@@ -639,7 +636,8 @@ final class BookingFlowController extends Controller
             return;
         }
 
-        $lineId = $this->bookableLines()->firstWhere('kind', BookingFlowState::kind())?->id;
+        $lines = $this->bookableLines()->where('kind', BookingFlowState::kind());
+        $lineId = ($lines->first(fn (ProductCategory $line) => $line->packages()->where('is_active', true)->exists()) ?? $lines->first())?->id;
 
         if ($lineId !== null) {
             BookingFlowState::put(['line_id' => $lineId]);

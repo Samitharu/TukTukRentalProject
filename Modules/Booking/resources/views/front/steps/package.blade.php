@@ -1,6 +1,6 @@
 @php
-    // No availability counts are shown. Rentals are always bookable; only a
-    // stay or airport package with nothing free is marked fully booked.
+    // No availability counts are shown. Tuk tuks are always bookable; only a
+    // package of registered units with nothing free is marked fully booked.
     $isFull = fn ($package) => $checksAvailability && ($freeCounts[$package->id] ?? 0) === 0;
     $bookablePackages = $packages->reject($isFull);
 @endphp

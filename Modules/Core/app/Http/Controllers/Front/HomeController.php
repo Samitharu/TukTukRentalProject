@@ -39,8 +39,9 @@ final class HomeController extends Controller
             ->limit(3)
             ->get();
 
-        // The "Our tuk tuks" teaser — cabanas and rooms have their own page.
-        $vehicles = Vehicle::query()->active()->ofKind(VehicleCategory::KIND_VEHICLE)->with('images')->limit(4)->get();
+        // The registered rental vehicles (SUVs, bikes) — tuk tuks aren't
+        // registered, and cabanas and rooms have their own page.
+        $vehicles = Vehicle::query()->active()->tracked()->ofKind(VehicleCategory::KIND_VEHICLE)->with('images')->limit(4)->get();
         $customerReviews = $this->customerReviews();
 
         $schema = [Seo::website(), Seo::organization()];

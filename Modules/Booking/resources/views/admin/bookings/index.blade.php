@@ -17,11 +17,7 @@
         </div>
         <div class="admin-form-field" style="display:inline-block;margin-left:1rem;">
             <label><input type="checkbox" name="suspicious" value="1" @checked(request()->boolean('suspicious'))> {{ __('Suspicious only') }}</label>
-        </div>
-        <div class="admin-form-field" style="display:inline-block;margin-left:1rem;">
-            <label><input type="checkbox" name="unassigned" value="1" @checked(request()->boolean('unassigned'))> {{ __('Needs a vehicle') }}</label>
-        </div>
-        <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Filter') }}</button>
+        </div>        <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Filter') }}</button>
     </form>
 
     <div class="admin-card" style="padding:0;">
@@ -30,7 +26,7 @@
                 <tr>
                     <th>{{ __('Reference') }}</th>
                     <th>{{ __('Customer') }}</th>
-                    <th>{{ __('Unit') }}</th>
+                    <th>{{ __('Service') }}</th>
                     <th>{{ __('Pickup / check-in') }}</th>
                     <th>{{ __('Return / check-out') }}</th>
                     <th>{{ __('Status') }}</th>
@@ -47,13 +43,7 @@
                             @endif
                         </td>
                         <td>{{ $booking->customer->full_name }}</td>
-                        <td>
-                            @if ($booking->isUnassigned())
-                                <span class="admin-badge admin-badge--warn">{{ __('Needs a vehicle') }}</span>
-                            @else
-                                {{ $booking->vehicle->adminLabel() }}
-                            @endif
-                        </td>
+                        <td>{{ $booking->serviceLabel() }}</td>
                         <td>{{ $booking->start_at->format('Y-m-d') }}</td>
                         <td>{{ $booking->checkOutDate()->format('Y-m-d') }}</td>
                         <td>{{ ucfirst(str_replace('_', ' ', $booking->status)) }}</td>

@@ -31,13 +31,6 @@
                     <span class="admin-quick-link__arrow" aria-hidden="true">&#8599;</span>
                 </a>
             @endcan
-            @can('viewAny', \Modules\Fleet\Models\Vehicle::class)
-                <a href="{{ route('admin.fleet.vehicles.index') }}" class="admin-quick-link">
-                    <span class="admin-quick-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m5 11 1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11m-15 0h16a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-1m-14 0H5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1Zm2 7h10M7 14h.01M17 14h.01" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="18" r="1.5" fill="currentColor"/><circle cx="17" cy="18" r="1.5" fill="currentColor"/></svg></span>
-                    <span class="admin-quick-link__copy"><strong>{{ __('Fleet') }}</strong><small>{{ __('Manage vehicles and availability') }}</small></span>
-                    <span class="admin-quick-link__arrow" aria-hidden="true">&#8599;</span>
-                </a>
-            @endcan
             @can('viewAny', \Modules\Package\Models\Package::class)
                 <a href="{{ route('admin.packages.index') }}" class="admin-quick-link">
                     <span class="admin-quick-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m4.5 7.8 7.5 4.3 7.5-4.3M12 12v8.5M8 5.3l8 4.5" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></span>

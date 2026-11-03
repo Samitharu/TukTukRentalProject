@@ -26,7 +26,7 @@ use Modules\Package\Models\ProductCategory;
 final class SitemapController extends Controller
 {
     /** Listing pages, identical path in every language. */
-    private const array STATIC_ROUTES = ['home', 'fleet.index', 'stays.index', 'packages.index', 'pricing', 'faq', 'blog.index', 'contact'];
+    private const array STATIC_ROUTES = ['home', 'packages.index', 'pricing', 'faq', 'blog.index', 'contact'];
 
     private const int CACHE_SECONDS = 3600;
 
@@ -74,7 +74,9 @@ final class SitemapController extends Controller
         }
 
         $records = [
-            ...Vehicle::query()->active()->with(['category', 'routeSlugs'])->get()
+            // Airport vehicles have no public page; other units aren't registered.
+            ...Vehicle::query()->active()->tracked()->with(['category', 'routeSlugs'])->get()
+                ->reject(fn (Vehicle $unit) => $unit->isTransfer())
                 ->map(fn (Vehicle $unit) => [$unit, $unit->isStay() ? 'stays.show' : 'fleet.show']),
             ...ProductCategory::query()->active()->with('routeSlugs')->get()
                 ->map(fn (ProductCategory $category) => [$category, 'packages.category']),

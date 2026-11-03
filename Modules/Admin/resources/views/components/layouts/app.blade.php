@@ -32,10 +32,6 @@
                 @can('viewAny', \App\Models\User::class)
                     <li><a href="{{ route('admin.users.index') }}" @if(request()->routeIs('admin.users.*')) aria-current="page" @endif>{{ __('Users') }}</a></li>
                 @endcan
-                @can('viewAny', \Modules\Fleet\Models\Vehicle::class)
-                    <li><a href="{{ route('admin.fleet.vehicles.index') }}" @if(request()->routeIs('admin.fleet.vehicles.*')) aria-current="page" @endif>{{ __('Vehicles & Stays') }}</a></li>
-                    <li><a href="{{ route('admin.fleet.categories.index') }}" @if(request()->routeIs('admin.fleet.categories.*')) aria-current="page" @endif>{{ __('Unit Types') }}</a></li>
-                @endcan
                 @can('viewAny', \Modules\Package\Models\Package::class)
                     <li><a href="{{ route('admin.package-categories.index') }}" @if(request()->routeIs('admin.package-categories.*')) aria-current="page" @endif>{{ __('Package Categories') }}</a></li>
                     <li><a href="{{ route('admin.packages.index') }}" @if(request()->routeIs('admin.packages.*')) aria-current="page" @endif>{{ __('Packages') }}</a></li>

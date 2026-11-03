@@ -65,8 +65,12 @@
 
             var charge = checkedCharge();
 
+            // A line with unlimited units (tuk tuks) has no units to pick.
+            var unlimited = option && option.getAttribute('data-unlimited') === '1';
+
             form.querySelectorAll('[data-package-kind]').forEach(function (section) {
-                toggle(section, listHas(section.getAttribute('data-package-kind'), kind));
+                var needsUnits = section.hasAttribute('data-needs-units');
+                toggle(section, listHas(section.getAttribute('data-package-kind'), kind) && !(needsUnits && unlimited));
             });
             form.querySelectorAll('[data-charge]').forEach(function (section) {
                 toggle(section, listHas(section.getAttribute('data-charge'), charge));

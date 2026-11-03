@@ -252,7 +252,7 @@ it('stays fast, query-bounded and memory-bounded on a large dataset', function (
     $start = CarbonImmutable::today()->addDays(10);
     $results = [];
     $results['Home page (reviews slider)'] = perfMeasure(fn () => $this->get('/en'));
-    $results['Fleet page'] = perfMeasure(fn () => $this->get('/en/tuk-tuks'));
+    $results['Fleet page'] = perfMeasure(fn () => $this->get('/en/vehicles'));
     $results['Packages page'] = perfMeasure(fn () => $this->get('/en/packages'));
     $results['Booking: submit dates'] = perfMeasure(fn () => $this->post('/en/booking/start', [
         'start_date' => $start->toDateString(), 'end_date' => $start->addDays(3)->toDateString(),

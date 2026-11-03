@@ -73,15 +73,17 @@
                 </select>
             </div>
 
-            <div class="admin-form-field">
-                <label for="vehicle_id">{{ __('Specific unit (blank = auto-assign an eligible one)') }}</label>
-                <select id="vehicle_id" name="vehicle_id">
-                    <option value="">{{ __('— Auto-assign —') }}</option>
-                    @foreach ($vehicles as $vehicle)
-                        <option value="{{ $vehicle->id }}" @selected(old('vehicle_id') == $vehicle->id)>{{ $vehicle->adminLabel() }} ({{ $vehicle->isStay() ? __('Stay') : ($vehicle->isTransfer() ? __('Airport vehicle') : ($vehicle->category?->name ?? __('Rental'))) }})</option>
-                    @endforeach
-                </select>
-            </div>
+            @if ($vehicles->isNotEmpty())
+                <div class="admin-form-field">
+                    <label for="vehicle_id">{{ __('Specific unit (blank = auto-assign an eligible one)') }}</label>
+                    <select id="vehicle_id" name="vehicle_id">
+                        <option value="">{{ __('— Auto-assign —') }}</option>
+                        @foreach ($vehicles as $vehicle)
+                            <option value="{{ $vehicle->id }}" @selected(old('vehicle_id') == $vehicle->id)>{{ $vehicle->adminLabel() }} ({{ $vehicle->isStay() ? __('Stay') : ($vehicle->isTransfer() ? __('Airport vehicle') : ($vehicle->category?->name ?? __('Rental'))) }})</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
 
             <div class="admin-form-field">
                 <label for="start_date">{{ __('Pickup date / check-in') }}</label>

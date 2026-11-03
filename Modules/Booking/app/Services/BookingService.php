@@ -54,11 +54,10 @@ final class BookingService
      * @param array{
      *   hold_key: string, start_at: string, end_at: string,
      *   vehicle_id?: int|null, category_id?: int|null, package_id?: int|null,
-     *   customer_session_id?: string|null, allow_unassigned?: bool,
+     *   customer_session_id?: string|null,
      * } $data
-     *   allow_unassigned: when no vehicle is free, take the booking anyway
-     *   with no vehicle (and no reservation slots) for staff to assign later
-     *   — the public rental flow never turns a customer away. Day rentals only.
+     *   A package whose line has unlimited units (tuk tuks, sourced from
+     *   partners) reserves nothing: no vehicle, no slots, no conflicts.
      */
     public function createHold(array $data): BookingHold
     {
@@ -87,8 +86,12 @@ final class BookingService
         // as strings) — normalize once, here, rather than trusting
         // every caller to pre-cast.
         $vehicleId = isset($data['vehicle_id']) ? (int) $data['vehicle_id'] : null;
+        $packageId = isset($data['package_id']) ? (int) $data['package_id'] : null;
 
-        if ($vehicleId !== null) {
+        // Sourced from partners: nothing to reserve, so nothing can conflict.
+        if ($packageId !== null && (Package::query()->find($packageId)?->hasUnlimitedUnits() ?? false)) {
+            $vehicleId = null;
+        } elseif ($vehicleId !== null) {
             $this->availability->lockVehicle($vehicleId);
 
             if (! $this->isFree($vehicleId, $start, $end, $isTransfer)) {
@@ -96,17 +99,7 @@ final class BookingService
             }
         } else {
             $categoryId = isset($data['category_id']) ? (int) $data['category_id'] : null;
-            $packageId = isset($data['package_id']) ? (int) $data['package_id'] : null;
-
-            try {
-                $vehicleId = $this->pickAvailableVehicle($categoryId, $packageId, $start, $end, $isTransfer);
-            } catch (NoVehicleAvailableException $exception) {
-                if ($isTransfer || ! ($data['allow_unassigned'] ?? false)) {
-                    throw $exception;
-                }
-
-                $vehicleId = null; // staff assign one from the booking page
-            }
+            $vehicleId = $this->pickAvailableVehicle($categoryId, $packageId, $start, $end, $isTransfer);
         }
 
         $hold = BookingHold::query()->create([
@@ -370,7 +363,7 @@ final class BookingService
             $booking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
 
             if ($booking->vehicle_id === null) {
-                // Not assigned yet: nothing is reserved, so just move it.
+                // A partner-supplied tuk tuk: nothing is reserved, so just move it.
                 $booking->update(['start_at' => $newStart, 'end_at' => $newEnd]);
                 $this->recordHistory($booking, $booking->status, $booking->status, $admin, 'Dates changed.');
 
@@ -467,12 +460,9 @@ final class BookingService
                 $this->availability->reserveSlots($newVehicleId, $start->startOfDay(), $end->startOfDay(), $booking);
             }
 
-            $wasUnassigned = $booking->vehicle_id === null;
             $booking->update(['vehicle_id' => $newVehicleId]);
 
-            $this->recordHistory($booking, $booking->status, $booking->status, $admin, $wasUnassigned
-                ? "Assigned to vehicle #{$newVehicleId}."
-                : "Reassigned to vehicle #{$newVehicleId}.");
+            $this->recordHistory($booking, $booking->status, $booking->status, $admin, "Reassigned to vehicle #{$newVehicleId}.");
 
             return $booking;
         });

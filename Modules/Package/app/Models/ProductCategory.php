@@ -22,6 +22,7 @@ use Spatie\Translatable\HasTranslations;
  *
  * @property int $id
  * @property string $kind
+ * @property bool $unlimited_units Vehicles come from partners, none registered: every booking is accepted, none reserves a unit (tuk tuks)
  * @property array<string,string> $name
  * @property array<string,string>|null $description
  * @property string|null $image_path
@@ -44,6 +45,7 @@ final class ProductCategory extends Model
 
     protected $fillable = [
         'kind',
+        'unlimited_units',
         'name',
         'description',
         'image_path',
@@ -54,6 +56,7 @@ final class ProductCategory extends Model
     protected function casts(): array
     {
         return [
+            'unlimited_units' => 'boolean',
             'sort_order' => 'integer',
             'is_active' => 'boolean',
         ];

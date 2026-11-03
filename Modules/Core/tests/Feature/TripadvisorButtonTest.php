@@ -26,7 +26,7 @@ it('lets staff set the Tripadvisor link, which then floats on every page', funct
 
     expect(SiteSetting::current()->tripadvisor_url)->toBe($link);
     $this->get('/en')->assertOk()->assertSee('tripadvisor-float', false)->assertSee($link, false);
-    $this->get('/en/tuk-tuks')->assertOk()->assertSee($link, false);
+    $this->get('/en/faq')->assertOk()->assertSee($link, false);
 
     $this->actingAs($this->admin)->post('/control-panel/branding', ['tripadvisor_url' => ''])->assertSessionHasNoErrors();
     $this->get('/en')->assertDontSee('tripadvisor-float', false);
