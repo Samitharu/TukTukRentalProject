@@ -14,26 +14,25 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Str;
 use Modules\Admin\Models\BlockedIp;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\DeliveryZone;
 use Modules\Availability\Models\TransferArea;
 use Modules\Availability\Services\AvailabilityService;
-use Modules\Booking\Exceptions\CouponUnavailableException;
 use Modules\Booking\Exceptions\HoldExpiredException;
 use Modules\Booking\Exceptions\NoVehicleAvailableException;
 use Modules\Booking\Http\Requests\Front\StepAddonsRequest;
 use Modules\Booking\Http\Requests\Front\StepDatesRequest;
 use Modules\Booking\Http\Requests\Front\StepDriverDetailsRequest;
+use Modules\Booking\Http\Requests\Front\StepOfferRequest;
 use Modules\Booking\Http\Requests\Front\StepPackageRequest;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Models\BookingHold;
 use Modules\Booking\Services\BookingService;
+use Modules\Booking\Services\OfferedBookingPlanner;
 use Modules\Booking\Services\TransferAvailability;
 use Modules\Booking\Support\BookingFlowState;
 use Modules\Booking\Support\BookingReference;
@@ -44,9 +43,9 @@ use Modules\Core\Support\Countries;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Fleet\Models\VehicleCategory;
 use Modules\Package\Models\Package;
+use Modules\Package\Models\PackageOffer;
 use Modules\Package\Models\ProductCategory;
 use Modules\Pricing\DataObjects\PriceBreakdown;
-use Modules\Pricing\Models\Coupon;
 use Modules\Pricing\Services\PricingService;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -75,6 +74,7 @@ final class BookingFlowController extends Controller
         private readonly PricingService $pricing,
         private readonly AvailabilityService $availability,
         private readonly TransferAvailability $transfers,
+        private readonly OfferedBookingPlanner $offers,
     ) {
     }
 
@@ -102,7 +102,6 @@ final class BookingFlowController extends Controller
             'isTransfer' => BookingFlowState::isTransfer(),
             'lines' => $this->bookableLines(),
             'currentLineId' => BookingFlowState::lineId(),
-            'office' => BusinessLocation::office(),
             'transferAreas' => BookingFlowState::isTransfer() ? TransferArea::query()->active()->ordered()->get() : collect(),
         ]);
     }
@@ -194,6 +193,8 @@ final class BookingFlowController extends Controller
             'package_id' => $package->id,
             'start_time' => $startTime,
             'hours' => $hours !== null ? (int) $hours : null,
+            // An offer belongs to the package it was taken on.
+            'offer' => null,
             'hold_key' => null,
         ]);
 
@@ -226,7 +227,6 @@ final class BookingFlowController extends Controller
 
         BookingFlowState::put([
             'addons' => array_filter($data['addons'] ?? [], fn (int $qty) => $qty > 0),
-            'coupon_code' => $data['coupon_code'] ?? null,
         ]);
 
         return redirect()->route('booking.details');
@@ -277,6 +277,9 @@ final class BookingFlowController extends Controller
         $state = BookingFlowState::get();
 
         $package = Package::query()->findOrFail($state['package_id']);
+        $chosenOffer = $this->chosenOffer();
+        $price = $this->calculatePrice($state);
+        $offeredPrice = $chosenOffer !== null ? $this->offers->plan($chosenOffer->offeredPackage, $state['offer'])['price'] : null;
 
         return view('booking::front.steps.review', [
             'state' => $state,
@@ -285,38 +288,62 @@ final class BookingFlowController extends Controller
             'transferArea' => $this->transferAreaFromState(),
             'package' => $package,
             'hourlyRange' => $package->isHourly() ? HourlySchedule::range($state['start_date'], $state['start_time'], (int) $state['hours']) : null,
-            'price' => $this->calculatePrice($state),
+            'price' => $price,
+            'availableOffers' => $chosenOffer === null ? $package->availableOffers() : collect(),
+            'chosenOffer' => $chosenOffer,
+            'offeredPrice' => $offeredPrice,
         ]);
     }
 
-    /**
-     * AJAX/JSON price recalculation (brief §4's explicit requirement for
-     * the review step) — e.g. applying a coupon code without a full page
-     * reload. Prices are always recomputed from scratch server-side here;
-     * nothing the client sends is trusted as a total (brief §7).
-     */
-    public function recalculate(Request $request): JsonResponse
+    /** The review step's "add this package and save": only what that package needs. */
+    public function offer(string $locale, string $offer): View|RedirectResponse
     {
         if (! $this->readyForReview()) {
-            return response()->json(['message' => __('core::front.booking_session_expired')], 422);
+            return redirect()->route('booking.start');
         }
 
-        $couponCode = $request->string('coupon_code')->trim()->value();
-        $couponCode = $couponCode !== '' ? mb_strtoupper($couponCode) : null;
+        $packageOffer = $this->availableOffer((int) $offer);
 
-        $state = [...BookingFlowState::get(), 'coupon_code' => $couponCode];
-
-        if ($couponCode !== null) {
-            $coupon = Coupon::query()->where('code', $couponCode)->active()->first();
-
-            if ($coupon === null || ! $coupon->isValidFor($this->daysFromState(), CarbonImmutable::parse($state['start_date']))) {
-                return response()->json(['message' => __('core::front.booking_coupon_invalid')], 422);
-            }
+        if ($packageOffer === null) {
+            return redirect()->route('booking.review');
         }
 
-        BookingFlowState::put(['coupon_code' => $couponCode]);
+        $offered = $packageOffer->offeredPackage;
+        $chosen = BookingFlowState::value('offer');
 
-        return response()->json($this->calculatePrice($state)->toArray());
+        return view('booking::front.steps.offer', [
+            'offer' => $packageOffer,
+            'offered' => $offered,
+            'mainPackage' => $packageOffer->package,
+            // Picking the offer again: what they entered. Otherwise their first day.
+            'values' => is_array($chosen) && (int) ($chosen['offer_id'] ?? 0) === $packageOffer->id ? $chosen : ['start_date' => BookingFlowState::value('start_date')],
+            'asksLicence' => StepOfferRequest::needsLicenceQuestions($offered),
+            'transferAreas' => $offered->isTransfer() ? TransferArea::query()->active()->ordered()->get() : collect(),
+            'hourlyStartTimes' => $offered->isHourly() ? HourlySchedule::startTimes($offered) : [],
+            'hourlyLengths' => $offered->isHourly() ? HourlySchedule::lengths($offered) : [],
+        ]);
+    }
+
+    public function storeOffer(StepOfferRequest $request, string $locale, string $offer): RedirectResponse
+    {
+        if (! $this->readyForReview()) {
+            return redirect()->route('booking.start');
+        }
+
+        $packageOffer = $this->availableOffer((int) $offer);
+
+        if ($packageOffer !== null) {
+            BookingFlowState::put(['offer' => ['offer_id' => $packageOffer->id, ...$request->offerData()], 'hold_key' => null]);
+        }
+
+        return redirect()->route('booking.review');
+    }
+
+    public function removeOffer(): RedirectResponse
+    {
+        BookingFlowState::put(['offer' => null, 'hold_key' => null]);
+
+        return redirect()->route('booking.review');
     }
 
     public function confirm(Request $request): RedirectResponse
@@ -358,13 +385,6 @@ final class BookingFlowController extends Controller
         };
         $isTransfer = BookingFlowState::isTransfer();
 
-        // The review page showed a discounted total; if the coupon stopped
-        // applying since (limit reached, expired), never book the higher
-        // price silently — send them back to see the updated total.
-        if (! empty($state['coupon_code']) && $price->couponCode === null) {
-            return $this->couponNoLongerValid();
-        }
-
         $customerData = [
             'email' => $state['email'],
             'full_name' => trim($state['first_name'].' '.$state['last_name']),
@@ -373,7 +393,6 @@ final class BookingFlowController extends Controller
             'passport_number' => $state['passport_number'] ?? null,
             'locale_preference' => app()->getLocale(),
             'pickup_type' => $state['pickup_type'],
-            'business_location_id' => $state['business_location_id'] ?? null,
             'delivery_zone_id' => $state['delivery_zone_id'] ?? null,
             'transfer_direction' => $isTransfer ? $state['transfer_direction'] : null,
             'flight_number' => $isTransfer ? $state['flight_number'] : null,
@@ -383,21 +402,46 @@ final class BookingFlowController extends Controller
             'special_requests' => $state['special_requests'] ?? null,
         ];
         $source = ['ip_address' => $request->ip(), 'user_agent' => $request->userAgent()];
+        $holdData = [
+            'hold_key' => $holdKey,
+            'start_at' => $startAt,
+            'end_at' => $endAt,
+            'vehicle_id' => BookingFlowState::isStay() ? ($state['vehicle_id'] ?? null) : null,
+            'package_id' => $state['package_id'],
+            'customer_session_id' => $request->session()->getId(),
+        ];
+        $chosenOffer = $this->chosenOffer();
 
         try {
-            $booking = $this->bookings->createManualBooking(
-                holdData: [
-                    'hold_key' => $holdKey,
-                    'start_at' => $startAt,
-                    'end_at' => $endAt,
-                    'vehicle_id' => BookingFlowState::isStay() ? ($state['vehicle_id'] ?? null) : null,
-                    'package_id' => $state['package_id'],
-                    'customer_session_id' => $request->session()->getId(),
-                ],
-                customerData: $customerData,
-                price: $price,
-                source: $source,
-            );
+            if ($chosenOffer !== null) {
+                $plan = $this->offers->plan($chosenOffer->offeredPackage, $state['offer']);
+
+                $booking = $this->bookings->createBookingWithOffer(
+                    holdData: $holdData,
+                    customerData: $customerData,
+                    price: $price,
+                    offered: [
+                        'hold' => [
+                            // From the first key, so a double click finds it again.
+                            'hold_key' => $holdKey.'-offer',
+                            'start_at' => $plan['start_at'],
+                            'end_at' => $plan['end_at'],
+                            'package_id' => $chosenOffer->offered_package_id,
+                            'customer_session_id' => $request->session()->getId(),
+                        ],
+                        'customer' => [...$customerData, ...$plan['customer']],
+                        'price' => $plan['price'],
+                    ],
+                    source: $source,
+                );
+            } else {
+                $booking = $this->bookings->createManualBooking(
+                    holdData: $holdData,
+                    customerData: $customerData,
+                    price: $price,
+                    source: $source,
+                );
+            }
         } catch (NoVehicleAvailableException|UniqueConstraintViolationException $exception) {
             // A double-clicked "Confirm": the other request (same hold key)
             // already holds — or has already booked — the vehicle, so this
@@ -405,6 +449,15 @@ final class BookingFlowController extends Controller
             // waits on that hold's row lock, so it returns the very same
             // booking instead of an error or a second booking.
             $ownHold = BookingHold::query()->where('hold_key', $holdKey)->first();
+
+            // The first package was fine but the offered one has nothing
+            // free: its hold was just released, so show the new total.
+            if ($chosenOffer !== null && $ownHold?->status === BookingHold::STATUS_RELEASED) {
+                BookingFlowState::put(['offer' => null, 'hold_key' => null]);
+
+                return redirect()->route('booking.review')
+                    ->withErrors(['booking' => __('core::front.offer_no_longer_valid')]);
+            }
 
             if ($ownHold === null) {
                 if ($exception instanceof UniqueConstraintViolationException) {
@@ -420,8 +473,6 @@ final class BookingFlowController extends Controller
             }
 
             $booking = $this->bookings->confirmHold($ownHold, $customerData, $price, $source);
-        } catch (CouponUnavailableException) {
-            return $this->couponNoLongerValid();
         } catch (HoldExpiredException) {
             // This checkout's hold_key points at a hold that was released
             // or expired (an earlier confirm failed). Retrying with the same
@@ -439,7 +490,7 @@ final class BookingFlowController extends Controller
 
     public function confirmation(string $locale, string $reference): View
     {
-        $booking = $this->findBookingOrFail($reference, ['vehicle.category', 'package', 'addons.addon', 'transferArea']);
+        $booking = $this->findBookingOrFail($reference, ['vehicle.category', 'package', 'addons.addon', 'transferArea', 'linkedBooking.package']);
         $review = Review::query()->where('booking_id', $booking->id)->first();
 
         return view('booking::front.steps.confirmation', [
@@ -463,7 +514,7 @@ final class BookingFlowController extends Controller
      */
     public function receipt(string $locale, string $reference): Response
     {
-        $booking = $this->findBookingOrFail($reference, ['customer', 'vehicle.category', 'package', 'businessLocation', 'deliveryZone', 'transferArea']);
+        $booking = $this->findBookingOrFail($reference, ['customer', 'vehicle.category', 'package', 'deliveryZone', 'transferArea']);
         $statusUrl = route('booking.status', ['locale' => $locale, 'reference' => $booking->reference]);
         $statusQrCode = base64_encode((new Writer(new ImageRenderer(new RendererStyle(240, 2), new SvgImageBackEnd())))
             ->writeString($statusUrl));
@@ -708,18 +759,23 @@ final class BookingFlowController extends Controller
             : null;
     }
 
+    /** An offer the package being booked has right now. */
+    private function availableOffer(int $offerId): ?PackageOffer
+    {
+        return Package::query()->find(BookingFlowState::value('package_id'))?->availableOffers()->firstWhere('id', $offerId);
+    }
+
+    /** The offer the customer added on the review step, if it still stands. */
+    private function chosenOffer(): ?PackageOffer
+    {
+        $chosen = BookingFlowState::value('offer');
+
+        return is_array($chosen) ? $this->availableOffer((int) ($chosen['offer_id'] ?? 0)) : null;
+    }
+
     private function notEligibleMessage(): string
     {
         return __(BookingFlowState::isStay() ? 'core::front.booking_package_not_eligible_stay' : 'core::front.booking_package_not_eligible');
-    }
-
-    private function couponNoLongerValid(): RedirectResponse
-    {
-        // The failed confirm released its hold; a new key gets a new one.
-        BookingFlowState::put(['coupon_code' => null, 'hold_key' => null]);
-
-        return redirect()->route('booking.review')
-            ->withErrors(['coupon_code' => __('core::front.booking_coupon_no_longer_valid')]);
     }
 
     /**
@@ -778,6 +834,23 @@ final class BookingFlowController extends Controller
         if ($vehicleId !== null && ! in_array((int) $vehicleId, $package->eligibleVehicleIds(), true)) {
             // Same fallback as storePackage(): auto-assign an eligible one.
             BookingFlowState::put(['vehicle_id' => null]);
+        }
+
+        // Taken off the sale, or its dates have passed: the customer must see
+        // the total without the saving before confirming.
+        $chosen = BookingFlowState::value('offer');
+
+        if (is_array($chosen)) {
+            $offer = $this->chosenOffer();
+
+            if ($offer === null
+                || CarbonImmutable::parse($chosen['start_date'])->lt(CarbonImmutable::today())
+                || OfferedBookingPlanner::problems($offer->offeredPackage, $chosen) !== []) {
+                BookingFlowState::put(['offer' => null, 'hold_key' => null]);
+
+                return redirect()->route('booking.review')
+                    ->withErrors(['booking' => __('core::front.offer_no_longer_valid')]);
+            }
         }
 
         return null;
@@ -851,23 +924,21 @@ final class BookingFlowController extends Controller
 
         $addonSelections = array_map('intval', $state['addons'] ?? []);
 
-        $coupon = ! empty($state['coupon_code'])
-            ? Coupon::query()->where('code', $state['coupon_code'])->active()->first()
-            : null;
-
         $deliveryZone = ($state['pickup_type'] ?? null) === 'delivery' && ! empty($state['delivery_zone_id'])
             ? DeliveryZone::query()->find($state['delivery_zone_id'])
             : null;
 
-        return $this->pricing->calculate(
+        $price = $this->pricing->calculate(
             $package,
             $start,
             $days,
             $addonSelections,
-            $coupon,
             $deliveryZone,
             hours: $package->isHourly() ? (int) ($state['hours'] ?? 0) : null,
             transferArea: $this->transferAreaFromState(),
         );
+        $offer = $this->chosenOffer();
+
+        return $offer !== null ? $this->pricing->withOffer($package, $price, $offer) : $price;
     }
 }

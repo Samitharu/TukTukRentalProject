@@ -21,7 +21,7 @@ it('lets a manager add, edit and remove airport pickup areas', function (): void
     $this->actingAs($this->manager)->post('/control-panel/transfer-areas', [
         'name' => ['en' => 'Colombo'],
         'price' => '45',
-        'duration_minutes' => '180',
+        'price_eur' => '40',
         'sort_order' => '1',
         'is_active' => '1',
     ])->assertRedirect('/control-panel/transfer-areas');
@@ -29,12 +29,14 @@ it('lets a manager add, edit and remove airport pickup areas', function (): void
     $area = TransferArea::query()->sole();
     expect($area->getTranslation('name', 'en'))->toBe('Colombo')
         ->and((float) $area->price)->toBe(45.0)
-        ->and($area->duration_minutes)->toBe(180);
+        ->and((float) $area->price_eur)->toBe(40.0)
+        ->and($area->duration_minutes)->toBe(120); // not asked: the default
 
-    $this->actingAs($this->manager)->get('/control-panel/transfer-areas')->assertOk()->assertSee('Colombo')->assertSee('180 min');
+    $this->actingAs($this->manager)->get('/control-panel/transfer-areas')->assertOk()->assertSee('Colombo')->assertDontSee('Trip duration');
+    $this->actingAs($this->manager)->get('/control-panel/transfer-areas/create')->assertOk()->assertDontSee('duration_minutes');
 
     $this->actingAs($this->manager)->put("/control-panel/transfer-areas/{$area->id}", [
-        'name' => ['en' => 'Colombo city'], 'price' => '50', 'duration_minutes' => '200', 'sort_order' => '1',
+        'name' => ['en' => 'Colombo city'], 'price' => '50', 'price_eur' => '45', 'sort_order' => '1',
     ])->assertRedirect('/control-panel/transfer-areas');
 
     expect($area->fresh()->is_active)->toBeFalse() // unticked checkbox
@@ -44,16 +46,16 @@ it('lets a manager add, edit and remove airport pickup areas', function (): void
     expect(TransferArea::query()->count())->toBe(0);
 });
 
-it('validates the price and trip duration', function (): void {
+it('validates the price', function (): void {
     $this->actingAs($this->manager)->post('/control-panel/transfer-areas', [
-        'name' => ['en' => 'Kandy'], 'price' => '-1', 'duration_minutes' => '5', 'sort_order' => '0',
-    ])->assertSessionHasErrors(['price', 'duration_minutes']);
+        'name' => ['en' => 'Kandy'], 'price' => '-1', 'sort_order' => '0',
+    ])->assertSessionHasErrors('price');
 });
 
 it('lets view-only staff see areas but not change them', function (): void {
     $area = TransferArea::factory()->create();
 
     $this->actingAs($this->viewer)->get('/control-panel/transfer-areas')->assertOk();
-    $this->actingAs($this->viewer)->post('/control-panel/transfer-areas', ['name' => ['en' => 'X'], 'price' => 1, 'duration_minutes' => 60, 'sort_order' => 0])->assertForbidden();
+    $this->actingAs($this->viewer)->post('/control-panel/transfer-areas', ['name' => ['en' => 'X'], 'price' => 1, 'sort_order' => 0])->assertForbidden();
     $this->actingAs($this->viewer)->delete("/control-panel/transfer-areas/{$area->id}")->assertForbidden();
 });

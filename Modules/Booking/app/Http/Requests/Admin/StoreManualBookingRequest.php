@@ -9,11 +9,13 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 use Modules\Booking\Models\Booking;
+use Modules\Booking\Services\OfferedBookingPlanner;
 use Modules\Booking\Support\HourlySchedule;
 use Modules\Booking\Support\TransferSchedule;
 use Modules\Core\Support\Countries;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Package\Models\Package;
+use Modules\Package\Models\PackageOffer;
 
 final class StoreManualBookingRequest extends FormRequest
 {
@@ -37,6 +39,37 @@ final class StoreManualBookingRequest extends FormRequest
                 'flight_number' => TransferSchedule::normalizeFlightNumber($this->input('flight_number')),
             ]);
         }
+
+        if ($this->chosenOffer()?->offeredPackage->isTransfer()) {
+            $this->merge(['offer' => [
+                ...(array) $this->input('offer', []),
+                'flight_number' => TransferSchedule::normalizeFlightNumber($this->input('offer.flight_number')),
+            ]]);
+        }
+    }
+
+    /** The package offer picked on the form, if the selected package has it right now. */
+    public function chosenOffer(): ?PackageOffer
+    {
+        if (! is_numeric($this->input('offer_id')) || ! is_numeric($this->input('package_id'))) {
+            return null;
+        }
+
+        return Package::query()->find((int) $this->input('package_id'))?->availableOffers()->firstWhere('id', (int) $this->input('offer_id'));
+    }
+
+    /**
+     * The offered booking's fields, without those of other kinds of package
+     * (the form posts every field).
+     *
+     * @return array<string, mixed>
+     */
+    public function offerData(): array
+    {
+        $offered = $this->chosenOffer()->offeredPackage;
+        $known = array_map(fn (string $rule) => substr($rule, strlen('offer.')), array_keys(OfferedBookingPlanner::rules($offered, byStaff: true)));
+
+        return OfferedBookingPlanner::normalize($offered, array_intersect_key((array) $this->input('offer', []), array_flip($known)));
     }
 
     public function isTransferPackage(): bool
@@ -57,7 +90,6 @@ final class StoreManualBookingRequest extends FormRequest
             // Tuk tuks are always collected at the office (see
             // BookingController::priceFor()), so pickup is never posted.
             'pickup_type' => ['exclude'],
-            'business_location_id' => ['exclude'],
             'delivery_zone_id' => ['exclude'],
             // Airport pickup packages only (required for those in after()).
             'transfer_direction' => ['nullable', Rule::in(Booking::TRANSFER_DIRECTIONS)],
@@ -69,7 +101,8 @@ final class StoreManualBookingRequest extends FormRequest
             'addons.*' => ['integer', 'min:0', 'max:50'],
             'addon_ids' => ['nullable', 'array'],
             'addon_ids.*' => ['integer', 'exists:addons,id'],
-            'coupon_code' => ['nullable', 'string', 'max:40'],
+            'offer_id' => ['nullable', 'integer', 'exists:package_offers,id'],
+            ...($this->chosenOffer() !== null ? OfferedBookingPlanner::rules($this->chosenOffer()->offeredPackage, byStaff: true) : []),
         ];
 
         // The live price preview posts the same form before the customer
@@ -178,7 +211,26 @@ final class StoreManualBookingRequest extends FormRequest
                         default => __('This is a rental package — pick a rental vehicle, not a cabana, room or airport vehicle.'),
                     });
                 }
+
+                if ($this->filled('offer_id') && ! $validator->errors()->has('offer_id')) {
+                    $offer = $this->chosenOffer();
+
+                    if ($offer === null) {
+                        $validator->errors()->add('offer_id', __('The selected package does not have this offer.'));
+                    } elseif (! collect($validator->errors()->keys())->contains(fn (string $key) => str_starts_with($key, 'offer.'))) {
+                        foreach (OfferedBookingPlanner::problems($offer->offeredPackage, $this->offerData(), byStaff: true) as $field => $message) {
+                            $validator->errors()->add($field, $message);
+                        }
+                    }
+                }
             },
         ];
+    }
+
+    public function attributes(): array
+    {
+        $offer = $this->chosenOffer();
+
+        return $offer !== null ? OfferedBookingPlanner::attributes($offer->offeredPackage) : [];
     }
 }

@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Str;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Booking\Exceptions\NoVehicleAvailableException;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Services\BookingService;
@@ -29,7 +28,7 @@ beforeEach(function (): void {
     $this->bookRange = fn (string $start, string $end, string $email) => app(BookingService::class)->createManualBooking(
         holdData: ['hold_key' => (string) Str::uuid(), 'start_at' => $start, 'end_at' => $end, 'vehicle_id' => $this->vehicle->id, 'package_id' => $this->package->id],
         customerData: ['email' => $email, 'full_name' => 'Matrix Customer', 'pickup_type' => 'office'],
-        price: new PriceBreakdown('LKR', 1, 0, 0, [], 0, 0, null, 0, 0, 0),
+        price: new PriceBreakdown('LKR', 1, 0, 0, [], 0, 0, 0, 0),
     );
 
     ($this->bookRange)('2027-05-10', '2027-05-12', 'a@example.test');
@@ -85,7 +84,6 @@ it('rejects an hourly rental on a day the tuk tuk is already out on a daily rent
 
 it('shows the only vehicle as fully booked on the website to a second hourly customer for that day', function (): void {
     Locale::query()->create(['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]);
-    $location = BusinessLocation::factory()->create(['is_active' => true]);
 
     $hourly = Package::factory()->create(['name' => ['en' => 'City Hop'], 'pricing_model' => Package::MODEL_PER_HOUR, 'min_hours' => 1, 'max_hours' => 8]);
     $hourly->pricingTiers()->create(['min_days' => 1, 'max_days' => null, 'price' => 10]);
@@ -95,11 +93,11 @@ it('shows the only vehicle as fully booked on the website to a second hourly cus
     app(BookingService::class)->createManualBooking(
         holdData: ['hold_key' => (string) Str::uuid(), 'start_at' => '2027-05-20 09:00', 'end_at' => '2027-05-20 11:00', 'vehicle_id' => $this->vehicle->id, 'package_id' => $hourly->id],
         customerData: ['email' => 'hourly-a@example.test', 'full_name' => 'Hourly A', 'pickup_type' => 'office'],
-        price: new PriceBreakdown('LKR', 1, 20, 0, [], 0, 0, null, 0, 20, 0, hours: 2),
+        price: new PriceBreakdown('LKR', 1, 20, 0, [], 0, 0, 20, 0, hours: 2),
     );
 
     // Customer B wants 14:00–16:00 the same day on the website.
-    $this->post('/en/booking/start', ['start_date' => '2027-05-20', 'end_date' => '2027-05-20', 'pickup_type' => 'office', 'business_location_id' => $location->id]);
+    $this->post('/en/booking/start', ['start_date' => '2027-05-20', 'end_date' => '2027-05-20', 'pickup_type' => 'office']);
 
     $this->get('/en/booking/package')->assertOk()->assertSee('City Hop')->assertSee('Fully booked for your dates');
 

@@ -11,7 +11,7 @@
         <p class="text-muted">{{ \Illuminate\Support\Str::limit(strip_tags((string) $package->description), 110) }}</p>
         @if ($package->pricingTiers->isNotEmpty())
             <p>
-                <strong>{{ __('core::front.packages_from') }} {{ $package->pricingTiers->first()->price }} {{ config('pricing.default_currency') }}</strong>
+                <strong>{{ __('core::front.packages_from') }} {{ $package->pricingTiers->first()->displayPrice() }}</strong>
                 {{ __($package->priceSuffixKey()) }}
             </p>
         @endif

@@ -6,6 +6,7 @@ namespace Modules\Package\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Modules\Pricing\Support\Money;
 
 /**
  * @property int $id
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $min_days
  * @property int|null $max_days
  * @property float $price
+ * @property float|null $price_eur
  */
 final class PackagePricingTier extends Model
 {
@@ -21,6 +23,7 @@ final class PackagePricingTier extends Model
         'min_days',
         'max_days',
         'price',
+        'price_eur',
     ];
 
     protected function casts(): array
@@ -29,12 +32,18 @@ final class PackagePricingTier extends Model
             'min_days' => 'integer',
             'max_days' => 'integer',
             'price' => 'decimal:2',
+            'price_eur' => 'decimal:2',
         ];
     }
 
     public function package(): BelongsTo
     {
         return $this->belongsTo(Package::class);
+    }
+
+    public function displayPrice(): string
+    {
+        return Money::dual($this->price, $this->price_eur);
     }
 
     public function covers(int $days): bool

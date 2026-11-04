@@ -16,7 +16,8 @@ final class UpdateExchangeRateRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'rate' => ['required', 'numeric', 'min:0.000001'],
+            'rate' => ['required', 'numeric', 'min:0.01', 'max:999999'],
+            'rate_eur' => ['required', 'numeric', 'min:0.01', 'max:999999'],
         ];
     }
 }

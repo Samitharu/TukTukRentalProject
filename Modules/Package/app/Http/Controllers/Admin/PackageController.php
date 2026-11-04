@@ -31,7 +31,7 @@ final class PackageController extends Controller
 
         $packages = Package::query()
             ->with('productCategory')
-            ->withCount('pricingTiers')
+            ->withCount(['pricingTiers', 'pricingTiers as tiers_without_eur_count' => fn ($q) => $q->whereNull('price_eur')])
             ->when($request->filled('category'), fn ($q) => $q->where('product_category_id', $request->integer('category')))
             ->orderBy('sort_order')
             ->get();
@@ -52,8 +52,11 @@ final class PackageController extends Controller
             'preselectedCategoryId' => $request->integer('category') ?: null,
             'categories' => VehicleCategory::query()->active()->orderBy('kind')->orderBy('sort_order')->get(),
             'vehicles' => Vehicle::query()->active()->tracked()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
+            'addons' => Addon::query()->active()->orderBy('sort_order')->get(),
+            'offerablePackages' => $this->offerablePackages(),
             'charge' => null,
             'price' => null,
+            'priceEur' => null,
             'usesLengthPrices' => false,
         ]);
     }
@@ -66,6 +69,8 @@ final class PackageController extends Controller
         $package = Package::query()->create($data);
         $package->categories()->sync($request->input('category_ids', []));
         $package->vehicles()->sync($request->input('vehicle_ids', []));
+        $this->syncAddons($package, $request);
+        $this->syncOffers($package, $request);
         $this->syncPrice($package, $request);
 
         foreach ($request->file('images', []) as $index => $file) {
@@ -81,20 +86,25 @@ final class PackageController extends Controller
     {
         $this->authorize('update', $package);
 
-        $package->load(['pricingTiers', 'seasons', 'addons', 'images']);
+        $package->load(['pricingTiers', 'seasons', 'images']);
+        $offeredAddonIds = $package->addons()->pluck('addons.id')->all();
 
         return view('package::admin.packages.edit', [
             'package' => $package,
             'productCategories' => ProductCategory::query()->orderBy('sort_order')->orderBy('id')->get(),
             'categories' => VehicleCategory::query()->active()->orderBy('kind')->orderBy('sort_order')->get(),
             'vehicles' => Vehicle::query()->active()->tracked()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
-            'addons' => Addon::query()->active()->orderBy('sort_order')->get(),
+            // A linked add-on that was later hidden stays listed, so saving keeps the link.
+            'addons' => Addon::query()->active()->orWhereIn('id', $offeredAddonIds)->orderBy('sort_order')->get(),
             'selectedCategoryIds' => $package->categories()->pluck('vehicle_categories.id')->all(),
             'selectedVehicleIds' => $package->vehicles()->pluck('vehicles.id')->all(),
             'includedAddonIds' => $package->addons()->wherePivot('is_included', true)->pluck('addons.id')->all(),
-            'offeredAddonIds' => $package->addons()->pluck('addons.id')->all(),
+            'offeredAddonIds' => $offeredAddonIds,
+            'offerablePackages' => $this->offerablePackages($package),
+            'packageOffers' => $package->offers()->get()->keyBy('offered_package_id'),
             'charge' => PackageCharge::of($package),
             'price' => $package->pricingTiers->count() === 1 ? $package->pricingTiers->first()->price : null,
+            'priceEur' => $package->pricingTiers->count() === 1 ? $package->pricingTiers->first()->price_eur : null,
             'usesLengthPrices' => $package->pricingTiers->count() > 1,
         ]);
     }
@@ -107,6 +117,8 @@ final class PackageController extends Controller
         $package->update($data);
         $package->categories()->sync($request->input('category_ids', []));
         $package->vehicles()->sync($request->input('vehicle_ids', []));
+        $this->syncAddons($package, $request);
+        $this->syncOffers($package, $request);
         $this->syncPrice($package, $request);
 
         foreach ($request->file('images', []) as $file) {
@@ -125,9 +137,9 @@ final class PackageController extends Controller
     private function packageData(StorePackageRequest|UpdatePackageRequest $request): array
     {
         $data = $request->safe()->except([
-            'category_ids', 'vehicle_ids', 'images',
+            'category_ids', 'vehicle_ids', 'images', 'offered_addon_ids', 'included_addon_ids', 'offers',
             // The simple form's own fields (see SimplePackageForm).
-            'charge', 'price', 'package_days', 'daily_km', 'daily_extra_km_rate', 'vehicle_type_id',
+            'charge', 'price', 'price_eur', 'package_days', 'daily_km', 'daily_extra_km_rate', 'daily_extra_km_rate_eur', 'vehicle_type_id',
         ]);
         $data['deposit_is_percent'] = $request->boolean('deposit_is_percent');
         $data['is_featured'] = $request->boolean('is_featured');
@@ -143,8 +155,56 @@ final class PackageController extends Controller
         return $data;
     }
 
+    /** An add-on ticked only as "included" still counts as linked. */
+    private function syncAddons(Package $package, StorePackageRequest|UpdatePackageRequest $request): void
+    {
+        $offered = array_map('intval', $request->input('offered_addon_ids', []));
+        $included = array_map('intval', $request->input('included_addon_ids', []));
+
+        $package->addons()->sync(
+            collect([...$offered, ...$included])->unique()
+                ->mapWithKeys(fn (int $id) => [$id => ['is_included' => in_array($id, $included, true)]])
+        );
+    }
+
     /**
-     * The simple form's one price becomes the package's only tier (from 1,
+     * Packages a customer could add to this one: anything booked online.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Package>
+     */
+    private function offerablePackages(?Package $package = null): \Illuminate\Database\Eloquent\Collection
+    {
+        return Package::query()
+            ->bookable()
+            ->when($package !== null, fn ($q) => $q->whereKeyNot($package->id))
+            ->with('productCategory')
+            ->orderBy('sort_order')
+            ->get();
+    }
+
+    /** A row with a saving is an offer; an emptied row removes it. */
+    private function syncOffers(Package $package, StorePackageRequest|UpdatePackageRequest $request): void
+    {
+        if (! $request->has('offers')) {
+            return;
+        }
+
+        $offers = collect($request->validated('offers') ?? [])
+            ->filter(fn (array $offer) => filled($offer['discount'] ?? null))
+            ->only($this->offerablePackages($package)->modelKeys());
+
+        $package->offers()->whereNotIn('offered_package_id', $offers->keys())->delete();
+
+        foreach ($offers as $offeredPackageId => $offer) {
+            $package->offers()->updateOrCreate(
+                ['offered_package_id' => $offeredPackageId],
+                ['discount' => $offer['discount'], 'discount_eur' => $offer['discount_eur']],
+            );
+        }
+    }
+
+    /**
+     * The simple form's price becomes the package's only tier (from 1,
      * no upper limit) — what pricing reads for every way of charging. A
      * package priced by rental length (several tiers) keeps its tiers.
      */
@@ -155,7 +215,12 @@ final class PackageController extends Controller
         }
 
         $package->pricingTiers()->delete();
-        $package->pricingTiers()->create(['min_days' => 1, 'max_days' => null, 'price' => (float) $request->input('price')]);
+        $package->pricingTiers()->create([
+            'min_days' => 1,
+            'max_days' => null,
+            'price' => (float) $request->input('price'),
+            'price_eur' => $request->filled('price_eur') ? (float) $request->input('price_eur') : null,
+        ]);
     }
 
     public function destroy(Package $package): RedirectResponse

@@ -9,10 +9,6 @@ use Spatie\Permission\Models\Role;
 beforeEach(function (): void {
     $this->seed(AdminDatabaseSeeder::class);
 
-    // 2FA enforcement has its own tests (TwoFactorEnforcementTest); keep
-    // these focused purely on who may manage whom.
-    config(['admin.two_factor_enforced_roles' => []]);
-
     $this->admin = User::factory()->create();
     $this->admin->assignRole('Admin');
 

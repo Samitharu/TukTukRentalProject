@@ -1,63 +1,22 @@
-<x-admin::layouts.app :title="__('Currencies')">
+<x-admin::layouts.app :title="__('LKR rates')">
     <div class="admin-card">
-        <h2>{{ __('Add currency') }}</h2>
-        <form method="POST" action="{{ route('admin.currencies.store') }}" novalidate>
+        <p class="admin-hint" style="margin-top:0;">{{ __('Shows what each booking\'s USD and EUR amounts are in LKR on the staff screens. Customers never see LKR, and prices in USD and EUR do not change with these rates.') }}</p>
+        <form method="POST" action="{{ route('admin.currencies.rate.update') }}" novalidate>
             @csrf
             <div class="admin-form-field">
-                <label for="code">{{ __('ISO code (e.g. EUR)') }}</label>
-                <input type="text" id="code" name="code" maxlength="3" required>
+                <label for="rate">{{ __('LKR for 1 USD') }}</label>
+                <input type="number" id="rate" name="rate" value="{{ old('rate', $rate) }}" min="0.01" max="999999" step="0.01" required>
+                @error('rate')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
             </div>
             <div class="admin-form-field">
-                <label for="symbol">{{ __('Symbol') }}</label>
-                <input type="text" id="symbol" name="symbol" maxlength="5" required>
+                <label for="rate_eur">{{ __('LKR for 1 EUR') }}</label>
+                <input type="number" id="rate_eur" name="rate_eur" value="{{ old('rate_eur', $rateEur) }}" min="0.01" max="999999" step="0.01" required>
+                @error('rate_eur')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+                @if ($updatedAt)
+                    <p class="admin-hint">{{ __('Last changed: :date', ['date' => \Illuminate\Support\Carbon::parse($updatedAt)->format('Y-m-d H:i')]) }}</p>
+                @endif
             </div>
-            <div class="admin-form-field">
-                <label for="decimal_places">{{ __('Decimal places') }}</label>
-                <input type="number" id="decimal_places" name="decimal_places" value="2" min="0" max="4" required>
-            </div>
-            <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Add currency') }}</button>
+            <button type="submit" class="admin-btn">{{ __('Save') }}</button>
         </form>
-    </div>
-
-    <div class="admin-card" style="padding:0;">
-        <table class="admin-table">
-            <thead>
-                <tr>
-                    <th>{{ __('Code') }}</th>
-                    <th>{{ __('Symbol') }}</th>
-                    <th>{{ __('Base') }}</th>
-                    <th>{{ __('Latest rate') }}</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach ($currencies as $currency)
-                    <tr>
-                        <td>{{ $currency->code }}</td>
-                        <td>{{ $currency->symbol }}</td>
-                        <td>{{ $currency->is_base ? __('Yes') : __('No') }}</td>
-                        <td>{{ $currency->latestRate() ?? __('not set') }}</td>
-                        <td>
-                            @unless ($currency->is_base)
-                                <form method="POST" action="{{ route('admin.currencies.rate.update', $currency) }}" style="display:inline;">
-                                    @csrf
-                                    <input type="number" name="rate" step="0.000001" min="0.000001" placeholder="{{ __('rate') }}" style="width:6rem;min-height:32px;" required>
-                                    <button type="submit" class="admin-btn admin-btn--secondary" style="min-height:32px;padding:0.25rem 0.5rem;">{{ __('Update') }}</button>
-                                </form>
-                                <form method="POST" action="{{ route('admin.currencies.make-base', $currency) }}" style="display:inline;">
-                                    @csrf
-                                    <button type="submit" style="background:none;border:none;color:#0f6b4c;cursor:pointer;">{{ __('Make base') }}</button>
-                                </form>
-                                <form method="POST" action="{{ route('admin.currencies.destroy', $currency) }}" style="display:inline;" onsubmit="return confirm('{{ __('Remove this currency?') }}');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" style="background:none;border:none;color:#b3261e;cursor:pointer;">{{ __('Remove') }}</button>
-                                </form>
-                            @endunless
-                        </td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
     </div>
 </x-admin::layouts.app>

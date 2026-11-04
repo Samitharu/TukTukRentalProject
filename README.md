@@ -28,13 +28,11 @@ The seeder creates two staff accounts for local development only (`app()->isProd
 | Super Admin | `owner@mirandatuktuk.example` | `ChangeMe!12345` |
 | Admin (formerly Manager) | `manager@mirandatuktuk.example` | `ChangeMe!12345` |
 
-The Super Admin is forced into mandatory 2FA setup on first login (a 2FA-enforced role) — scan the QR code with any TOTP app. The Admin is not, unless added to `TWO_FACTOR_ENFORCED_ROLES`.
-
 ## Email
 
 When a booking is placed (online or a manual booking in the control panel), two emails go out:
 
-- **Customer confirmation** — to the customer, in the language they booked in, with their booking details, pickup location map and a link to the receipt. Replies go to `BUSINESS_EMAIL`.
+- **Customer confirmation** — to the customer, in the language they booked in, with their booking details, the office address (`BUSINESS_ADDRESS`) and a link to the receipt. Replies go to `BUSINESS_EMAIL`.
 - **New booking alert** — to every address in `BOOKING_ADMIN_NOTIFICATION_EMAILS` (falls back to `BUSINESS_EMAIL`). Replies go to the customer.
 
 Both are **queued**, so the booking never waits on the mail server — but that means a queue worker must be running, or nothing is sent.

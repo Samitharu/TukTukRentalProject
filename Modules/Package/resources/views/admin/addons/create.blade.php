@@ -7,8 +7,15 @@
             <x-admin::translatable-field name="description" :label="__('Description')" :textarea="true" />
 
             <div class="admin-form-field">
-                <label for="price">{{ __('Price') }}</label>
-                <input type="number" id="price" name="price" min="0" step="0.01" required>
+                <label for="price">{{ __('Price') }} (USD)</label>
+                <input type="number" id="price" name="price" value="{{ old('price') }}" min="0" step="0.01" required>
+                @error('price')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+            </div>
+
+            <div class="admin-form-field">
+                <label for="price_eur">{{ __('Price') }} (EUR)</label>
+                <input type="number" id="price_eur" name="price_eur" value="{{ old('price_eur') }}" min="0" step="0.01" required>
+                @error('price_eur')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
             </div>
 
             <div class="admin-form-field">

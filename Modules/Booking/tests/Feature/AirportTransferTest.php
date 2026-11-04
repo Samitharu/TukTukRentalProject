@@ -16,7 +16,6 @@ use Modules\Fleet\Models\VehicleMaintenanceLog;
 use Modules\Localization\Models\Locale;
 use Modules\Package\Models\Package;
 use Modules\Package\Models\ProductCategory;
-use Modules\Pricing\Models\Coupon;
 use Modules\Pricing\Services\PricingService;
 use Spatie\Permission\Models\Permission;
 
@@ -137,17 +136,12 @@ it('never assigns an airport van to a tuk tuk rental', function (): void {
 
 // ---- Pricing ---------------------------------------------------------------
 
-it('prices a trip as the package price plus the destination area, coupons included', function (): void {
+it('prices a trip as the package price plus the destination area', function (): void {
     $price = app(PricingService::class)->calculate($this->package, CarbonImmutable::parse('2027-03-10'), 1, transferArea: $this->area);
 
     expect($price->baseAmount)->toBe(10.0)
         ->and($price->transferFee)->toBe(25.0)
         ->and($price->total)->toBe(35.0);
-
-    $coupon = Coupon::query()->create(['code' => 'AIR10', 'type' => Coupon::TYPE_PERCENT, 'value' => 10, 'is_active' => true, 'usage_count' => 0]);
-    $discounted = app(PricingService::class)->calculate($this->package, CarbonImmutable::parse('2027-03-10'), 1, coupon: $coupon, transferArea: $this->area);
-
-    expect($discounted->total)->toBe(31.5);
 });
 
 // ---- Public booking flow ---------------------------------------------------

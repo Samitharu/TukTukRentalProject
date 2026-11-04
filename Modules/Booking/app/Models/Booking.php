@@ -10,13 +10,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\DeliveryZone;
 use Modules\Availability\Models\TransferArea;
 use Modules\Availability\Models\VehicleReservationSlot;
 use Modules\Customer\Models\Customer;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Package\Models\Package;
+use Modules\Pricing\Support\Money;
 
 /**
  * @property int $id
@@ -24,7 +24,6 @@ use Modules\Package\Models\Package;
  * @property int $customer_id
  * @property int|null $vehicle_id null: no registered unit (see hasNoUnit()); set only on older bookings
  * @property int|null $package_id
- * @property int|null $business_location_id
  * @property int|null $delivery_zone_id
  * @property string $pickup_type
  * @property string|null $transfer_direction
@@ -43,6 +42,7 @@ use Modules\Package\Models\Package;
  * @property float $amount_paid
  * @property int|null $included_km
  * @property float|null $extra_km_rate
+ * @property float|null $extra_km_rate_eur
  * @property int|null $odometer_start
  * @property int|null $odometer_end
  * @property string|null $idempotency_key
@@ -106,13 +106,13 @@ final class Booking extends Model
         'customer_id',
         'vehicle_id',
         'package_id',
-        'business_location_id',
         'delivery_zone_id',
         'pickup_type',
         'transfer_direction',
         'flight_number',
         'transfer_address',
         'transfer_area_id',
+        'linked_booking_id',
         'has_international_permit',
         'special_requests',
         'start_at',
@@ -125,6 +125,7 @@ final class Booking extends Model
         'amount_paid',
         'included_km',
         'extra_km_rate',
+        'extra_km_rate_eur',
         'odometer_start',
         'odometer_end',
         'locale_at_booking',
@@ -147,6 +148,7 @@ final class Booking extends Model
             'amount_paid' => 'decimal:2',
             'included_km' => 'integer',
             'extra_km_rate' => 'decimal:2',
+            'extra_km_rate_eur' => 'decimal:2',
             'odometer_start' => 'integer',
             'odometer_end' => 'integer',
         ];
@@ -171,10 +173,6 @@ final class Booking extends Model
         return $this->belongsTo(Package::class)->withTrashed();
     }
 
-    public function businessLocation(): BelongsTo
-    {
-        return $this->belongsTo(BusinessLocation::class);
-    }
 
     public function deliveryZone(): BelongsTo
     {
@@ -184,6 +182,12 @@ final class Booking extends Model
     public function transferArea(): BelongsTo
     {
         return $this->belongsTo(TransferArea::class);
+    }
+
+    /** The other booking made together with this one through a package offer. */
+    public function linkedBooking(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'linked_booking_id');
     }
 
     /**
@@ -216,6 +220,29 @@ final class Booking extends Model
     public function isTransfer(): bool
     {
         return $this->transfer_direction !== null;
+    }
+
+    /**
+     * Where a rental is collected: the business address, when one has been
+     * set (config/core's "[… pending]" placeholder isn't shown to customers).
+     * Stays and airport pickups aren't collected from the office.
+     */
+    public function officeAddress(): ?string
+    {
+        if ($this->isStay() || $this->isTransfer()) {
+            return null;
+        }
+
+        $address = config('core.business.address');
+
+        return is_string($address) && $address !== '' && ! str_starts_with($address, '[') ? $address : null;
+    }
+
+    public function officeMapUrl(): ?string
+    {
+        $address = $this->officeAddress();
+
+        return $address !== null ? 'https://www.google.com/maps/search/?api=1&query='.rawurlencode($address) : null;
     }
 
     /** "Airport → your address" or "Your address → airport", translated. */
@@ -300,6 +327,68 @@ final class Booking extends Model
         }
 
         return $this->start_at->format($dateFormat).' → '.$this->end_at->format($dateFormat);
+    }
+
+    /** The EUR total frozen at booking time; null on older bookings or when a price had no EUR. */
+    public function totalEur(): ?float
+    {
+        $total = $this->price_breakdown['eur']['total'] ?? null;
+
+        return $total !== null ? (float) $total : null;
+    }
+
+    /** What the customer sees: "$25.00 / €21.50". */
+    public function displayTotal(): string
+    {
+        return Money::dual($this->total_amount, $this->totalEur());
+    }
+
+    /** What staff see: "$25.00 (LKR 7,500) / €21.50 (LKR 7,310)". */
+    public function adminTotal(): string
+    {
+        return Money::admin($this->total_amount, $this->totalEur());
+    }
+
+    /** The package offer's saving frozen on this booking: "-$3.00 / -€2.50", or null. */
+    public function displayOfferDiscount(): ?string
+    {
+        $discount = (float) ($this->price_breakdown['offer_discount'] ?? 0);
+        $discountEur = $this->price_breakdown['eur']['offer_discount'] ?? null;
+
+        return $discount > 0 ? Money::dual(-$discount, $discountEur !== null ? -(float) $discountEur : null) : null;
+    }
+
+    /** This booking and its linked one together; EUR only if both have it. */
+    public function displayTotalWithLinked(): string
+    {
+        $linked = $this->linkedBooking;
+        $eur = $this->totalEur();
+        $linkedEur = $linked?->totalEur();
+
+        return Money::dual(
+            (float) $this->total_amount + (float) $linked?->total_amount,
+            $eur !== null && $linkedEur !== null ? $eur + $linkedEur : null,
+        );
+    }
+
+    /** Still to pay. Payments are recorded in USD, so EUR only while nothing is paid. */
+    public function displayBalance(): string
+    {
+        $paid = (float) $this->amount_paid;
+
+        return Money::dual(max(0, (float) $this->total_amount - $paid), $paid === 0.0 ? $this->totalEur() : null);
+    }
+
+    public function adminTotalWithExtras(): string
+    {
+        $eur = $this->totalEur();
+
+        return Money::admin(
+            (float) $this->total_amount + (float) $this->extraCharges->sum('amount'),
+            $eur !== null && $this->extraCharges->every(fn (BookingExtraCharge $charge) => $charge->amount_eur !== null)
+                ? $eur + (float) $this->extraCharges->sum('amount_eur')
+                : null,
+        );
     }
 
     /** A km allowance with a per-km charge beyond it was part of the booking. */

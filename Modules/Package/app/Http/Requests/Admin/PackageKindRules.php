@@ -32,6 +32,7 @@ final class PackageKindRules
             'included_km' => ['nullable', 'integer', 'min:0'],
             'included_km_per_day' => ['sometimes', 'boolean'],
             'extra_km_rate' => ['nullable', 'numeric', 'min:0'],
+            'extra_km_rate_eur' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 

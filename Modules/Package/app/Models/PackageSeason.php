@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property \Illuminate\Support\Carbon $ends_on
  * @property string $price_modifier_type
  * @property float $price_modifier_value
+ * @property float|null $price_modifier_value_eur for a fixed modifier; a percent applies to both currencies
  * @property int $weekday_mask
  * @property int $priority
  */
@@ -32,6 +33,7 @@ final class PackageSeason extends Model
         'ends_on',
         'price_modifier_type',
         'price_modifier_value',
+        'price_modifier_value_eur',
         'weekday_mask',
         'priority',
     ];
@@ -43,6 +45,7 @@ final class PackageSeason extends Model
             'starts_on' => 'date:Y-m-d',
             'ends_on' => 'date:Y-m-d',
             'price_modifier_value' => 'decimal:2',
+            'price_modifier_value_eur' => 'decimal:2',
             'weekday_mask' => 'integer',
             'priority' => 'integer',
         ];
@@ -73,5 +76,15 @@ final class PackageSeason extends Model
         return $this->price_modifier_type === self::MODIFIER_PERCENT
             ? round($baseAmount * ((float) $this->price_modifier_value / 100), 2)
             : (float) $this->price_modifier_value;
+    }
+
+    /** modifierFor() on a EUR amount; null for a fixed modifier with no EUR value. */
+    public function eurModifierFor(float $baseAmount): ?float
+    {
+        if ($this->price_modifier_type === self::MODIFIER_PERCENT) {
+            return $this->modifierFor($baseAmount);
+        }
+
+        return $this->price_modifier_value_eur !== null ? (float) $this->price_modifier_value_eur : null;
     }
 }

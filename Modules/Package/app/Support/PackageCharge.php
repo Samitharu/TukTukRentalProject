@@ -88,7 +88,7 @@ final class PackageCharge
     {
         $none = [
             'min_hours' => null, 'max_hours' => null,
-            'included_km' => null, 'extra_km_rate' => null, 'included_km_per_day' => true,
+            'included_km' => null, 'extra_km_rate' => null, 'extra_km_rate_eur' => null, 'included_km_per_day' => true,
         ];
         $lengthRange = [
             'min_days' => self::number($input['min_days'] ?? null) ?? 1,
@@ -101,6 +101,7 @@ final class PackageCharge
                 // Optional daily km limit (More options), blank = unlimited.
                 'included_km' => self::number($input['daily_km'] ?? null),
                 'extra_km_rate' => self::decimal($input['daily_extra_km_rate'] ?? null),
+                'extra_km_rate_eur' => self::decimal($input['daily_extra_km_rate_eur'] ?? null),
                 'included_km_per_day' => true,
             ],
             self::PER_HOUR => [...$none,
@@ -115,6 +116,7 @@ final class PackageCharge
                 'max_days' => $days,
                 'included_km' => self::number($input['included_km'] ?? null),
                 'extra_km_rate' => self::decimal($input['extra_km_rate'] ?? null),
+                'extra_km_rate_eur' => self::decimal($input['extra_km_rate_eur'] ?? null),
                 'included_km_per_day' => false,
             ],
             self::PER_NIGHT => [...$none, ...$lengthRange, 'pricing_model' => Package::MODEL_PER_DAY],

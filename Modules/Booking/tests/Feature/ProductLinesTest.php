@@ -232,7 +232,6 @@ it('opens the packages for /vehicles and /stays when nothing is registered', fun
 
 it('refuses to restrict a tuk tuk package to another line\'s unit type', function (): void {
     $this->seed(AdminDatabaseSeeder::class);
-    config(['admin.two_factor_enforced_roles' => []]);
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 

@@ -16,12 +16,12 @@ class PackageDatabaseSeeder extends Seeder
     {
         $helmet = Addon::query()->updateOrCreate(
             ['name->en' => 'Helmet'],
-            ['name' => ['en' => 'Helmet'], 'price' => 0, 'pricing_unit' => Addon::UNIT_FLAT, 'max_quantity' => 2, 'is_active' => true],
+            ['name' => ['en' => 'Helmet'], 'price' => 0, 'price_eur' => 0, 'pricing_unit' => Addon::UNIT_FLAT, 'max_quantity' => 2, 'is_active' => true],
         );
 
         $simCard = Addon::query()->updateOrCreate(
             ['name->en' => 'SIM Card'],
-            ['name' => ['en' => 'SIM Card'], 'price' => 5, 'pricing_unit' => Addon::UNIT_FLAT, 'max_quantity' => 1, 'is_active' => true],
+            ['name' => ['en' => 'SIM Card'], 'price' => 5, 'price_eur' => 4.5, 'pricing_unit' => Addon::UNIT_FLAT, 'max_quantity' => 1, 'is_active' => true],
         );
 
         $package = Package::query()->updateOrCreate(
@@ -40,9 +40,9 @@ class PackageDatabaseSeeder extends Seeder
             ],
         );
 
-        $package->pricingTiers()->updateOrCreate(['min_days' => 1, 'max_days' => 3], ['price' => 25]);
-        $package->pricingTiers()->updateOrCreate(['min_days' => 4, 'max_days' => 7], ['price' => 20]);
-        $package->pricingTiers()->updateOrCreate(['min_days' => 8, 'max_days' => null], ['price' => 15]);
+        $package->pricingTiers()->updateOrCreate(['min_days' => 1, 'max_days' => 3], ['price' => 25, 'price_eur' => 23]);
+        $package->pricingTiers()->updateOrCreate(['min_days' => 4, 'max_days' => 7], ['price' => 20, 'price_eur' => 18.5]);
+        $package->pricingTiers()->updateOrCreate(['min_days' => 8, 'max_days' => null], ['price' => 15, 'price_eur' => 14]);
 
         $tukTuk = VehicleCategory::query()->where('name->en', 'Tuk Tuk')->first();
         if ($tukTuk !== null) {

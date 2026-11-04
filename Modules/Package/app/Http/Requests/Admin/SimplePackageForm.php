@@ -43,10 +43,20 @@ final class SimplePackageForm
         return [
             'charge' => ['nullable', Rule::in(PackageCharge::ALL)],
             'price' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+            'price_eur' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'package_days' => ['nullable', 'integer', 'min:1', 'max:60'],
             'daily_km' => ['nullable', 'integer', 'min:0'],
             'daily_extra_km_rate' => ['nullable', 'numeric', 'min:0'],
+            'daily_extra_km_rate_eur' => ['nullable', 'numeric', 'min:0'],
             'vehicle_type_id' => ['nullable', 'integer', 'exists:vehicle_categories,id'],
+            'offered_addon_ids' => ['nullable', 'array'],
+            'offered_addon_ids.*' => ['integer', 'exists:addons,id'],
+            'included_addon_ids' => ['nullable', 'array'],
+            'included_addon_ids.*' => ['integer', 'exists:addons,id'],
+            // package id => what the customer saves by adding that package.
+            'offers' => ['nullable', 'array'],
+            'offers.*.discount' => ['nullable', 'required_with:offers.*.discount_eur', 'numeric', 'min:0.01', 'max:1000000'],
+            'offers.*.discount_eur' => ['nullable', 'required_with:offers.*.discount', 'numeric', 'min:0.01', 'max:1000000'],
         ];
     }
 
@@ -72,6 +82,10 @@ final class SimplePackageForm
             $validator->errors()->add('price', __('Enter the price.'));
         }
 
+        if (! $usesLengthPrices && ! $request->filled('price_eur')) {
+            $validator->errors()->add('price_eur', __('Enter the price in EUR.'));
+        }
+
         if ($charge === PackageCharge::KM_PACKAGE) {
             if (! $request->filled('included_km')) {
                 $validator->errors()->add('included_km', __('Enter how many km the package includes.'));
@@ -80,10 +94,18 @@ final class SimplePackageForm
             if (! $request->filled('extra_km_rate')) {
                 $validator->errors()->add('extra_km_rate', __('Enter the price for each extra km.'));
             }
+
+            if (! $request->filled('extra_km_rate_eur')) {
+                $validator->errors()->add('extra_km_rate_eur', __('Enter the price for each extra km in EUR.'));
+            }
         }
 
         if ($charge === PackageCharge::PER_DAY && $request->filled('daily_extra_km_rate') && ! $request->filled('daily_km')) {
             $validator->errors()->add('daily_km', __('Set the km limit per day, so extra km can be charged beyond it.'));
+        }
+
+        if ($charge === PackageCharge::PER_DAY && $request->filled('daily_extra_km_rate') && ! $request->filled('daily_extra_km_rate_eur')) {
+            $validator->errors()->add('daily_extra_km_rate_eur', __('Enter the price for each extra km in EUR.'));
         }
     }
 }

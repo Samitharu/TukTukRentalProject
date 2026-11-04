@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Fleet\Models\VehicleCategory;
 use Modules\Localization\Support\HasTranslatableSlug;
+use Modules\Pricing\Support\Money;
 use Spatie\Translatable\HasTranslations;
 
 /**
@@ -32,6 +33,7 @@ use Spatie\Translatable\HasTranslations;
  * @property int|null $included_km
  * @property bool $included_km_per_day
  * @property float|null $extra_km_rate
+ * @property float|null $extra_km_rate_eur
  * @property float|null $deposit_amount
  * @property bool $deposit_is_percent
  * @property bool $is_active
@@ -124,6 +126,7 @@ final class Package extends Model
         'included_km',
         'included_km_per_day',
         'extra_km_rate',
+        'extra_km_rate_eur',
         'deposit_amount',
         'deposit_is_percent',
         'cancellation_policy',
@@ -144,6 +147,7 @@ final class Package extends Model
             'included_km' => 'integer',
             'included_km_per_day' => 'boolean',
             'extra_km_rate' => 'decimal:2',
+            'extra_km_rate_eur' => 'decimal:2',
             'deposit_amount' => 'decimal:2',
             'deposit_is_percent' => 'boolean',
             'is_active' => 'boolean',
@@ -192,6 +196,26 @@ final class Package extends Model
     public function addons(): BelongsToMany
     {
         return $this->belongsToMany(Addon::class, 'package_addons')->withPivot('is_included');
+    }
+
+    public function offers(): HasMany
+    {
+        return $this->hasMany(PackageOffer::class);
+    }
+
+    /**
+     * The offers a customer can take right now: the package they would add
+     * is on sale and booked online.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, PackageOffer>
+     */
+    public function availableOffers(): \Illuminate\Database\Eloquent\Collection
+    {
+        return $this->offers()
+            ->with('offeredPackage.pricingTiers')
+            ->whereHas('offeredPackage', fn (Builder $package) => $package->active()->bookable()->currentlyValid()->inVisibleCategory())
+            ->orderBy('id')
+            ->get();
     }
 
     public function images(): HasMany
@@ -254,6 +278,11 @@ final class Package extends Model
     public function hasKmAllowance(): bool
     {
         return $this->included_km !== null && $this->extra_km_rate !== null;
+    }
+
+    public function displayExtraKmRate(): string
+    {
+        return Money::dual($this->extra_km_rate, $this->extra_km_rate_eur);
     }
 
     /** Total km included in a booking of $days days, or null for unlimited. */

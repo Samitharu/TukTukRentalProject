@@ -1,5 +1,5 @@
 <x-admin::layouts.app :title="__('Airport Pickup Areas')">
-    <p class="admin-hint">{{ __('Where customers can be picked up from or taken to. Each area has its own trip price (added to the package price) and how long the vehicle is away — that time is blocked for other airport bookings on the same vehicle.') }}</p>
+    <p class="admin-hint">{{ __('Where customers can be picked up from or taken to. Each area has its own trip price, added to the package price.') }}</p>
     <p><a href="{{ route('admin.transfer-areas.create') }}" class="admin-btn">{{ __('Add area') }}</a></p>
 
     <div class="admin-card" style="padding:0;">
@@ -8,7 +8,6 @@
                 <tr>
                     <th>{{ __('Name') }}</th>
                     <th>{{ __('Price') }}</th>
-                    <th>{{ __('Trip duration') }}</th>
                     <th>{{ __('Active') }}</th>
                     <th></th>
                 </tr>
@@ -17,8 +16,7 @@
                 @forelse ($areas as $area)
                     <tr>
                         <td>{{ $area->name }}</td>
-                        <td>{{ number_format((float) $area->price, 2) }} {{ config('pricing.default_currency') }}</td>
-                        <td>{{ __(':minutes min', ['minutes' => $area->duration_minutes]) }}</td>
+                        <td>{{ $area->displayPrice() }}</td>
                         <td>{{ $area->is_active ? __('Yes') : __('No') }}</td>
                         <td>
                             <a href="{{ route('admin.transfer-areas.edit', $area) }}">{{ __('Edit') }}</a>
@@ -30,7 +28,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5">{{ __('No areas yet — add one so customers can book an airport pickup.') }}</td></tr>
+                    <tr><td colspan="4">{{ __('No areas yet — add one so customers can book an airport pickup.') }}</td></tr>
                 @endforelse
             </tbody>
         </table>

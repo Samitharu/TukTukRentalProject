@@ -6,7 +6,6 @@ use Carbon\CarbonImmutable;
 use Modules\Availability\Models\DeliveryZone;
 use Modules\Package\Models\Addon;
 use Modules\Package\Models\Package;
-use Modules\Pricing\Models\Coupon;
 use Modules\Pricing\Models\Currency;
 use Modules\Pricing\Services\PricingService;
 
@@ -87,26 +86,13 @@ it('sums selected add-ons respecting per-day vs flat pricing and offered restric
         ->and($breakdown->addonLines)->toHaveCount(2);
 });
 
-it('applies a valid coupon to the rental subtotal but not to the delivery fee', function (): void {
+it('adds the delivery fee to the total', function (): void {
     $package = makeTieredPackage();
-    $coupon = Coupon::factory()->create(['type' => Coupon::TYPE_PERCENT, 'value' => 10]);
     $zone = DeliveryZone::factory()->create(['extra_fee' => 20]);
 
-    $breakdown = $this->service->calculate($package, CarbonImmutable::parse('2026-06-01'), 2, [], $coupon, $zone);
+    $breakdown = $this->service->calculate($package, CarbonImmutable::parse('2026-06-01'), 2, [], $zone);
 
-    // base 50, 10% off = 5 discount, + 20 delivery (undiscounted) = 65
-    expect($breakdown->couponDiscount)->toBe(5.0)
-        ->and($breakdown->total)->toBe(65.0);
-});
-
-it('ignores an expired coupon entirely', function (): void {
-    $package = makeTieredPackage();
-    $coupon = Coupon::factory()->create(['valid_until' => '2020-01-01']);
-
-    $breakdown = $this->service->calculate($package, CarbonImmutable::parse('2026-06-01'), 2, [], $coupon);
-
-    expect($breakdown->couponDiscount)->toBe(0.0)
-        ->and($breakdown->couponCode)->toBeNull();
+    expect($breakdown->total)->toBe(70.0);
 });
 
 it('forces the deposit to zero while online payment is disabled, regardless of package config', function (): void {
@@ -130,16 +116,4 @@ it('computes a percentage deposit capped at the total once online payment is ena
 
     expect($breakdown->depositAmount)->toBe(15.0) // 30% of 50
         ->and($breakdown->balanceDue())->toBe(35.0);
-});
-
-it('converts the breakdown into the requested active currency at the latest rate', function (): void {
-    $eur = Currency::query()->create(['code' => 'EUR', 'symbol' => '€', 'is_base' => false, 'is_active' => true, 'decimal_places' => 2]);
-    $eur->exchangeRates()->create(['rate' => 0.9, 'fetched_at' => now()]);
-
-    $package = makeTieredPackage();
-
-    $breakdown = $this->service->calculate($package, CarbonImmutable::parse('2026-06-01'), 2, [], null, null, 'EUR');
-
-    expect($breakdown->currencyCode)->toBe('EUR')
-        ->and($breakdown->baseAmount)->toBe(45.0); // 50 * 0.9
 });

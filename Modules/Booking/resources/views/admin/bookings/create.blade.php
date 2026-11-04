@@ -98,7 +98,7 @@
 
             <fieldset class="admin-form-field admin-location">
                 <legend>{{ __('Airport pickup packages only') }}</legend>
-                <p class="admin-hint" style="margin-top:0;">{{ __('The pickup date is the date above. The vehicle is reserved from this time for the destination area\'s trip duration.') }}</p>
+                <p class="admin-hint" style="margin-top:0;">{{ __('The pickup date is the date above.') }}</p>
                 <div class="admin-location__coords">
                     <div>
                         <label for="transfer_direction">{{ __('Direction') }}</label>
@@ -123,7 +123,7 @@
                         <select id="transfer_area_id" name="transfer_area_id">
                             <option value="">{{ __('— Select —') }}</option>
                             @foreach ($transferAreas as $area)
-                                <option value="{{ $area->id }}" @selected(old('transfer_area_id') == $area->id)>{{ $area->name }} (+{{ $area->price }}, {{ $area->duration_minutes }} min)</option>
+                                <option value="{{ $area->id }}" @selected(old('transfer_area_id') == $area->id)>{{ $area->name }} (+{{ $area->displayPrice() }})</option>
                             @endforeach
                         </select>
                     </div>
@@ -154,7 +154,7 @@
                 </div>
             </fieldset>
 
-            <p class="admin-hint">{{ __('Pickup') }}: {{ __('At our office') }}{{ $office ? ' — '.$office->name : '' }}</p>
+            <p class="admin-hint">{{ __('Pickup') }}: {{ __('At our office') }}</p>
 
             <div class="admin-form-field">
                 <label><input type="hidden" name="has_international_permit" value="0"><input type="checkbox" name="has_international_permit" value="1" @checked(old('has_international_permit'))> {{ __('Has International Driving Permit') }}</label>
@@ -167,19 +167,99 @@
                 <p class="admin-hint" style="margin-top:0;" data-addons-empty hidden>{{ __('The selected package offers no extra add-ons.') }}</p>
                 @foreach ($addons as $addon)
                     <div class="admin-form-field admin-addon-row" data-addon-packages="{{ implode(',', $addonPackageIds[$addon->id] ?? []) }}">
-                        <label for="addon_{{ $addon->id }}">{{ $addon->name }} <small>({{ $addon->price }} · {{ str_replace('_', ' ', $addon->pricing_unit) }}, {{ __('max :max', ['max' => $addon->max_quantity]) }})</small></label>
+                        <label for="addon_{{ $addon->id }}">{{ $addon->name }} <small>({{ $addon->displayPrice() }} · {{ str_replace('_', ' ', $addon->pricing_unit) }}, {{ __('max :max', ['max' => $addon->max_quantity]) }})</small></label>
                         <input type="number" id="addon_{{ $addon->id }}" name="addons[{{ $addon->id }}]" value="{{ old('addons.'.$addon->id, 0) }}" min="0" max="{{ $addon->max_quantity }}" style="max-width:6rem;">
                     </div>
                 @endforeach
             </div>
         @endif
 
-        <div class="admin-card">
-            <div class="admin-form-field">
-                <label for="coupon_code">{{ __('Coupon code (optional)') }}</label>
-                <input type="text" id="coupon_code" name="coupon_code" value="{{ old('coupon_code') }}">
-            </div>
+        @if ($packageOffers->isNotEmpty())
+            <div class="admin-card" data-offer-card>
+                <h2 style="margin-top:0;">{{ __('Special offer') }}</h2>
+                <p class="admin-hint" style="margin-top:0;">{{ __('Book a second package for this customer and save on the package above. Their details are used for both bookings.') }}</p>
 
+                <div class="admin-form-field">
+                    <label for="offer_id">{{ __('Add package') }}</label>
+                    <select id="offer_id" name="offer_id" data-offer-select>
+                        <option value="">{{ __('— No offer —') }}</option>
+                        @foreach ($packageOffers as $offer)
+                            <option value="{{ $offer->id }}" data-package="{{ $offer->package_id }}" data-fields="{{ match (true) {
+                                $offer->offeredPackage->isTransfer() => 'transfer',
+                                $offer->offeredPackage->isHourly() => 'hourly',
+                                default => 'days',
+                            } }}" @selected(old('offer_id') == $offer->id)>{{ __(':package — saves :saving', ['package' => $offer->offeredPackage->name, 'saving' => $offer->displayDiscount()]) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div data-offer-fields>
+                    <div class="admin-location__coords">
+                        <div class="admin-form-field">
+                            <label for="offer_start_date">{{ __('Pickup date / check-in') }}</label>
+                            <input type="date" id="offer_start_date" name="offer[start_date]" value="{{ old('offer.start_date') }}">
+                        </div>
+                        <div class="admin-form-field" data-offer-for="days">
+                            <label for="offer_end_date">{{ __('Return date / check-out') }}</label>
+                            <input type="date" id="offer_end_date" name="offer[end_date]" value="{{ old('offer.end_date') }}">
+                        </div>
+                    </div>
+
+                    <div class="admin-location__coords" data-offer-for="hourly">
+                        <div class="admin-form-field">
+                            <label for="offer_start_time">{{ __('Start time') }}</label>
+                            <select id="offer_start_time" name="offer[start_time]">
+                                <option value="">{{ __('— Select —') }}</option>
+                                @foreach ($hourlyStartTimes as $time)
+                                    <option value="{{ $time }}" @selected(old('offer.start_time') === $time)>{{ $time }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="admin-form-field">
+                            <label for="offer_hours">{{ __('Hours') }}</label>
+                            <input type="number" id="offer_hours" name="offer[hours]" value="{{ old('offer.hours') }}" min="1" max="24">
+                        </div>
+                    </div>
+
+                    <div data-offer-for="transfer">
+                        <div class="admin-location__coords">
+                            <div class="admin-form-field">
+                                <label for="offer_transfer_direction">{{ __('Direction') }}</label>
+                                <select id="offer_transfer_direction" name="offer[transfer_direction]">
+                                    <option value="arrival" @selected(old('offer.transfer_direction') === 'arrival')>{{ __('Airport → address (arrival)') }}</option>
+                                    <option value="departure" @selected(old('offer.transfer_direction') === 'departure')>{{ __('Address → airport (departure)') }}</option>
+                                </select>
+                            </div>
+                            <div class="admin-form-field">
+                                <label for="offer_transfer_time">{{ __('Pickup time') }}</label>
+                                <input type="time" id="offer_transfer_time" name="offer[transfer_time]" value="{{ old('offer.transfer_time') }}">
+                            </div>
+                        </div>
+                        <div class="admin-location__coords">
+                            <div class="admin-form-field">
+                                <label for="offer_flight_number">{{ __('Flight number') }}</label>
+                                <input type="text" id="offer_flight_number" name="offer[flight_number]" value="{{ old('offer.flight_number') }}" maxlength="10" placeholder="UL 504">
+                            </div>
+                            <div class="admin-form-field">
+                                <label for="offer_transfer_area_id">{{ __('Destination area') }}</label>
+                                <select id="offer_transfer_area_id" name="offer[transfer_area_id]">
+                                    <option value="">{{ __('— Select —') }}</option>
+                                    @foreach ($transferAreas as $area)
+                                        <option value="{{ $area->id }}" @selected(old('offer.transfer_area_id') == $area->id)>{{ $area->name }} (+{{ $area->displayPrice() }})</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <div class="admin-form-field">
+                            <label for="offer_transfer_address">{{ __('Hotel / address') }}</label>
+                            <input type="text" id="offer_transfer_address" name="offer[transfer_address]" value="{{ old('offer.transfer_address') }}" maxlength="255">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        <div class="admin-card">
             <div class="admin-form-field">
                 <label for="special_requests">{{ __('Special requests') }}</label>
                 <textarea id="special_requests" name="special_requests">{{ old('special_requests') }}</textarea>
@@ -191,8 +271,8 @@
                 'addons' => __('Add-ons'),
                 'transfer' => __('Destination area'),
                 'delivery' => __('Delivery'),
-                'coupon' => __('Coupon discount'),
-                'couponIgnored' => __('Coupon not valid — not applied.'),
+                'offer_saving' => __('Offer saving'),
+                'both_total' => __('Total for both bookings'),
                 'total' => __('Total'),
                 'deposit' => __('Deposit'),
                 'free' => __(':free of :total eligible units free for these dates.'),

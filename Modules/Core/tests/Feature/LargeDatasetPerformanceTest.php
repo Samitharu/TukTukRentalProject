@@ -6,7 +6,6 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Services\AvailabilityService;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Models\BookingHold;
@@ -70,7 +69,6 @@ function perfSeedIfNeeded(): void
     $now = now()->toDateTimeString();
 
     Locale::query()->create(['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]);
-    $locations = BusinessLocation::factory()->count(3)->create(['is_active' => true]);
     $categories = VehicleCategory::factory()->count(8)->create();
 
     $vehicleRows = [];
@@ -142,7 +140,7 @@ function perfSeedIfNeeded(): void
 
             $bookings[] = [
                 'id' => $bookingId, 'reference' => 'MTR-'.$code, 'customer_id' => mt_rand(1, PERF_CUSTOMERS), 'vehicle_id' => $v,
-                'package_id' => mt_rand(1, PERF_PACKAGES), 'business_location_id' => $locations[0]->id, 'pickup_type' => 'office',
+                'package_id' => mt_rand(1, PERF_PACKAGES), 'pickup_type' => 'office',
                 'start_at' => $cursor->toDateTimeString(), 'end_at' => $end->toDateTimeString(), 'status' => $status,
                 'price_breakdown' => '{}', 'total_amount' => 20 * $length, 'currency_code' => 'USD',
                 'idempotency_key' => 'perf-'.$bookingId, 'created_at' => $cursor->subDays(mt_rand(1, 60))->toDateTimeString(), 'updated_at' => $now,
@@ -256,7 +254,7 @@ it('stays fast, query-bounded and memory-bounded on a large dataset', function (
     $results['Packages page'] = perfMeasure(fn () => $this->get('/en/packages'));
     $results['Booking: submit dates'] = perfMeasure(fn () => $this->post('/en/booking/start', [
         'start_date' => $start->toDateString(), 'end_date' => $start->addDays(3)->toDateString(),
-        'pickup_type' => 'office', 'business_location_id' => BusinessLocation::query()->value('id'),
+        'pickup_type' => 'office',
     ]));
     $results['Booking: package step (60 pkgs × 400 tuk tuks availability)'] = perfMeasure(fn () => $this->get('/en/booking/package'));
 

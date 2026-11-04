@@ -7,7 +7,6 @@ namespace Modules\CMS\Database\Seeders;
 use Illuminate\Database\Seeder;
 use Modules\CMS\Models\Faq;
 use Modules\CMS\Models\Page;
-use Modules\CMS\Models\Testimonial;
 
 /**
  * Real, publishable starter content for the pages the brief names
@@ -23,7 +22,6 @@ class CMSDatabaseSeeder extends Seeder
     {
         $this->seedPages();
         $this->seedFaqs();
-        $this->seedTestimonials();
     }
 
     private function seedPages(): void
@@ -47,7 +45,7 @@ class CMSDatabaseSeeder extends Seeder
             ],
             [
                 'title' => 'Privacy Policy',
-                'content' => "<p>We collect the personal information necessary to process your booking: name, contact details, nationality, and driving permit/passport details for legal verification. Passport and permit numbers are encrypted at rest and are never shared with third parties except where required by local law (e.g. police reporting of an accident).</p><p>If you are booking from the EU/EEA, you may request a copy of the data we hold about you or ask us to delete it once your rental is complete and any legal retention period has passed — contact us using the details on our Contact page.</p><p>[Placeholder — finalize with a local/GDPR advisor before launch.]</p>",
+                'content' => '<p>We collect the personal information necessary to process your booking: name, contact details, nationality, and driving permit/passport details for legal verification. Passport and permit numbers are encrypted at rest and are never shared with third parties except where required by local law (e.g. police reporting of an accident).</p><p>If you are booking from the EU/EEA, you may request a copy of the data we hold about you or ask us to delete it once your rental is complete and any legal retention period has passed — contact us using the details on our Contact page.</p><p>[Placeholder — finalize with a local/GDPR advisor before launch.]</p>',
             ],
             [
                 'title' => 'Cancellation Policy',
@@ -87,27 +85,6 @@ class CMSDatabaseSeeder extends Seeder
                     'category' => $faq['category'],
                     'sort_order' => $i,
                     'is_active' => true,
-                ],
-            );
-        }
-    }
-
-    private function seedTestimonials(): void
-    {
-        $testimonials = [
-            ['name' => 'Hannah B.', 'country' => 'DE', 'rating' => 5, 'text' => "Booking was completely transparent — the price we saw online was exactly what we paid. The tuk tuk was in great shape and the team talked us through everything before we drove off."],
-            ['name' => 'Dmitri K.', 'country' => 'RU', 'rating' => 5, 'text' => 'Easy pickup, clear instructions, and they helped us sort out the driving permit question before we even arrived. Would rent again.'],
-            ['name' => 'Camille R.', 'country' => 'FR', 'rating' => 4, 'text' => "Great value and friendly service. Only small note — ask for the phone holder add-on in advance, it's very handy for navigation."],
-        ];
-
-        foreach ($testimonials as $t) {
-            Testimonial::query()->updateOrCreate(
-                ['customer_name' => $t['name'], 'country' => $t['country']],
-                [
-                    'rating' => $t['rating'],
-                    'content' => ['en' => $t['text']],
-                    'is_approved' => true,
-                    'source' => 'Seed data',
                 ],
             );
         }

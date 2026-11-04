@@ -6,10 +6,12 @@ namespace Modules\Pricing\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * @property int $id
  * @property int $currency_id
+ * @property string $from_code
  * @property float $rate
  * @property \Illuminate\Support\Carbon $fetched_at
  */
@@ -21,6 +23,7 @@ final class ExchangeRate extends Model
 
     protected $fillable = [
         'currency_id',
+        'from_code',
         'rate',
         'fetched_at',
     ];
@@ -36,5 +39,13 @@ final class ExchangeRate extends Model
     public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class);
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(function (): void {
+            Cache::forget('currencies:lkr_per_usd');
+            Cache::forget('currencies:lkr_per_eur');
+        });
     }
 }

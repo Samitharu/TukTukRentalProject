@@ -38,17 +38,14 @@
                     <li><a href="{{ route('admin.addons.index') }}" @if(request()->routeIs('admin.addons.*')) aria-current="page" @endif>{{ __('Add-ons') }}</a></li>
                 @endcan
                 @can('pricing.manage')
-                    <li><a href="{{ route('admin.coupons.index') }}" @if(request()->routeIs('admin.coupons.*')) aria-current="page" @endif>{{ __('Coupons') }}</a></li>
-                    <li><a href="{{ route('admin.currencies.index') }}" @if(request()->routeIs('admin.currencies.*')) aria-current="page" @endif>{{ __('Currencies') }}</a></li>
+                    <li><a href="{{ route('admin.currencies.index') }}" @if(request()->routeIs('admin.currencies.*')) aria-current="page" @endif>{{ __('LKR rates') }}</a></li>
                 @endcan
-                @can('viewAny', \Modules\Availability\Models\BusinessLocation::class)
-                    <li><a href="{{ route('admin.locations.index') }}" @if(request()->routeIs('admin.locations.*')) aria-current="page" @endif>{{ __('Locations') }}</a></li>
+                @can('viewAny', \Modules\Availability\Models\TransferArea::class)
                     <li><a href="{{ route('admin.transfer-areas.index') }}" @if(request()->routeIs('admin.transfer-areas.*')) aria-current="page" @endif>{{ __('Airport Pickup Areas') }}</a></li>                @endcan
                 @can('cms.view')
                     <li><a href="{{ route('admin.pages.index') }}" @if(request()->routeIs('admin.pages.*')) aria-current="page" @endif>{{ __('Pages') }}</a></li>
                     <li><a href="{{ route('admin.faqs.index') }}" @if(request()->routeIs('admin.faqs.*')) aria-current="page" @endif>{{ __('FAQs') }}</a></li>
                     <li><a href="{{ route('admin.blog.index') }}" @if(request()->routeIs('admin.blog.*')) aria-current="page" @endif>{{ __('Blog') }}</a></li>
-                    <li><a href="{{ route('admin.testimonials.index') }}" @if(request()->routeIs('admin.testimonials.*')) aria-current="page" @endif>{{ __('Testimonials') }}</a></li>
                     <li><a href="{{ route('admin.reviews.index') }}" @if(request()->routeIs('admin.reviews.*')) aria-current="page" @endif>{{ __('Reviews') }}</a></li>
                 @endcan
                 @can('settings.manage')

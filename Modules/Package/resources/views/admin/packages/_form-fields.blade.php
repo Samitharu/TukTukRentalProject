@@ -21,12 +21,14 @@
 
     $vehicleTypes = $categories->filter(fn ($type) => ! $type->isStay());
     $selectedVehicleType = (string) old('vehicle_type_id', collect($selectedCategoryIds ?? [])->first());
-    $currency = config('pricing.default_currency');
     $hasError = fn (string ...$fields) => collect($fields)->contains(fn ($field) => $errors->has($field));
+    // After a validation error, the boxes as they were ticked (none ticked sends nothing).
+    $tickedOffered = session()->hasOldInput() ? array_map('intval', old('offered_addon_ids', [])) : ($offeredAddonIds ?? []);
+    $tickedIncluded = session()->hasOldInput() ? array_map('intval', old('included_addon_ids', [])) : ($includedAddonIds ?? []);
 @endphp
 
 <div data-package-form>
-<x-admin::translatable-field name="name" :label="__('Package name')" :value="$package?->getTranslations('name') ?? []" :required="true" :compact="true" />
+<x-admin::translatable-field name="name" :label="__('Package name')" :value="$package?->getTranslations('name') ?? []" :required="true" />
 
 <div class="admin-form-field">
     <label for="product_category_id">{{ __('Category') }}</label>
@@ -66,12 +68,21 @@
 @if ($usesLengthPrices ?? false)
     <p class="admin-alert">{{ __('This package has different prices depending on the rental length — change them under "Prices by rental length" below.') }}</p>
 @else
-    <div class="admin-form-field">
-        @foreach ($charges as $value => $kinds)
-            <label for="price" data-charge="{{ $value }}" @if ($selectedCharge !== $value) hidden @endif>{{ PackageCharge::priceLabel($value) }} ({{ $currency }})</label>
-        @endforeach
-        <input type="number" id="price" name="price" value="{{ old('price', $price ?? '') }}" min="0" step="0.01" required>
-        @error('price')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+    <div class="admin-location__coords">
+        <div class="admin-form-field">
+            @foreach ($charges as $value => $kinds)
+                <label for="price" data-charge="{{ $value }}" @if ($selectedCharge !== $value) hidden @endif>{{ PackageCharge::priceLabel($value) }} (USD)</label>
+            @endforeach
+            <input type="number" id="price" name="price" value="{{ old('price', $price ?? '') }}" min="0" step="0.01" required>
+            @error('price')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+        </div>
+        <div class="admin-form-field">
+            @foreach ($charges as $value => $kinds)
+                <label for="price_eur" data-charge="{{ $value }}" @if ($selectedCharge !== $value) hidden @endif>{{ PackageCharge::priceLabel($value) }} (EUR)</label>
+            @endforeach
+            <input type="number" id="price_eur" name="price_eur" value="{{ old('price_eur', $priceEur ?? '') }}" min="0" step="0.01" required>
+            @error('price_eur')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+        </div>
     </div>
 @endif
 
@@ -99,9 +110,14 @@
             @error('included_km')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
         </div>
         <div>
-            <label for="extra_km_rate">{{ __('Price per extra km') }} ({{ $currency }})</label>
+            <label for="extra_km_rate">{{ __('Price per extra km') }} (USD)</label>
             <input type="number" id="extra_km_rate" name="extra_km_rate" value="{{ old('extra_km_rate', $package?->extra_km_rate) }}" min="0" step="0.01">
             @error('extra_km_rate')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+        </div>
+        <div>
+            <label for="extra_km_rate_eur">{{ __('Price per extra km') }} (EUR)</label>
+            <input type="number" id="extra_km_rate_eur" name="extra_km_rate_eur" value="{{ old('extra_km_rate_eur', $package?->extra_km_rate_eur) }}" min="0" step="0.01">
+            @error('extra_km_rate_eur')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
         </div>
         <div>
             <label for="package_days">{{ __('Days') }}</label>
@@ -120,11 +136,75 @@
     <input type="file" id="images" name="images[]" accept="image/jpeg,image/png,image/webp" multiple>
 </div>
 
-<details class="admin-form-field" @if ($hasError('description', 'min_days', 'max_days', 'daily_km', 'daily_extra_km_rate', 'deposit_amount', 'valid_from', 'valid_until', 'sort_order', 'vehicle_ids')) open @endif>
+<fieldset class="admin-form-field">
+    <legend style="font-weight:600;margin-bottom:0.5rem;">{{ __('Add-ons') }}</legend>
+    @if ($addons->isEmpty())
+        <p class="admin-hint">{{ __('No add-ons yet.') }} <a href="{{ route('admin.addons.create') }}">{{ __('Add add-on') }}</a></p>
+    @else
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>{{ __('Customer can add') }}</th>
+                    <th>{{ __('Included in price') }}</th>
+                    <th>{{ __('Add-on') }}</th>
+                    <th>{{ __('Price') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($addons as $addon)
+                    <tr>
+                        <td><input type="checkbox" name="offered_addon_ids[]" value="{{ $addon->id }}" aria-label="{{ __('Customer can add') }}: {{ $addon->name }}" @checked(in_array($addon->id, $tickedOffered, true))></td>
+                        <td><input type="checkbox" name="included_addon_ids[]" value="{{ $addon->id }}" aria-label="{{ __('Included in price') }}: {{ $addon->name }}" @checked(in_array($addon->id, $tickedIncluded, true))></td>
+                        <td>{{ $addon->name }}{{ $addon->is_active ? '' : ' ('.__('hidden').')' }}</td>
+                        <td>{{ $addon->displayPrice() }} {{ $addon->pricing_unit === 'per_day' ? __('per day') : __('one time') }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+    @error('offered_addon_ids.*')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+    @error('included_addon_ids.*')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+</fieldset>
+
+<details class="admin-form-field" data-package-kind="vehicle stay transfer" @if ($selectedKind === 'activity') hidden @endif @if ($hasError('offers.*') || ($packageOffers ?? collect())->isNotEmpty()) open @endif>
+    <summary style="cursor:pointer;font-weight:600;">{{ __('Special offers (optional)') }}</summary>
+    <p class="admin-hint">{{ __('When a customer books this package and also adds one below, this package gets cheaper by the amount you enter. Example: airport pickup $15, saves $3 with a tuk tuk, so the customer pays $12. Leave a row empty for no offer.') }}</p>
+    @if ($offerablePackages->isEmpty())
+        <p class="admin-hint">{{ __('No other packages yet.') }}</p>
+    @else
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>{{ __('Customer also books') }}</th>
+                    <th>{{ __('Customer saves') }} (USD)</th>
+                    <th>{{ __('Customer saves') }} (EUR)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($offerablePackages as $offerable)
+                    @php $existingOffer = ($packageOffers ?? collect())->get($offerable->id); @endphp
+                    <tr>
+                        <td>{{ $offerable->name }}{{ $offerable->productCategory ? ' — '.$offerable->productCategory->name : '' }}{{ $offerable->is_active ? '' : ' ('.__('hidden').')' }}</td>
+                        <td>
+                            <input type="number" name="offers[{{ $offerable->id }}][discount]" value="{{ old('offers.'.$offerable->id.'.discount', $existingOffer?->discount) }}" min="0.01" step="0.01" style="max-width:7rem;" aria-label="{{ __('Customer saves') }} (USD): {{ $offerable->name }}">
+                            @error('offers.'.$offerable->id.'.discount')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+                        </td>
+                        <td>
+                            <input type="number" name="offers[{{ $offerable->id }}][discount_eur]" value="{{ old('offers.'.$offerable->id.'.discount_eur', $existingOffer?->discount_eur) }}" min="0.01" step="0.01" style="max-width:7rem;" aria-label="{{ __('Customer saves') }} (EUR): {{ $offerable->name }}">
+                            @error('offers.'.$offerable->id.'.discount_eur')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+</details>
+
+<details class="admin-form-field" @if ($hasError('description', 'min_days', 'max_days', 'daily_km', 'daily_extra_km_rate', 'daily_extra_km_rate_eur', 'deposit_amount', 'valid_from', 'valid_until', 'sort_order', 'vehicle_ids')) open @endif>
     <summary style="cursor:pointer;font-weight:600;">{{ __('More options (optional)') }}</summary>
 
     <div style="margin-top:1rem;">
-        <x-admin::translatable-field name="description" :label="__('Description')" :value="$package?->getTranslations('description') ?? []" :textarea="true" :compact="true" />
+        <x-admin::translatable-field name="description" :label="__('Description')" :value="$package?->getTranslations('description') ?? []" :textarea="true" />
 
         <div class="admin-location__coords" data-charge="per_day per_night per_week per_month" @if (! in_array($selectedCharge, ['per_day', 'per_night', 'per_week', 'per_month'], true)) hidden @endif>
             <div class="admin-form-field">
@@ -144,8 +224,13 @@
                 @error('daily_km')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
             </div>
             <div class="admin-form-field">
-                <label for="daily_extra_km_rate">{{ __('Price per extra km') }} ({{ $currency }})</label>
+                <label for="daily_extra_km_rate">{{ __('Price per extra km') }} (USD)</label>
                 <input type="number" id="daily_extra_km_rate" name="daily_extra_km_rate" value="{{ old('daily_extra_km_rate', $selectedCharge === 'per_day' ? $package?->extra_km_rate : null) }}" min="0" step="0.01">
+            </div>
+            <div class="admin-form-field">
+                <label for="daily_extra_km_rate_eur">{{ __('Price per extra km') }} (EUR)</label>
+                <input type="number" id="daily_extra_km_rate_eur" name="daily_extra_km_rate_eur" value="{{ old('daily_extra_km_rate_eur', $selectedCharge === 'per_day' ? $package?->extra_km_rate_eur : null) }}" min="0" step="0.01">
+                @error('daily_extra_km_rate_eur')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
             </div>
         </div>
 

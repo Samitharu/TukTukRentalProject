@@ -35,7 +35,7 @@
                                     @if ($addon->pivot->is_included)
                                         <span class="badge">{{ __('core::front.packages_included') }}</span>
                                     @else
-                                        &mdash; {{ $addon->price }} {{ config('pricing.default_currency') }}@if ($addon->pricing_unit === 'per_day') {{ __($package->isStay() ? 'core::front.packages_per_night' : 'core::front.packages_per_day') }}@endif
+                                        &mdash; {{ $addon->displayPrice() }}@if ($addon->pricing_unit === 'per_day') {{ __($package->isStay() ? 'core::front.packages_per_night' : 'core::front.packages_per_day') }}@endif
                                     @endif
                                 </li>
                             @endforeach
@@ -53,7 +53,7 @@
                                         {{ $tier->min_days }}{{ $tier->max_days ? '–'.$tier->max_days : '+' }} {{ __('core::front.packages_unit_'.$package->tierUnit()) }}
                                     </td>
                                     <td style="padding:0.4rem 0;border-bottom:1px solid var(--color-border);text-align:right;font-weight:700;">
-                                        {{ $tier->price }} {{ config('pricing.default_currency') }} {{ __($package->priceSuffixKey()) }}
+                                        {{ $tier->displayPrice() }} {{ __($package->priceSuffixKey()) }}
                                     </td>
                                 </tr>
                             @endforeach

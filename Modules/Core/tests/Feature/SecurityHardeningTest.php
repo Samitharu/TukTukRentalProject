@@ -7,7 +7,6 @@ use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Routing\Route as RoutingRoute;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\CMS\Models\Review;
 use Modules\Localization\Models\Locale;
 
@@ -29,8 +28,7 @@ it('stores staff passwords as bcrypt hashes, never in plain text', function (): 
     expect($stored)->not->toBe('correct horse battery staple')
         ->and(Hash::info($stored)['algoName'])->toBe('bcrypt')
         ->and(Hash::check('correct horse battery staple', $stored))->toBeTrue()
-        ->and($user->toArray())->not->toHaveKey('password')
-        ->and($user->toArray())->not->toHaveKey('two_factor_secret');
+        ->and($user->toArray())->not->toHaveKey('password');
 });
 
 it('uses a production bcrypt cost of at least 12 rounds', function (): void {
@@ -81,7 +79,6 @@ it('rejects a form post without a CSRF token (419) outside the test environment'
 // ---- Rate limiting ----------------------------------------------------------
 
 it('rate limits public write endpoints per client', function (string $uri, int $limit, array $payload): void {
-    BusinessLocation::factory()->create(['is_active' => true]);
 
     for ($i = 0; $i < $limit; $i++) {
         expect($this->post($uri, $payload)->status())->not->toBe(429);
@@ -151,7 +148,7 @@ it('sends guests to the login page from every admin screen', function (): void {
 
 it('forbids a staff account with no permissions from every admin screen except the dashboard', function (): void {
     $staff = User::factory()->create(['is_active' => true]);
-    $open = ['admin.dashboard', 'admin.2fa.setup', 'admin.2fa.challenge', 'admin.2fa.recovery-codes'];
+    $open = ['admin.dashboard'];
 
     $checked = 0;
     foreach (Route::getRoutes()->getRoutes() as $route) {

@@ -61,7 +61,7 @@ final class NewBookingPlacedMail extends Mailable implements ShouldQueueAfterCom
 
     public function content(): Content
     {
-        $this->booking->loadMissing(['customer', 'vehicle.category', 'package', 'businessLocation', 'deliveryZone', 'transferArea', 'addons.addon']);
+        $this->booking->loadMissing(['customer', 'vehicle.category', 'package', 'deliveryZone', 'transferArea', 'addons.addon']);
 
         return new Content(
             markdown: 'booking::mail.admin.new-booking',

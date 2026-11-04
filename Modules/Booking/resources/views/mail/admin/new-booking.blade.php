@@ -34,13 +34,19 @@
 @else
 | **{{ __('Service') }}** | {{ $booking->serviceLabel() }} |
 | **{{ __('Package') }}** | {{ $booking->package?->name ?? '—' }} |
-| **{{ __('Pickup') }}** | {{ $booking->pickup_type === 'delivery' ? __('Delivery').': '.($booking->deliveryZone?->name ?? '—') : __('Office').': '.($booking->businessLocation?->name ?? '—') }} |
+| **{{ __('Pickup') }}** | {{ $booking->pickup_type === 'delivery' ? __('Delivery').': '.($booking->deliveryZone?->name ?? '—') : __('Office') }} |
 | **{{ __('International permit') }}** | {{ $booking->has_international_permit ? __('Yes') : __('No') }} |
 @endif
 | **{{ __('Status') }}** | {{ ucfirst(str_replace('_', ' ', $booking->status)) }} |
-| **{{ __('Total') }}** | {{ number_format((float) $booking->total_amount, 2) }} {{ $booking->currency_code }} |
+@if ($booking->displayOfferDiscount())
+| **{{ __('Offer saving') }}** | {{ $booking->displayOfferDiscount() }} |
+@endif
+| **{{ __('Total') }}** | {{ $booking->adminTotal() }} |
+@if ($booking->linkedBooking)
+| **{{ __('Booked together with') }}** | {{ $booking->linkedBooking->reference }} — {{ $md($booking->linkedBooking->package?->name ?? '—') }} |
+@endif
 @if ((float) $booking->deposit_amount > 0)
-| **{{ __('Deposit') }}** | {{ number_format((float) $booking->deposit_amount, 2) }} {{ $booking->currency_code }} |
+| **{{ __('Deposit') }}** | {{ \Modules\Pricing\Support\Money::usd($booking->deposit_amount) }} |
 @endif
 </x-mail::table>
 

@@ -13,8 +13,7 @@ use Illuminate\Routing\Middleware\ThrottleRequests;
  * Laravel's plain `throttle:5,1` keys its counter by client IP only (or
  * user id) — not by route — so every throttled route shared ONE counter
  * per visitor: four booking-step submits plus "Confirm" used up the review
- * form's limit of 5, and trying a few coupon codes on the review step
- * could get "Confirm" itself rejected with 429. Appending the route name
+ * form's limit of 5. Appending the route name
  * keeps each limit independent, as the route files intend.
  *
  * The name — not the URL — is used, so /en/... and /de/... share one

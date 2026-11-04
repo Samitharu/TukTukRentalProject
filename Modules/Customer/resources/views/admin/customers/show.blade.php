@@ -27,7 +27,7 @@
                         <td>{{ $booking->status }}</td>
                         <td>{{ $booking->start_at->format('Y-m-d') }}</td>
                         <td>{{ $booking->checkOutDate()->format('Y-m-d') }}</td>
-                        <td>{{ $booking->total_amount }} {{ $booking->currency_code }}</td>
+                        <td>{{ $booking->adminTotal() }}</td>
                     </tr>
                 @empty
                     <tr><td colspan="5">{{ __('No bookings yet.') }}</td></tr>

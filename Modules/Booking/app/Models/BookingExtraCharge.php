@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $booking_id
  * @property string $type
  * @property float $amount
+ * @property float|null $amount_eur
  * @property string|null $notes
  */
 final class BookingExtraCharge extends Model
@@ -22,6 +23,7 @@ final class BookingExtraCharge extends Model
         'booking_id',
         'type',
         'amount',
+        'amount_eur',
         'notes',
         'created_by',
     ];
@@ -30,6 +32,7 @@ final class BookingExtraCharge extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'amount_eur' => 'decimal:2',
         ];
     }
 

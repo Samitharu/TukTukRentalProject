@@ -74,7 +74,6 @@ final class LoginController extends Controller
         $request->session()->regenerate();
         $request->session()->put('admin_login_at', now());
         $request->session()->put('admin_last_activity', now());
-        $request->session()->forget('admin_2fa_passed');
 
         /** @var User $authenticated */
         $authenticated = Auth::user();

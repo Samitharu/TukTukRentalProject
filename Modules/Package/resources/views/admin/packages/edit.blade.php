@@ -34,7 +34,8 @@
                 <tr>
                     <th>{{ __('From (:unit)', ['unit' => __($package->tierUnit())]) }}</th>
                     <th>{{ __('To (:unit)', ['unit' => __($package->tierUnit())]) }}</th>
-                    <th>{{ __('Price') }}</th>
+                    <th>{{ __('Price') }} (USD)</th>
+                    <th>{{ __('Price') }} (EUR)</th>
                     <th></th>
                 </tr>
             </thead>
@@ -43,9 +44,15 @@
                     <tr>
                         <td>{{ $tier->min_days }}</td>
                         <td>{{ $tier->max_days ?? __('unlimited') }}</td>
-                        <td>{{ $tier->price }}</td>
+                        <td><input type="number" name="price" form="tier-{{ $tier->id }}" value="{{ $tier->price }}" min="0" step="0.01" aria-label="{{ __('Price') }} (USD)" style="width:6rem;" required></td>
+                        <td><input type="number" name="price_eur" form="tier-{{ $tier->id }}" value="{{ $tier->price_eur }}" min="0" step="0.01" aria-label="{{ __('Price') }} (EUR)" style="width:6rem;" required></td>
                         <td>
-                            <form method="POST" action="{{ route('admin.packages.pricing-tiers.destroy', [$package, $tier]) }}" onsubmit="return confirm('{{ __('Remove this tier?') }}');">
+                            <form method="POST" id="tier-{{ $tier->id }}" action="{{ route('admin.packages.pricing-tiers.update', [$package, $tier]) }}" style="display:inline;">
+                                @csrf
+                                @method('PUT')
+                                <button type="submit" style="background:none;border:none;color:#0f6b4c;cursor:pointer;padding:0;">{{ __('Save') }}</button>
+                            </form>
+                            <form method="POST" action="{{ route('admin.packages.pricing-tiers.destroy', [$package, $tier]) }}" style="display:inline;margin-left:0.5rem;" onsubmit="return confirm('{{ __('Remove this tier?') }}');">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" style="background:none;border:none;color:#b3261e;cursor:pointer;padding:0;">{{ __('Remove') }}</button>
@@ -55,6 +62,8 @@
                 @endforeach
             </tbody>
         </table>
+        @error('price')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+        @error('price_eur')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
 
         <form method="POST" action="{{ route('admin.packages.pricing-tiers.store', $package) }}" style="margin-top:1rem;" novalidate>
             @csrf
@@ -67,8 +76,12 @@
                 <input type="number" id="tier_max_days" name="max_days" min="1">
             </div>
             <div class="admin-form-field">
-                <label for="tier_price">{{ $package->tierPriceUnit() === null ? __('Total price for this tier') : __('Price per :unit for this tier', ['unit' => __($package->tierPriceUnit())]) }}</label>
+                <label for="tier_price">{{ $package->tierPriceUnit() === null ? __('Total price for this tier') : __('Price per :unit for this tier', ['unit' => __($package->tierPriceUnit())]) }} (USD)</label>
                 <input type="number" id="tier_price" name="price" min="0" step="0.01" required>
+            </div>
+            <div class="admin-form-field">
+                <label for="tier_price_eur">{{ $package->tierPriceUnit() === null ? __('Total price for this tier') : __('Price per :unit for this tier', ['unit' => __($package->tierPriceUnit())]) }} (EUR)</label>
+                <input type="number" id="tier_price_eur" name="price_eur" min="0" step="0.01" required>
             </div>
             <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Add tier') }}</button>
         </form>
@@ -93,7 +106,7 @@
                         <td>{{ $season->name }}</td>
                         <td>{{ $season->starts_on->toDateString() }}</td>
                         <td>{{ $season->ends_on->toDateString() }}</td>
-                        <td>{{ $season->price_modifier_type === 'percent' ? $season->price_modifier_value.'%' : $season->price_modifier_value }}</td>
+                        <td>{{ $season->price_modifier_type === 'percent' ? $season->price_modifier_value.'%' : \Modules\Pricing\Support\Money::dual($season->price_modifier_value, $season->price_modifier_value_eur) }}</td>
                         <td>
                             <form method="POST" action="{{ route('admin.packages.seasons.destroy', [$package, $season]) }}" onsubmit="return confirm('{{ __('Remove this season?') }}');">
                                 @csrf
@@ -128,8 +141,13 @@
                 </select>
             </div>
             <div class="admin-form-field">
-                <label for="price_modifier_value">{{ __('Modifier value') }}</label>
+                <label for="price_modifier_value">{{ __('Modifier value (percent, or USD amount)') }}</label>
                 <input type="number" id="price_modifier_value" name="price_modifier_value" step="0.01" required>
+            </div>
+            <div class="admin-form-field">
+                <label for="price_modifier_value_eur">{{ __('EUR amount (fixed amount only)') }}</label>
+                <input type="number" id="price_modifier_value_eur" name="price_modifier_value_eur" step="0.01">
+                @error('price_modifier_value_eur')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
             </div>
             <fieldset class="admin-form-field">
                 <legend style="font-weight:600;margin-bottom:0.5rem;">{{ __('Applies on') }}</legend>
@@ -141,32 +159,4 @@
         </form>
     </details>
 
-    <div class="admin-card">
-        <h2>{{ __('Add-ons') }}</h2>
-        <form method="POST" action="{{ route('admin.packages.addons.update', $package) }}" novalidate>
-            @csrf
-            @method('PUT')
-            <table class="admin-table">
-                <thead>
-                    <tr>
-                        <th>{{ __('Offered') }}</th>
-                        <th>{{ __('Included in price') }}</th>
-                        <th>{{ __('Add-on') }}</th>
-                        <th>{{ __('Price') }}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($addons as $addon)
-                        <tr>
-                            <td><input type="checkbox" name="offered_addon_ids[]" value="{{ $addon->id }}" @checked(in_array($addon->id, $offeredAddonIds, true))></td>
-                            <td><input type="checkbox" name="included_addon_ids[]" value="{{ $addon->id }}" @checked(in_array($addon->id, $includedAddonIds, true))></td>
-                            <td>{{ $addon->name }}</td>
-                            <td>{{ $addon->price }} ({{ $addon->pricing_unit }})</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-            <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Save add-ons') }}</button>
-        </form>
-    </div>
 </x-admin::layouts.app>

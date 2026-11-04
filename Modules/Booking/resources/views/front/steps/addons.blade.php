@@ -30,7 +30,7 @@
                             <div>
                                 <strong>{{ $addon->name }}</strong>
                                 <p class="text-muted" style="margin:0;font-size:var(--font-size-sm);">
-                                    {{ $addon->price }} {{ config('pricing.default_currency') }}{{ $addon->pricing_unit === 'per_day' ? ' '.__($package->isStay() ? 'core::front.packages_per_night' : 'core::front.packages_per_day') : '' }}
+                                    {{ $addon->displayPrice() }}{{ $addon->pricing_unit === 'per_day' ? ' '.__($package->isStay() ? 'core::front.packages_per_night' : 'core::front.packages_per_day') : '' }}
                                 </p>
                             </div>
                             <input
@@ -45,11 +45,6 @@
                         </div>
                     @endforeach
                 @endif
-
-                <div class="field">
-                    <label for="coupon_code">{{ __('core::front.booking_coupon_code') }}</label>
-                    <input type="text" id="coupon_code" name="coupon_code" value="{{ old('coupon_code', $state['coupon_code'] ?? '') }}">
-                </div>
 
                 <div style="display:flex;gap:var(--space-3);margin-top:var(--space-4);">
                     <a href="{{ route('booking.package') }}" class="btn btn--secondary">{{ __('core::front.booking_back') }}</a>

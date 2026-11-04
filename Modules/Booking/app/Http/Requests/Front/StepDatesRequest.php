@@ -8,7 +8,6 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Support\BookingFlowState;
 use Modules\Booking\Support\TransferSchedule;
@@ -46,7 +45,6 @@ final class StepDatesRequest extends FormRequest
         // flowData()), so any posted pickup fields are ignored.
         $ignored = [
             'pickup_type' => ['exclude'],
-            'business_location_id' => ['exclude'],
             'delivery_zone_id' => ['exclude'],
         ];
 
@@ -144,14 +142,14 @@ final class StepDatesRequest extends FormRequest
     public function flowData(): array
     {
         $data = $this->validated();
-        $noPickup = ['pickup_type' => 'office', 'business_location_id' => null, 'delivery_zone_id' => null];
+        $noPickup = ['pickup_type' => 'office', 'delivery_zone_id' => null];
 
         if (BookingFlowState::isTransfer()) {
             return [...$data, ...$noPickup, 'end_date' => $data['start_date']];
         }
 
         if (! BookingFlowState::isStay()) {
-            return [...$data, ...$noPickup, 'business_location_id' => BusinessLocation::office()?->id];
+            return [...$data, ...$noPickup];
         }
 
         return [

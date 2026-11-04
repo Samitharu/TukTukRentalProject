@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 use Modules\Package\Http\Controllers\Admin\AddonController;
-use Modules\Package\Http\Controllers\Admin\PackageAddonController;
 use Modules\Package\Http\Controllers\Admin\PackageController;
 use Modules\Package\Http\Controllers\Admin\PackagePricingTierController;
 use Modules\Package\Http\Controllers\Admin\PackageSeasonController;
@@ -22,12 +21,11 @@ Route::prefix('packages')->name('packages.')->group(function (): void {
     Route::delete('/{package}/images/{image}', [PackageController::class, 'destroyImage'])->name('images.destroy');
 
     Route::post('/{package}/pricing-tiers', [PackagePricingTierController::class, 'store'])->name('pricing-tiers.store');
+    Route::put('/{package}/pricing-tiers/{tier}', [PackagePricingTierController::class, 'update'])->name('pricing-tiers.update');
     Route::delete('/{package}/pricing-tiers/{tier}', [PackagePricingTierController::class, 'destroy'])->name('pricing-tiers.destroy');
 
     Route::post('/{package}/seasons', [PackageSeasonController::class, 'store'])->name('seasons.store');
     Route::delete('/{package}/seasons/{season}', [PackageSeasonController::class, 'destroy'])->name('seasons.destroy');
-
-    Route::put('/{package}/addons', [PackageAddonController::class, 'update'])->name('addons.update');
 });
 
 Route::prefix('package-categories')->name('package-categories.')->group(function (): void {

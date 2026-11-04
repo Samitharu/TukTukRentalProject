@@ -84,7 +84,7 @@ Conventions: every table has `id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY`, `c
 `id, code varchar(3) unique, symbol varchar(5), is_base bool, is_active bool, decimal_places tinyint default 2`
 
 **exchange_rates**
-`id, currency_id FK→currencies, rate decimal(12,6), fetched_at datetime`
+`id, currency_id FK→currencies, from_code varchar(3) default 'USD', rate decimal(12,6), fetched_at datetime`
 - `INDEX (currency_id, fetched_at)` — "latest rate for currency X" query (`ORDER BY fetched_at DESC LIMIT 1`) uses this instead of scanning history.
 
 ---
@@ -162,7 +162,7 @@ Conventions: every table has `id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY`, `c
 
 **pages** `id, template varchar, title [T], content [T] json, is_published bool, published_at datetime nullable`
 **faqs** `id, question [T], answer [T], category varchar nullable, sort_order int, is_active bool`
-**testimonials** `id, customer_name varchar, country varchar(2), rating tinyint, content [T], is_approved bool, source varchar nullable, created_at`
+**testimonials** `id, customer_name varchar, country varchar(2), rating tinyint, content [T], is_approved bool, source varchar nullable, created_at` — no longer used; the feature was removed and the table kept with any rows it holds.
 **blog_posts** `id, title [T], excerpt [T], body [T], cover_image varchar nullable, author_id FK→users, published_at datetime nullable, is_published bool`
 - `INDEX (is_published, published_at)` on **blog_posts** — the public blog list's exact filter+sort.
 

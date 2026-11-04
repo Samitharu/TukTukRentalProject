@@ -26,7 +26,10 @@ Route::prefix('booking')->name('booking.')->middleware('noindex')->group(functio
     Route::post('details', [BookingFlowController::class, 'storeDetails'])->middleware('throttle:30,1')->name('details.store');
 
     Route::get('review', [BookingFlowController::class, 'review'])->name('review');
-    Route::post('review/recalculate', [BookingFlowController::class, 'recalculate'])->middleware('throttle:20,1')->name('review.recalculate');
+
+    Route::get('offer/{offer}', [BookingFlowController::class, 'offer'])->whereNumber('offer')->name('offer');
+    Route::post('offer/{offer}', [BookingFlowController::class, 'storeOffer'])->whereNumber('offer')->middleware('throttle:30,1')->name('offer.store');
+    Route::post('offer-remove', [BookingFlowController::class, 'removeOffer'])->middleware('throttle:30,1')->name('offer.remove');
 
     Route::post('confirm', [BookingFlowController::class, 'confirm'])->middleware('throttle:10,1')->name('confirm');
     Route::get('confirmation/{reference}', [BookingFlowController::class, 'confirmation'])->middleware('throttle:60,1')->name('confirmation');

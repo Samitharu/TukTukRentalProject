@@ -31,7 +31,12 @@
             <tbody>
                 @forelse ($packages as $package)
                     <tr>
-                        <td>{{ $package->name }}</td>
+                        <td>
+                            {{ $package->name }}
+                            @if ($package->tiers_without_eur_count > 0)
+                                <span class="admin-hint" style="display:block;margin:0;color:#b3261e;">{{ __('No EUR price yet') }}</span>
+                            @endif
+                        </td>
                         <td>
                             {{ $package->productCategory?->name ?? '—' }}
                             @include('package::admin._kind-badge', ['kind' => $package->kind])
@@ -39,7 +44,7 @@
                         <td>
                             {{ str_replace('_', ' ', $package->pricing_model) }}
                             @if ($package->hasKmAllowance())
-                                <span class="admin-hint" style="display:block;margin:0;">{{ number_format($package->included_km) }} km{{ $package->included_km_per_day ? '/'.__('day') : '' }} + {{ $package->extra_km_rate }}/km</span>
+                                <span class="admin-hint" style="display:block;margin:0;">{{ number_format($package->included_km) }} km{{ $package->included_km_per_day ? '/'.__('day') : '' }} + {{ $package->displayExtraKmRate() }}/km</span>
                             @endif
                         </td>
                         <td>{{ $package->pricing_tiers_count }}</td>

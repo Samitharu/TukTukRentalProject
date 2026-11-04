@@ -22,6 +22,7 @@ final class StoreSeasonRequest extends FormRequest
             'ends_on' => ['required', 'date', 'after_or_equal:starts_on'],
             'price_modifier_type' => ['required', Rule::in(['fixed', 'percent'])],
             'price_modifier_value' => ['required', 'numeric'],
+            'price_modifier_value_eur' => ['nullable', 'required_if:price_modifier_type,fixed', 'numeric'],
             'weekdays' => ['required', 'array', 'min:1'],
             'weekdays.*' => ['integer', 'between:0,6'],
             'priority' => ['nullable', 'integer'],

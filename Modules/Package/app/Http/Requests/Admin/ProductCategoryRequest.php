@@ -40,6 +40,18 @@ final class ProductCategoryRequest extends FormRequest
         ];
     }
 
+    /** Left empty: an existing category stays put, a new one goes last. */
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('sort_order')) {
+            return;
+        }
+
+        $this->merge([
+            'sort_order' => $this->category()?->sort_order ?? (int) ProductCategory::query()->max('sort_order') + 1,
+        ]);
+    }
+
     public function after(): array
     {
         return [
@@ -49,7 +61,7 @@ final class ProductCategoryRequest extends FormRequest
                 if ($category !== null
                     && $this->input('kind') !== $category->kind
                     && $category->packages()->withTrashed()->exists()) {
-                    $validator->errors()->add('kind', __('This category already has packages, so its booking style can\'t change. Create a new category instead.'));
+                    $validator->errors()->add('kind', __('This category already has packages, so how customers book it can\'t change. Create a new category instead.'));
                 }
             },
         ];

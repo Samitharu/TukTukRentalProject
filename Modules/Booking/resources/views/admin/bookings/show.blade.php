@@ -15,7 +15,7 @@
         <p><strong>{{ __('Package') }}:</strong> {{ $booking->package?->name }}</p>
         @if ($booking->isTransfer())
             <p><strong>{{ __('Airport pickup') }}:</strong> {{ $booking->transfer_direction === 'departure' ? __('Address → airport (departure)') : __('Airport → address (arrival)') }}</p>
-            <p><strong>{{ __('Pickup time') }}:</strong> {{ $booking->start_at->format('Y-m-d H:i') }} — {{ __('vehicle busy until :time', ['time' => $booking->end_at->format('H:i')]) }}</p>
+            <p><strong>{{ __('Pickup time') }}:</strong> {{ $booking->start_at->format('Y-m-d H:i') }}</p>
             <p><strong>{{ __('Flight number') }}:</strong> {{ $booking->flight_number }}</p>
             <p><strong>{{ __('Destination area') }}:</strong> {{ $booking->transferArea?->name ?? '—' }}</p>
             <p><strong>{{ __('Hotel / address') }}:</strong> {{ $booking->transfer_address }}</p>
@@ -31,22 +31,24 @@
             <p><strong>{{ __('Pickup') }}:</strong> {{ $booking->start_at->format('Y-m-d') }}</p>
             <p><strong>{{ __('Return') }}:</strong> {{ $booking->end_at->format('Y-m-d') }}</p>
         @endif
-        @if ($booking->pickup_type === 'office' && $booking->businessLocation)
-            <p><strong>{{ __('Pickup location') }}:</strong> {{ $booking->businessLocation->name }}
-                @if ($booking->businessLocation->mapUrl())
-                    (<a href="{{ $booking->businessLocation->mapUrl() }}" target="_blank" rel="noopener noreferrer">{{ __('View on Google Maps') }}</a>)
-                @endif
-            </p>
+        @if ($booking->displayOfferDiscount())
+            <p><strong>{{ __('Offer saving') }}:</strong> {{ $booking->displayOfferDiscount() }}</p>
         @endif
-        <p><strong>{{ __('Total') }}:</strong> {{ $booking->total_amount }} {{ $booking->currency_code }} ({{ __('deposit') }}: {{ $booking->deposit_amount }})</p>
+        <p><strong>{{ __('Total') }}:</strong> {{ $booking->adminTotal() }} ({{ __('deposit') }}: {{ \Modules\Pricing\Support\Money::usd($booking->deposit_amount) }})</p>
+        @if ($booking->linkedBooking)
+            <p><strong>{{ __('Booked together with') }}:</strong> <a href="{{ route('admin.bookings.show', $booking->linkedBooking) }}">{{ $booking->linkedBooking->reference }}</a> — {{ $booking->linkedBooking->package?->name }} ({{ ucfirst(str_replace('_', ' ', $booking->linkedBooking->status)) }})</p>
+            @if ($booking->displayOfferDiscount() && $booking->linkedBooking->status === \Modules\Booking\Models\Booking::STATUS_CANCELLED)
+                <div class="admin-alert admin-alert--warn">{{ __('The other booking was cancelled, but this one still has its offer saving. Charge the difference if the offer no longer applies.') }}</div>
+            @endif
+        @endif
         @if ($booking->extraCharges->isNotEmpty())
             <p><strong>{{ __('Extra charges') }}:</strong></p>
             <ul>
                 @foreach ($booking->extraCharges as $charge)
-                    <li>{{ ucfirst(str_replace('_', ' ', $charge->type)) }} — {{ $charge->amount }} {{ $booking->currency_code }}@if ($charge->notes) ({{ $charge->notes }})@endif</li>
+                    <li>{{ ucfirst(str_replace('_', ' ', $charge->type)) }} — {{ \Modules\Pricing\Support\Money::admin($charge->amount, $charge->amount_eur) }}@if ($charge->notes) ({{ $charge->notes }})@endif</li>
                 @endforeach
             </ul>
-            <p><strong>{{ __('Total incl. extra charges') }}:</strong> {{ number_format((float) $booking->total_amount + (float) $booking->extraCharges->sum('amount'), 2, '.', '') }} {{ $booking->currency_code }}</p>
+            <p><strong>{{ __('Total incl. extra charges') }}:</strong> {{ $booking->adminTotalWithExtras() }}</p>
         @endif
         @unless ($booking->isStay() || $booking->isTransfer())
             <p><strong>{{ __('International Driving Permit') }}:</strong> {{ $booking->has_international_permit ? __('Yes') : __('No') }}</p>
@@ -91,7 +93,7 @@
             <h2>{{ __('Add-ons') }}</h2>
             <ul>
                 @foreach ($booking->addons as $addon)
-                    <li>{{ $addon->addon->name }} × {{ $addon->quantity }} — {{ $addon->unit_price }}</li>
+                    <li>{{ $addon->addon->name }} × {{ $addon->quantity }} — {{ \Modules\Pricing\Support\Money::dual($addon->unit_price, $addon->unit_price_eur) }}</li>
                 @endforeach
             </ul>
         </div>
@@ -101,7 +103,7 @@
         <div class="admin-card">
             <h2>{{ __('Odometer') }}</h2>
             <p class="admin-hint" style="margin-top:0;">
-                {{ __(':km km included, then :rate :currency per extra km.', ['km' => number_format($booking->included_km), 'rate' => $booking->extra_km_rate, 'currency' => $booking->currency_code]) }}
+                {{ __(':km km included, then :rate per extra km.', ['km' => number_format($booking->included_km), 'rate' => \Modules\Pricing\Support\Money::dual($booking->extra_km_rate, $booking->extra_km_rate_eur)]) }}
                 @if ($booking->kmDriven() !== null)
                     <strong>{{ __('Driven: :km km', ['km' => number_format($booking->kmDriven())]) }}{{ $booking->extraKm() > 0 ? ' — '.__(':km km over', ['km' => number_format($booking->extraKm())]) : '' }}</strong>
                 @endif

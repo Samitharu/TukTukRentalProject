@@ -16,7 +16,7 @@
                 @foreach ($addons as $addon)
                     <tr>
                         <td>{{ $addon->name }}</td>
-                        <td>{{ $addon->price }}</td>
+                        <td>{{ $addon->displayPrice() }}</td>
                         <td>{{ $addon->pricing_unit }}</td>
                         <td>{{ $addon->is_active ? __('Yes') : __('No') }}</td>
                         <td>

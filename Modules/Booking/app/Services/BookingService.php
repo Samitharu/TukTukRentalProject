@@ -11,7 +11,6 @@ use Illuminate\Support\Facades\DB;
 use Modules\Availability\Exceptions\SlotConflictException;
 use Modules\Availability\Services\AvailabilityService;
 use Modules\Booking\Events\BookingPlaced;
-use Modules\Booking\Exceptions\CouponUnavailableException;
 use Modules\Booking\Exceptions\HoldExpiredException;
 use Modules\Booking\Exceptions\NoVehicleAvailableException;
 use Modules\Booking\Models\Booking;
@@ -26,7 +25,6 @@ use Modules\Fleet\Models\Vehicle;
 use Modules\Package\Models\Addon;
 use Modules\Package\Models\Package;
 use Modules\Pricing\DataObjects\PriceBreakdown;
-use Modules\Pricing\Models\Coupon;
 use Throwable;
 
 /**
@@ -176,7 +174,7 @@ final class BookingService
      * @param array{
      *   email: string, full_name: string, phone?: string|null, nationality?: string|null,
      *   passport_number?: string|null, locale_preference?: string|null,
-     *   pickup_type?: string, business_location_id?: int|null, delivery_zone_id?: int|null,
+     *   pickup_type?: string, delivery_zone_id?: int|null,
      *   transfer_direction?: string|null, flight_number?: string|null,
      *   transfer_address?: string|null, transfer_area_id?: int|null,
      *   has_international_permit?: bool, special_requests?: string|null,
@@ -215,7 +213,6 @@ final class BookingService
                 'customer_id' => $customer->id,
                 'vehicle_id' => $hold->vehicle_id,
                 'package_id' => $hold->package_id,
-                'business_location_id' => $customerData['business_location_id'] ?? null,
                 'delivery_zone_id' => $customerData['delivery_zone_id'] ?? null,
                 'pickup_type' => $customerData['pickup_type'] ?? 'office',
                 'transfer_direction' => $customerData['transfer_direction'] ?? null,
@@ -243,25 +240,6 @@ final class BookingService
             $this->availability->repointSlots($hold, $booking);
             $hold->update(['status' => BookingHold::STATUS_CONVERTED]);
 
-            // Usage is only counted once a hold actually converts to a
-            // booking — an abandoned hold must never consume a coupon's
-            // limited redemptions (see Coupon::isValidFor()'s docblock).
-            //
-            // Atomic "increment only while under the limit": two checkouts
-            // racing for a coupon's last use both priced it as valid, but
-            // only one UPDATE can match — the other rolls its booking back
-            // instead of silently over-redeeming the coupon.
-            if ($price->couponCode !== null) {
-                $redeemed = Coupon::query()
-                    ->where('code', $price->couponCode)
-                    ->where(fn ($q) => $q->whereNull('usage_limit')->orWhereColumn('usage_count', '<', 'usage_limit'))
-                    ->increment('usage_count');
-
-                if ($redeemed === 0) {
-                    throw CouponUnavailableException::make($price->couponCode);
-                }
-            }
-
             // Exactly the add-ons that were priced — PricingService already
             // dropped ones this package doesn't offer and capped quantities
             // at max_quantity — so the booking never lists an add-on the
@@ -276,6 +254,7 @@ final class BookingService
                         'addon_id' => $addon->id,
                         'quantity' => $line['quantity'],
                         'unit_price' => $addon->price,
+                        'unit_price_eur' => $addon->price_eur,
                     ]);
                 }
             }
@@ -302,11 +281,42 @@ final class BookingService
         try {
             return $this->confirmHold($hold, $customerData, $price, $source, $notifyCustomer);
         } catch (Throwable $exception) {
-            // createHold() committed on its own, so a failed confirm (coupon
-            // used up, hold expired, DB error) would otherwise leave the
+            // createHold() committed on its own, so a failed confirm (hold
+            // expired, DB error) would otherwise leave the
             // vehicle held until the expiry sweep — or forever, if the
             // scheduler isn't running.
             $this->releaseHold($hold);
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * A booking together with the second one of a package offer: both are
+     * made or neither is, and they point at each other. Returns the first.
+     *
+     * @param array{hold: array, customer: array, price: PriceBreakdown} $offered
+     */
+    public function createBookingWithOffer(array $holdData, array $customerData, PriceBreakdown $price, array $offered, array $source = [], bool $notifyCustomer = true): Booking
+    {
+        $holds = [$this->createHold($holdData)];
+
+        try {
+            $holds[] = $this->createHold($offered['hold']);
+
+            return $this->transaction(function () use ($holds, $customerData, $price, $offered, $source, $notifyCustomer): Booking {
+                $booking = $this->confirmHold($holds[0], $customerData, $price, $source, $notifyCustomer);
+                $second = $this->confirmHold($holds[1], $offered['customer'], $offered['price'], $source, $notifyCustomer);
+
+                $booking->update(['linked_booking_id' => $second->id]);
+                $second->update(['linked_booking_id' => $booking->id]);
+
+                return $booking;
+            });
+        } catch (Throwable $exception) {
+            foreach ($holds as $hold) {
+                $this->releaseHold($hold);
+            }
 
             throw $exception;
         }
@@ -427,6 +437,7 @@ final class BookingService
                 ['type' => BookingExtraCharge::TYPE_EXTRA_KM],
                 [
                     'amount' => round($extraKm * (float) $booking->extra_km_rate, 2),
+                    'amount_eur' => $booking->extra_km_rate_eur !== null ? round($extraKm * (float) $booking->extra_km_rate_eur, 2) : null,
                     'notes' => "{$extraKm} km over the {$booking->included_km} km included",
                     'created_by' => $admin?->id,
                 ],
@@ -533,17 +544,21 @@ final class BookingService
      * The package's km terms frozen onto the booking: the total allowance
      * for this booking's length, and the per-km rate beyond it.
      *
-     * @return array{included_km: int|null, extra_km_rate: float|null}
+     * @return array{included_km: int|null, extra_km_rate: float|null, extra_km_rate_eur: float|null}
      */
     private function kmAllowanceSnapshot(?int $packageId, int $days): array
     {
         $package = $packageId !== null ? Package::query()->find($packageId) : null;
 
         if ($package === null || ! $package->hasKmAllowance()) {
-            return ['included_km' => null, 'extra_km_rate' => null];
+            return ['included_km' => null, 'extra_km_rate' => null, 'extra_km_rate_eur' => null];
         }
 
-        return ['included_km' => $package->includedKmFor($days), 'extra_km_rate' => (float) $package->extra_km_rate];
+        return [
+            'included_km' => $package->includedKmFor($days),
+            'extra_km_rate' => (float) $package->extra_km_rate,
+            'extra_km_rate_eur' => $package->extra_km_rate_eur !== null ? (float) $package->extra_km_rate_eur : null,
+        ];
     }
 
     private function transaction(Closure $callback): mixed

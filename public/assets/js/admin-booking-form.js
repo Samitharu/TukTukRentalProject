@@ -18,10 +18,6 @@
         };
     }
 
-    function money(value) {
-        return Number(value || 0).toFixed(2);
-    }
-
     function initCustomerPicker(form) {
         var search = form.querySelector('[data-customer-search]');
         var results = form.querySelector('[data-customer-results]');
@@ -144,6 +140,56 @@
         apply();
     }
 
+    // Only the offers of the selected package, and only the fields the
+    // package being added needs. Without this script every field shows, and
+    // the server keeps the ones that apply.
+    function initOffers(form) {
+        var card = form.querySelector('[data-offer-card]');
+
+        if (!card) {
+            return;
+        }
+
+        var packageSelect = form.querySelector('[data-package-select]');
+        var offerSelect = card.querySelector('[data-offer-select]');
+        var fields = card.querySelector('[data-offer-fields]');
+
+        function apply() {
+            var packageId = packageSelect.value;
+            var shown = 0;
+
+            Array.prototype.forEach.call(offerSelect.options, function (option) {
+                if (!option.dataset.package) {
+                    return;
+                }
+
+                var offered = option.dataset.package === packageId;
+
+                option.hidden = !offered;
+                option.disabled = !offered;
+                shown += offered ? 1 : 0;
+
+                if (!offered && option.selected) {
+                    offerSelect.value = '';
+                }
+            });
+
+            card.hidden = shown === 0;
+
+            var selected = offerSelect.options[offerSelect.selectedIndex];
+            var kind = selected ? selected.dataset.fields : '';
+
+            fields.hidden = !kind;
+            fields.querySelectorAll('[data-offer-for]').forEach(function (section) {
+                section.hidden = section.dataset.offerFor !== kind;
+            });
+        }
+
+        packageSelect.addEventListener('change', apply);
+        offerSelect.addEventListener('change', apply);
+        apply();
+    }
+
     function initPricePreview(form) {
         var preview = form.querySelector('[data-price-preview]');
 
@@ -154,8 +200,8 @@
         var labels = JSON.parse(preview.dataset.labels || '{}');
         var latest = 0;
 
-        function line(label, amount, currency) {
-            return '<dt>' + label + '</dt><dd>' + money(amount) + ' ' + currency + '</dd>';
+        function line(label, amount) {
+            return '<dt>' + label + '</dt><dd>' + escape(amount) + '</dd>';
         }
 
         function show(html) {
@@ -171,42 +217,43 @@
         }
 
         function render(price) {
-            var currency = escape(price.currency_code);
+            var shown = price.display;
             var html = '<dl class="admin-price-preview__lines">';
 
-            html += line(labels.rental, price.base_amount, currency);
+            html += line(labels.rental, shown.base);
 
             if (Number(price.seasonal_adjustment) !== 0) {
-                html += line(labels.seasonal, price.seasonal_adjustment, currency);
+                html += line(labels.seasonal, shown.seasonal);
             }
 
             if (Number(price.transfer_fee) > 0) {
-                html += line(labels.transfer, price.transfer_fee, currency);
+                html += line(labels.transfer, shown.transfer);
             }
 
             if (Number(price.addons_total) > 0) {
-                html += line(labels.addons, price.addons_total, currency);
+                html += line(labels.addons, shown.addons);
             }
 
             if (Number(price.delivery_fee) > 0) {
-                html += line(labels.delivery, price.delivery_fee, currency);
+                html += line(labels.delivery, shown.delivery);
             }
 
-            if (Number(price.coupon_discount) > 0) {
-                html += line(labels.coupon, -price.coupon_discount, currency);
+            if (shown.offer_discount) {
+                html += line(labels.offer_saving, shown.offer_discount);
             }
 
-            html += '<dt><strong>' + labels.total + '</strong></dt><dd><strong>' + money(price.total) + ' ' + currency + '</strong></dd>';
+            html += '<dt><strong>' + labels.total + '</strong></dt><dd><strong>' + escape(shown.total) + '</strong></dd>';
 
             if (Number(price.deposit_amount) > 0) {
-                html += line(labels.deposit, price.deposit_amount, currency);
+                html += line(labels.deposit, shown.deposit);
+            }
+
+            if (shown.offered_name) {
+                html += line(escape(shown.offered_name), shown.offered_total);
+                html += '<dt><strong>' + labels.both_total + '</strong></dt><dd><strong>' + escape(shown.both_total) + '</strong></dd>';
             }
 
             html += '</dl>';
-
-            if (form.querySelector('#coupon_code').value.trim() !== '' && !price.coupon_applied) {
-                html += '<p class="admin-hint">' + labels.couponIgnored + '</p>';
-            }
 
             // Tuk tuks come from partners: there is no availability to report.
             if (!price.unlimited_units) {
@@ -272,7 +319,7 @@
             }
         });
         form.addEventListener('input', function (event) {
-            if (event.target.matches('[name^="addons"], #coupon_code, #hours, #transfer_time')) {
+            if (event.target.matches('[name^="addons"], #hours, #transfer_time, #offer_hours')) {
                 refresh();
             }
         });
@@ -283,6 +330,7 @@
         document.querySelectorAll('[data-manual-booking-form]').forEach(function (form) {
             initCustomerPicker(form);
             initAddons(form);
+            initOffers(form);
             initPricePreview(form);
         });
     }

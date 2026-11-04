@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Models\User;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Booking\Models\Booking;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Package\Models\Package;
@@ -64,13 +63,10 @@ it('rejects a second HTTP submission for the same vehicle and overlapping dates'
 });
 
 it('always books office pickup, even if a delivery choice is posted', function (): void {
-    $office = BusinessLocation::factory()->create(['is_active' => true]);
-
     submitManualBooking(['pickup_type' => 'delivery', 'delivery_zone_id' => '999'])->assertSessionHasNoErrors();
 
     $booking = Booking::query()->sole();
     expect($booking->pickup_type)->toBe('office')
-        ->and($booking->business_location_id)->toBe($office->id)
         ->and($booking->delivery_zone_id)->toBeNull();
 });
 

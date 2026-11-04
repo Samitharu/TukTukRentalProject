@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\VehicleReservationSlot;
 use Modules\Availability\Services\AvailabilityService;
-use Modules\Booking\Exceptions\CouponUnavailableException;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Models\BookingHold;
 use Modules\Booking\Services\BookingService;
@@ -17,7 +15,6 @@ use Modules\Fleet\Models\VehicleMaintenanceLog;
 use Modules\Localization\Models\Locale;
 use Modules\Package\Models\Addon;
 use Modules\Package\Models\Package;
-use Modules\Pricing\Models\Coupon;
 use Modules\Pricing\Services\PricingService;
 
 /**
@@ -30,7 +27,6 @@ beforeEach(function (): void {
     Locale::query()->create(['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]);
     Locale::query()->create(['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch', 'is_default' => false, 'is_active' => true, 'sort_order' => 2]);
 
-    $this->location = BusinessLocation::factory()->create(['is_active' => true]);
     $this->vehicleA = Vehicle::factory()->create();
     $this->vehicleB = Vehicle::factory()->create();
 
@@ -57,7 +53,6 @@ function safetyDates(object $test, string $locale = 'en'): \Illuminate\Testing\T
         'start_date' => $test->start->toDateString(),
         'end_date' => $test->end->toDateString(),
         'pickup_type' => 'office',
-        'business_location_id' => $test->location->id,
     ]);
 }
 
@@ -88,7 +83,6 @@ it('rejects a pickup date further ahead than the advance-booking window, with a 
         'start_date' => now()->addDays(31)->toDateString(),
         'end_date' => now()->addDays(32)->toDateString(),
         'pickup_type' => 'office',
-        'business_location_id' => $this->location->id,
     ])->assertSessionHasErrors(['start_date' => 'Bookings can be made up to 30 days in advance.']);
 });
 
@@ -99,7 +93,6 @@ it('rejects a rental longer than the maximum length (also caps per-day slot rows
         'start_date' => $this->start->toDateString(),
         'end_date' => $this->start->addDays(30)->toDateString(), // 31 days inclusive
         'pickup_type' => 'office',
-        'business_location_id' => $this->location->id,
     ])->assertSessionHasErrors(['end_date' => 'The maximum rental length is 30 days. For longer rentals, please contact us.']);
 });
 
@@ -108,7 +101,6 @@ it('shows date errors in the visitor\'s language', function (): void {
         'start_date' => now()->subDay()->toDateString(),
         'end_date' => now()->toDateString(),
         'pickup_type' => 'office',
-        'business_location_id' => $this->location->id,
     ])->assertSessionHasErrors(['start_date' => 'Das Abholdatum darf nicht in der Vergangenheit liegen.']);
 });
 
@@ -250,17 +242,16 @@ it('recovers from a checkout whose hold has expired instead of failing on every 
 });
 
 it('frees the vehicle at once when a confirm fails after its hold was created', function (): void {
-    $coupon = Coupon::query()->create(['code' => 'LAST1', 'type' => Coupon::TYPE_PERCENT, 'value' => 10, 'is_active' => true, 'usage_limit' => 1, 'usage_count' => 0]);
-    $price = app(PricingService::class)->calculate($this->package, $this->start, 3, coupon: $coupon);
+    $price = app(PricingService::class)->calculate($this->package, $this->start, 3);
 
-    // Someone else redeems the coupon's last use between pricing and confirming.
-    $coupon->update(['usage_count' => 1]);
+    // The database fails while the booking is being written.
+    Booking::creating(fn () => throw new RuntimeException('Connection lost'));
 
     expect(fn () => app(BookingService::class)->createManualBooking(
         holdData: ['hold_key' => (string) Str::uuid(), 'start_at' => $this->start->toDateString(), 'end_at' => $this->end->toDateString(), 'package_id' => $this->package->id],
         customerData: ['email' => 'ana.silva@example.test', 'full_name' => 'Ana Silva', 'pickup_type' => 'office'],
         price: $price,
-    ))->toThrow(CouponUnavailableException::class);
+    ))->toThrow(RuntimeException::class, 'Connection lost');
 
     expect(VehicleReservationSlot::query()->count())->toBe(0)
         ->and(BookingHold::query()->sole()->status)->toBe(BookingHold::STATUS_RELEASED);

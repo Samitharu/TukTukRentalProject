@@ -10,10 +10,10 @@ use Modules\Availability\Models\DeliveryZone;
 use Modules\Availability\Models\TransferArea;
 use Modules\Package\Models\Addon;
 use Modules\Package\Models\Package;
+use Modules\Package\Models\PackageOffer;
+use Modules\Package\Models\PackagePricingTier;
 use Modules\Package\Models\PackageSeason;
 use Modules\Pricing\DataObjects\PriceBreakdown;
-use Modules\Pricing\Models\Coupon;
-use Modules\Pricing\Models\Currency;
 
 /**
  * The single authoritative price calculator (brief §7: "prices always
@@ -33,21 +33,22 @@ final class PricingService
         CarbonImmutable $startDate,
         int $days,
         array $addonSelections = [],
-        ?Coupon $coupon = null,
         ?DeliveryZone $deliveryZone = null,
-        ?string $currencyCode = null,
         ?int $hours = null,
         ?TransferArea $transferArea = null,
     ): PriceBreakdown {
         // An hourly package is a single-day rental priced by the hour;
-        // add-ons and coupons see it as the one day it is.
+        // add-ons see it as the one day it is.
         $hours = $package->isHourly() ? max($hours ?? (int) $package->min_hours, 1) : null;
 
         $endDate = $startDate->addDays(max($days - 1, 0));
-        $currencyCode ??= config('pricing.default_currency');
 
-        $baseAmount = $this->calculateBaseAmount($package, $days, $hours);
-        $seasonalAdjustment = $this->calculateSeasonalAdjustment($package, $startDate, $endDate, $baseAmount);
+        // Tiers count hours for an hourly package, days for any other.
+        $tier = $this->tierFor($package, $hours ?? $days);
+        $season = $this->seasonFor($package, $startDate, $endDate);
+
+        $baseAmount = $this->baseAmount($package, (float) ($tier?->price ?? 0), $days, $hours);
+        $seasonalAdjustment = $season?->modifierFor($baseAmount) ?? 0.0;
         [$addonLines, $addonsTotal] = $this->calculateAddons($package, $addonSelections, $days);
         $deliveryFee = (float) ($deliveryZone?->extra_fee ?? 0);
         // Airport pickup: package price (per trip) + the destination's price.
@@ -55,17 +56,10 @@ final class PricingService
 
         $rentalSubtotal = round($baseAmount + $seasonalAdjustment + $addonsTotal + $transferFee, 2);
 
-        $couponDiscount = 0.0;
-        $couponCode = null;
-        if ($coupon !== null && $coupon->isValidFor($days, $startDate)) {
-            $couponDiscount = $coupon->discountFor($rentalSubtotal);
-            $couponCode = $coupon->code;
-        }
-
-        $total = round($rentalSubtotal - $couponDiscount + $deliveryFee, 2);
+        $total = round($rentalSubtotal + $deliveryFee, 2);
         $depositAmount = $this->calculateDeposit($package, $total);
 
-        $breakdown = new PriceBreakdown(
+        return new PriceBreakdown(
             currencyCode: config('pricing.default_currency'),
             days: $days,
             baseAmount: $baseAmount,
@@ -73,35 +67,95 @@ final class PricingService
             addonLines: $addonLines,
             addonsTotal: $addonsTotal,
             deliveryFee: $deliveryFee,
-            couponCode: $couponCode,
-            couponDiscount: $couponDiscount,
             total: $total,
             depositAmount: $depositAmount,
             hours: $hours,
             transferFee: $transferFee,
+            eur: $this->eurAmounts($package, $tier, $season, $days, $hours, $addonLines, $deliveryFee, $transferArea),
         );
-
-        return $currencyCode === config('pricing.default_currency')
-            ? $breakdown
-            : $this->convert($breakdown, $currencyCode);
     }
 
-    private function calculateBaseAmount(Package $package, int $days, ?int $hours): float
+    /**
+     * The same bill with a package offer's saving taken off, in each
+     * currency. A saving larger than the bill makes it free, never negative.
+     */
+    public function withOffer(Package $package, PriceBreakdown $price, PackageOffer $offer): PriceBreakdown
+    {
+        $discount = min((float) $offer->discount, $price->total);
+        $total = round($price->total - $discount, 2);
+        $eur = $price->eur;
+
+        if ($eur !== null) {
+            $discountEur = min((float) $offer->discount_eur, $eur['total']);
+            $eur = [...$eur, 'offer_discount' => $discountEur, 'total' => round($eur['total'] - $discountEur, 2)];
+        }
+
+        return new PriceBreakdown(
+            currencyCode: $price->currencyCode,
+            days: $price->days,
+            baseAmount: $price->baseAmount,
+            seasonalAdjustment: $price->seasonalAdjustment,
+            addonLines: $price->addonLines,
+            addonsTotal: $price->addonsTotal,
+            deliveryFee: $price->deliveryFee,
+            total: $total,
+            depositAmount: $this->calculateDeposit($package, $total),
+            hours: $price->hours,
+            transferFee: $price->transferFee,
+            eur: $eur,
+            offerDiscount: $discount,
+        );
+    }
+
+    /**
+     * The same bill from the EUR prices staff entered, never a conversion.
+     * Null when any priced part has no EUR price, so customers are shown USD
+     * alone instead of a EUR total that leaves something out.
+     *
+     * @param array<int, array{amount_eur: float|null}> $addonLines
+     * @return array{base_amount: float, seasonal_adjustment: float, addons_total: float, transfer_fee: float, rental_subtotal: float, total: float}|null
+     */
+    private function eurAmounts(Package $package, ?PackagePricingTier $tier, ?PackageSeason $season, int $days, ?int $hours, array $addonLines, float $deliveryFee, ?TransferArea $transferArea): ?array
+    {
+        if ($tier !== null && $tier->price_eur === null) {
+            return null;
+        }
+
+        $base = $this->baseAmount($package, (float) ($tier?->price_eur ?? 0), $days, $hours);
+        $seasonal = $season === null ? 0.0 : $season->eurModifierFor($base);
+        $transfer = $package->isTransfer() && $transferArea !== null ? $transferArea->price_eur : 0.0;
+        $addonAmounts = array_column($addonLines, 'amount_eur');
+
+        // Delivery zones have no EUR fee.
+        if ($seasonal === null || $transfer === null || in_array(null, $addonAmounts, true) || $deliveryFee > 0) {
+            return null;
+        }
+
+        $addons = round(array_sum($addonAmounts), 2);
+        $subtotal = round($base + $seasonal + $addons + (float) $transfer, 2);
+
+        return [
+            'base_amount' => $base,
+            'seasonal_adjustment' => $seasonal,
+            'addons_total' => $addons,
+            'transfer_fee' => (float) $transfer,
+            'rental_subtotal' => $subtotal,
+            'total' => $subtotal,
+        ];
+    }
+
+    /** $rate is the tier's price in one currency. */
+    private function baseAmount(Package $package, float $rate, int $days, ?int $hours): float
     {
         if ($hours !== null) {
-            // Tiers count hours here: e.g. 1-3 h at 8/h, 4+ h at 6/h.
-            return round($this->rateFor($package, $hours) * $hours, 2);
+            // e.g. 1-3 h at 8/h, 4+ h at 6/h.
+            return round($rate * $hours, 2);
         }
 
         if ($package->pricing_model === Package::MODEL_FIXED_BUNDLE) {
-            $tier = $package->pricingTiers()->where('min_days', '<=', $days)
-                ->where(fn ($q) => $q->whereNull('max_days')->orWhere('max_days', '>=', $days))
-                ->first();
-
-            return (float) ($tier?->price ?? 0);
+            return $rate;
         }
 
-        $rate = $this->rateFor($package, $days);
         $units = match ($package->pricing_model) {
             Package::MODEL_PER_WEEK => (int) ceil($days / 7),
             Package::MODEL_PER_MONTH => (int) ceil($days / 30),
@@ -112,34 +166,30 @@ final class PricingService
     }
 
     /**
-     * The rate of the tier covering $units — days for most packages, hours
-     * for an hourly one (tier columns are named for the original, day case).
+     * The tier covering $units — days for most packages, hours for an hourly
+     * one (tier columns are named for the original, day case).
      */
-    private function rateFor(Package $package, int $units): float
+    private function tierFor(Package $package, int $units): ?PackagePricingTier
     {
-        $tier = $package->pricingTiers()
+        return $package->pricingTiers()
             ->where('min_days', '<=', $units)
             ->where(fn ($q) => $q->whereNull('max_days')->orWhere('max_days', '>=', $units))
             ->first();
-
-        return (float) ($tier?->price ?? 0);
     }
 
-    private function calculateSeasonalAdjustment(Package $package, CarbonImmutable $start, CarbonImmutable $end, float $baseAmount): float
+    private function seasonFor(Package $package, CarbonImmutable $start, CarbonImmutable $end): ?PackageSeason
     {
-        $applicable = $package->seasons()
+        return $package->seasons()
             ->overlapping($start, $end)
             ->orderByDesc('priority')
             ->orderBy('id')
             ->get()
             ->first(fn (PackageSeason $season) => $season->appliesToWeekday($start));
-
-        return $applicable?->modifierFor($baseAmount) ?? 0.0;
     }
 
     /**
      * @param array<int, int> $addonSelections
-     * @return array{0: array<int, array{addon_id:int, name:string, quantity:int, amount:float}>, 1: float}
+     * @return array{0: array<int, array{addon_id:int, name:string, quantity:int, amount:float, amount_eur:float|null}>, 1: float}
      */
     private function calculateAddons(Package $package, array $addonSelections, int $days): array
     {
@@ -173,6 +223,7 @@ final class PricingService
                 'name' => $addon->name,
                 'quantity' => $quantity,
                 'amount' => $amount,
+                'amount_eur' => $addon->eurPriceFor($days, $quantity),
             ];
             $total += $amount;
         }
@@ -191,36 +242,5 @@ final class PricingService
             : (float) $package->deposit_amount;
 
         return min($deposit, $total);
-    }
-
-    private function convert(PriceBreakdown $breakdown, string $targetCurrencyCode): PriceBreakdown
-    {
-        $currency = Currency::query()->where('code', $targetCurrencyCode)->active()->first();
-        $rate = $currency?->latestRate();
-
-        if ($currency === null || $rate === null) {
-            return $breakdown;
-        }
-
-        $round = fn (float $amount) => round($amount * $rate, $currency->decimal_places);
-
-        return new PriceBreakdown(
-            currencyCode: $currency->code,
-            days: $breakdown->days,
-            baseAmount: $round($breakdown->baseAmount),
-            seasonalAdjustment: $round($breakdown->seasonalAdjustment),
-            addonLines: array_map(
-                fn (array $line) => [...$line, 'amount' => $round($line['amount'])],
-                $breakdown->addonLines,
-            ),
-            addonsTotal: $round($breakdown->addonsTotal),
-            deliveryFee: $round($breakdown->deliveryFee),
-            couponCode: $breakdown->couponCode,
-            couponDiscount: $round($breakdown->couponDiscount),
-            total: $round($breakdown->total),
-            depositAmount: $round($breakdown->depositAmount),
-            hours: $breakdown->hours,
-            transferFee: $round($breakdown->transferFee),
-        );
     }
 }

@@ -7,61 +7,36 @@ namespace Modules\Pricing\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
-use Modules\Pricing\Http\Requests\Admin\StoreCurrencyRequest;
 use Modules\Pricing\Http\Requests\Admin\UpdateExchangeRateRequest;
 use Modules\Pricing\Models\Currency;
 
+/**
+ * The two rates staff set: LKR for 1 USD and LKR for 1 EUR. USD and EUR prices
+ * are both entered by hand, so nothing else needs converting.
+ */
 final class CurrencyController extends Controller
 {
     public function index(): View
     {
         $this->authorize('pricing.manage');
 
-        $currencies = Currency::query()->orderByDesc('is_base')->orderBy('code')->get();
-
-        return view('pricing::admin.currencies.index', compact('currencies'));
+        return view('pricing::admin.currencies.index', [
+            'rate' => Currency::lkrPerUsd(),
+            'rateEur' => Currency::lkrPerEur(),
+            'updatedAt' => Currency::query()->where('code', Currency::LKR)->first()?->exchangeRates()->max('fetched_at'),
+        ]);
     }
 
-    public function store(StoreCurrencyRequest $request): RedirectResponse
+    public function updateRate(UpdateExchangeRateRequest $request): RedirectResponse
     {
-        $data = $request->validated();
-        $data['code'] = mb_strtoupper($data['code']);
-        $data['is_active'] = $request->boolean('is_active', true);
-        $data['is_base'] = false;
+        $lkr = Currency::query()
+            ->firstOrCreate(['code' => Currency::LKR], ['symbol' => 'Rs', 'is_base' => false, 'is_active' => true, 'decimal_places' => 0]);
 
-        Currency::query()->create($data);
-
-        return redirect()->route('admin.currencies.index')->with('status', __('Currency added.'));
-    }
-
-    public function updateRate(UpdateExchangeRateRequest $request, Currency $currency): RedirectResponse
-    {
-        $currency->exchangeRates()->create([
-            'rate' => $request->validated('rate'),
-            'fetched_at' => now(),
+        $lkr->exchangeRates()->createMany([
+            ['from_code' => 'USD', 'rate' => $request->validated('rate'), 'fetched_at' => now()],
+            ['from_code' => 'EUR', 'rate' => $request->validated('rate_eur'), 'fetched_at' => now()],
         ]);
 
-        return redirect()->route('admin.currencies.index')->with('status', __('Exchange rate updated.'));
-    }
-
-    public function makeBase(Currency $currency): RedirectResponse
-    {
-        $this->authorize('pricing.manage');
-
-        Currency::query()->where('id', '!=', $currency->id)->update(['is_base' => false]);
-        $currency->update(['is_base' => true, 'is_active' => true]);
-
-        return redirect()->route('admin.currencies.index')->with('status', __('Base currency updated.'));
-    }
-
-    public function destroy(Currency $currency): RedirectResponse
-    {
-        $this->authorize('pricing.manage');
-
-        abort_if($currency->is_base, 403, __('Cannot remove the base currency.'));
-
-        $currency->delete();
-
-        return redirect()->route('admin.currencies.index')->with('status', __('Currency removed.'));
+        return redirect()->route('admin.currencies.index')->with('status', __('LKR rates updated.'));
     }
 }

@@ -53,7 +53,7 @@ final class BookingConfirmationMail extends Mailable implements ShouldQueueAfter
 
     public function content(): Content
     {
-        $this->booking->loadMissing(['customer', 'vehicle.category', 'package', 'businessLocation', 'deliveryZone', 'transferArea', 'addons.addon']);
+        $this->booking->loadMissing(['customer', 'vehicle.category', 'package', 'deliveryZone', 'transferArea', 'addons.addon']);
 
         $routeParams = ['locale' => $this->locale ?? app()->getLocale(), 'reference' => $this->booking->reference];
 

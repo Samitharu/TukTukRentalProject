@@ -13,14 +13,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Admin\Models\BlockedIp;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\TransferArea;
 use Modules\Availability\Services\AvailabilityService;
-use Modules\Booking\Exceptions\CouponUnavailableException;
 use Modules\Booking\Exceptions\NoVehicleAvailableException;
 use Modules\Booking\Http\Requests\Admin\StoreManualBookingRequest;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Services\BookingService;
+use Modules\Booking\Services\OfferedBookingPlanner;
 use Modules\Booking\Services\SuspiciousBookingDetector;
 use Modules\Booking\Services\TransferAvailability;
 use Modules\Booking\Support\HourlySchedule;
@@ -30,8 +29,8 @@ use Modules\Customer\Models\Customer;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Package\Models\Package;
 use Modules\Pricing\DataObjects\PriceBreakdown;
-use Modules\Pricing\Models\Coupon;
 use Modules\Pricing\Services\PricingService;
+use Modules\Pricing\Support\Money;
 
 final class BookingController extends Controller
 {
@@ -39,6 +38,7 @@ final class BookingController extends Controller
         private readonly BookingService $bookings,
         private readonly PricingService $pricing,
         private readonly SuspiciousBookingDetector $detector,
+        private readonly OfferedBookingPlanner $offers,
     ) {
     }
 
@@ -127,13 +127,13 @@ final class BookingController extends Controller
 
         return view('booking::admin.bookings.create', [
             'packages' => $packages,
+            'packageOffers' => $packages->flatMap->availableOffers(),
             'addons' => $addons->sortBy('sort_order')->values(),
             'addonPackageIds' => $addonPackageIds,
             'selectedCustomer' => $customer,
             'countries' => Countries::all(),
             'hourlyStartTimes' => HourlySchedule::startTimes(new Package(['min_hours' => 1])),
             'vehicles' => Vehicle::query()->active()->tracked()->with('category')->orderBy('plate_no')->orderBy('id')->get(),
-            'office' => BusinessLocation::office(),
             'transferAreas' => TransferArea::query()->active()->ordered()->get(),
         ]);
     }
@@ -144,42 +144,64 @@ final class BookingController extends Controller
         $quote = $this->priceFor($request);
         $customer = isset($data['customer_id']) ? Customer::query()->find($data['customer_id']) : null;
 
+        $holdData = [
+            'hold_key' => (string) Str::uuid(),
+            'start_at' => $quote['start_at'],
+            'end_at' => $quote['end_at'],
+            'vehicle_id' => $data['vehicle_id'] ?? null,
+            'package_id' => $quote['package']->id,
+        ];
+        // An existing customer is matched by their stored email;
+        // CustomerService only fills in details they're missing.
+        $customerData = [
+            'email' => $customer?->email ?? $data['email'],
+            'full_name' => filled($data['full_name'] ?? null) ? $data['full_name'] : $customer?->full_name,
+            'phone' => $data['phone'] ?? null,
+            'nationality' => $data['nationality'] ?? null,
+            'passport_number' => $data['passport_number'] ?? null,
+            'pickup_type' => $quote['data']['pickup_type'],
+            'delivery_zone_id' => null,
+            'transfer_direction' => $quote['data']['transfer_direction'] ?? null,
+            'flight_number' => $quote['data']['flight_number'] ?? null,
+            'transfer_address' => $quote['data']['transfer_address'] ?? null,
+            'transfer_area_id' => isset($quote['data']['transfer_area_id']) ? (int) $quote['data']['transfer_area_id'] : null,
+            'has_international_permit' => (bool) ($quote['data']['has_international_permit'] ?? false),
+            'special_requests' => $data['special_requests'] ?? null,
+        ];
+        // The form always posts it (hidden "0" + checkbox); default
+        // on, as before the checkbox existed.
+        $notifyCustomer = $request->boolean('notify_customer', true);
+
         try {
-            $booking = $this->bookings->createManualBooking(
-                holdData: [
-                    'hold_key' => (string) Str::uuid(),
-                    'start_at' => $quote['start_at'],
-                    'end_at' => $quote['end_at'],
-                    'vehicle_id' => $data['vehicle_id'] ?? null,
-                    'package_id' => $quote['package']->id,
-                ],
-                // An existing customer is matched by their stored email;
-                // CustomerService only fills in details they're missing.
-                customerData: [
-                    'email' => $customer?->email ?? $data['email'],
-                    'full_name' => filled($data['full_name'] ?? null) ? $data['full_name'] : $customer?->full_name,
-                    'phone' => $data['phone'] ?? null,
-                    'nationality' => $data['nationality'] ?? null,
-                    'passport_number' => $data['passport_number'] ?? null,
-                    'pickup_type' => $quote['data']['pickup_type'],
-                    'business_location_id' => $quote['data']['business_location_id'],
-                    'delivery_zone_id' => null,
-                    'transfer_direction' => $quote['data']['transfer_direction'] ?? null,
-                    'flight_number' => $quote['data']['flight_number'] ?? null,
-                    'transfer_address' => $quote['data']['transfer_address'] ?? null,
-                    'transfer_area_id' => isset($quote['data']['transfer_area_id']) ? (int) $quote['data']['transfer_area_id'] : null,
-                    'has_international_permit' => (bool) ($quote['data']['has_international_permit'] ?? false),
-                    'special_requests' => $data['special_requests'] ?? null,
-                ],
-                price: $quote['price'],
-                // The form always posts it (hidden "0" + checkbox); default
-                // on, as before the checkbox existed.
-                notifyCustomer: $request->boolean('notify_customer', true),
-            );
+            if ($quote['offer'] !== null) {
+                $plan = $quote['offer']['plan'];
+
+                $booking = $this->bookings->createBookingWithOffer(
+                    holdData: $holdData,
+                    customerData: $customerData,
+                    price: $quote['price'],
+                    offered: [
+                        'hold' => [
+                            'hold_key' => (string) Str::uuid(),
+                            'start_at' => $plan['start_at'],
+                            'end_at' => $plan['end_at'],
+                            'package_id' => $quote['offer']['package']->id,
+                        ],
+                        'customer' => [...$customerData, ...$plan['customer']],
+                        'price' => $plan['price'],
+                    ],
+                    notifyCustomer: $notifyCustomer,
+                );
+            } else {
+                $booking = $this->bookings->createManualBooking(
+                    holdData: $holdData,
+                    customerData: $customerData,
+                    price: $quote['price'],
+                    notifyCustomer: $notifyCustomer,
+                );
+            }
         } catch (NoVehicleAvailableException $exception) {
             return back()->withInput()->withErrors(['vehicle_id' => $exception->getMessage()]);
-        } catch (CouponUnavailableException) {
-            return back()->withInput()->withErrors(['coupon_code' => __('That coupon has reached its usage limit.')]);
         }
 
         return redirect()->route('admin.bookings.show', $booking)->with('status', __('Booking :reference created.', ['reference' => $booking->reference]));
@@ -200,7 +222,7 @@ final class BookingController extends Controller
         if ($quote['package']->hasUnlimitedUnits()) {
             return response()->json([
                 ...$price->toArray(),
-                'coupon_applied' => $price->couponCode !== null,
+                'display' => $this->displayAmounts($price, $quote['offer']),
                 'unlimited_units' => true,
             ]);
         }
@@ -212,7 +234,7 @@ final class BookingController extends Controller
 
         return response()->json([
             ...$price->toArray(),
-            'coupon_applied' => $price->couponCode !== null,
+            'display' => $this->displayAmounts($price, $quote['offer']),
             'units_total' => count($vehicleIds),
             'units_free' => count(array_diff($vehicleIds, $busy)),
         ]);
@@ -248,10 +270,37 @@ final class BookingController extends Controller
     }
 
     /**
+     * The price preview's amounts, written out for staff.
+     *
+     * @param  array{package: Package, plan: array{price: PriceBreakdown}}|null  $offer
+     * @return array<string, string|null>
+     */
+    private function displayAmounts(PriceBreakdown $price, ?array $offer = null): array
+    {
+        $eur = $price->eur ?? [];
+        $offeredPrice = $offer['plan']['price'] ?? null;
+        $bothEur = isset($eur['total'], $offeredPrice?->eur['total']) ? $eur['total'] + $offeredPrice->eur['total'] : null;
+
+        return [
+            'offer_discount' => $price->offerDiscount > 0 ? Money::dual(-$price->offerDiscount, isset($eur['offer_discount']) ? -$eur['offer_discount'] : null) : null,
+            'offered_name' => $offer['package']->name ?? null,
+            'offered_total' => $offeredPrice !== null ? Money::admin($offeredPrice->total, $offeredPrice->eur['total'] ?? null) : null,
+            'both_total' => $offeredPrice !== null ? Money::admin($price->total + $offeredPrice->total, $bothEur) : null,
+            'base' => Money::dual($price->baseAmount, $eur['base_amount'] ?? null),
+            'seasonal' => Money::dual($price->seasonalAdjustment, $eur['seasonal_adjustment'] ?? null),
+            'transfer' => Money::dual($price->transferFee, $eur['transfer_fee'] ?? null),
+            'addons' => Money::dual($price->addonsTotal, $eur['addons_total'] ?? null),
+            'delivery' => Money::usd($price->deliveryFee),
+            'total' => Money::admin($price->total, $eur['total'] ?? null),
+            'deposit' => Money::usd($price->depositAmount),
+        ];
+    }
+
+    /**
      * The booking period and server-side price for a manual booking form
      * submission — shared by store() and quote().
      *
-     * @return array{package: Package, price: PriceBreakdown, start: CarbonImmutable, end: CarbonImmutable, start_at: string, end_at: string, data: array<string, mixed>}
+     * @return array{package: Package, price: PriceBreakdown, start: CarbonImmutable, end: CarbonImmutable, start_at: string, end_at: string, data: array<string, mixed>, offer: array{package: Package, plan: array<string, mixed>}|null}
      */
     private function priceFor(StoreManualBookingRequest $request): array
     {
@@ -262,19 +311,19 @@ final class BookingController extends Controller
         $end = CarbonImmutable::parse($data['end_date']);
 
         // A rental is always collected at the office — no delivery.
-        $data = [...$data, 'pickup_type' => 'office', 'business_location_id' => BusinessLocation::office()?->id];
+        $data = [...$data, 'pickup_type' => 'office'];
         $transferArea = null;
 
         if ($package->isStay()) {
             // The form's end date is the check-out day; a stay is stored up
             // to its last night (see Booking::isStay()), and has no pickup.
             $end = $end->subDay();
-            $data = [...$data, 'business_location_id' => null, 'has_international_permit' => false];
+            $data = [...$data, 'has_international_permit' => false];
         }
 
         if ($package->isTransfer()) {
             $transferArea = TransferArea::query()->findOrFail($data['transfer_area_id']);
-            $data = [...$data, 'business_location_id' => null, 'has_international_permit' => false];
+            $data = [...$data, 'has_international_permit' => false];
         } else {
             $data = [...$data, 'transfer_direction' => null, 'flight_number' => null, 'transfer_address' => null, 'transfer_area_id' => null];
         }
@@ -297,18 +346,25 @@ final class BookingController extends Controller
             [$start, $end] = [CarbonImmutable::parse($startAt), CarbonImmutable::parse($endAt)];
         }
 
-        $coupon = ! empty($data['coupon_code'])
-            ? Coupon::query()->where('code', mb_strtoupper($data['coupon_code']))->active()->first()
-            : null;
+        $price = $this->pricing->calculate($package, $start, $days, $request->addonSelections(), hours: $hours, transferArea: $transferArea);
+        $offer = $request->chosenOffer();
 
         return [
             'package' => $package,
-            'price' => $this->pricing->calculate($package, $start, $days, $request->addonSelections(), $coupon, null, hours: $hours, transferArea: $transferArea),
+            'price' => $offer !== null ? $this->pricing->withOffer($package, $price, $offer) : $price,
             'start' => $start,
             'end' => $end,
             'start_at' => $startAt,
             'end_at' => $endAt,
             'data' => $data,
+            'offer' => $offer !== null ? [
+                'package' => $offer->offeredPackage,
+                'plan' => $this->offers->plan($offer->offeredPackage, [
+                    ...$request->offerData(),
+                    // As ticked: the first package may be one that ignores it.
+                    'has_international_permit' => $request->boolean('has_international_permit'),
+                ]),
+            ] : null,
         ];
     }
 
@@ -316,7 +372,7 @@ final class BookingController extends Controller
     {
         $this->authorize('view', $booking);
 
-        $booking->load(['customer', 'vehicle.category', 'package', 'addons.addon', 'statusHistory.changedBy', 'extraCharges', 'transferArea']);
+        $booking->load(['customer', 'vehicle.category', 'package', 'addons.addon', 'statusHistory.changedBy', 'extraCharges', 'transferArea', 'linkedBooking.package']);
         $hourlyPackage = $booking->isHourly() ? ($booking->package ?? new Package(['min_hours' => 1])) : null;
 
         return view('booking::admin.bookings.show', [

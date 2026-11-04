@@ -23,6 +23,8 @@ final class Currency extends Model
     /** @use HasFactory<\Modules\Pricing\Database\Factories\CurrencyFactory> */
     use HasFactory;
 
+    public const string LKR = 'LKR';
+
     protected $fillable = [
         'code',
         'symbol',
@@ -55,15 +57,30 @@ final class Currency extends Model
         return Cache::rememberForever('currencies:base', fn () => self::query()->where('is_base', true)->firstOrFail());
     }
 
-    public function latestRate(): ?float
+    /** LKR for 1 USD, as set by staff; null until they set it. */
+    public static function lkrPerUsd(): ?float
     {
-        if ($this->is_base) {
-            return 1.0;
-        }
+        return self::lkrRate('USD');
+    }
 
-        $rate = $this->exchangeRates()->orderByDesc('fetched_at')->first();
+    /** LKR for 1 EUR, as set by staff; null until they set it. */
+    public static function lkrPerEur(): ?float
+    {
+        return self::lkrRate('EUR');
+    }
 
-        return $rate?->rate !== null ? (float) $rate->rate : null;
+    private static function lkrRate(string $from): ?float
+    {
+        $rate = Cache::rememberForever('currencies:lkr_per_'.strtolower($from), fn () => (float) self::query()
+            ->where('code', self::LKR)
+            ->first()
+            ?->exchangeRates()
+            ->where('from_code', $from)
+            ->orderByDesc('fetched_at')
+            ->orderByDesc('id')
+            ->value('rate'));
+
+        return $rate > 0 ? (float) $rate : null;
     }
 
     protected static function booted(): void

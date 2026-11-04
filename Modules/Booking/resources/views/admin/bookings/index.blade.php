@@ -47,7 +47,7 @@
                         <td>{{ $booking->start_at->format('Y-m-d') }}</td>
                         <td>{{ $booking->checkOutDate()->format('Y-m-d') }}</td>
                         <td>{{ ucfirst(str_replace('_', ' ', $booking->status)) }}</td>
-                        <td>{{ $booking->total_amount }} {{ $booking->currency_code }}</td>
+                        <td>{{ $booking->adminTotal() }}</td>
                     </tr>
                 @empty
                     <tr><td colspan="7">{{ __('No bookings found.') }}</td></tr>

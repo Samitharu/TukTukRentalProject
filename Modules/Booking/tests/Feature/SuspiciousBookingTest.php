@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Models\User;
 use Modules\Admin\Models\BlockedIp;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Support\BookingFingerprint;
 use Modules\Customer\Models\Customer;
@@ -27,7 +26,6 @@ function spamPublicBooking(string $ip, array $details = []): \Illuminate\Testing
         'start_date' => '2027-01-10',
         'end_date' => '2027-01-13',
         'pickup_type' => 'office',
-        'business_location_id' => test()->location->id,
     ]);
     $test->post('/en/booking/package', ['package_id' => test()->package->id]);
     $test->post('/en/booking/addons', ['addons' => []]);
@@ -57,7 +55,6 @@ function upcomingBooking(array $attributes = []): Booking
 beforeEach(function (): void {
     Locale::query()->create(['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]);
 
-    $this->location = BusinessLocation::factory()->create(['is_active' => true]);
     $this->vehicle = Vehicle::factory()->create();
     $this->package = Package::factory()->create(['min_days' => 1, 'max_days' => null]);
     $this->package->pricingTiers()->create(['min_days' => 1, 'max_days' => null, 'price' => 20]);

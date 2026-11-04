@@ -52,9 +52,6 @@ it('blocks a Content Editor from the user management screens', function (): void
     $this->actingAs($user)->get('/control-panel/users')->assertForbidden();
 });
 
-// A role with full locale permissions but NOT in the 2FA-enforced list
-// (that enforcement is exercised on its own in TwoFactorEnforcementTest) —
-// keeps these cases focused purely on the authorization outcome.
 it('lets a user with locales.manage handle locales end to end', function (): void {
     Role::findOrCreate('Locale Manager')->syncPermissions(['locales.view', 'locales.manage']);
     $user = User::factory()->create();

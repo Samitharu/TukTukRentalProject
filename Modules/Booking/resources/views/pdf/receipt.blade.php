@@ -3,15 +3,14 @@
     // so this template sticks to tables and plain hex colours. DejaVu Sans
     // ships with DomPDF and covers accented/Cyrillic names.
     $p = $booking->price_breakdown ?? [];
-    $currency = $booking->currency_code;
-    $money = fn ($value) => number_format((float) $value, 2).' '.$currency;
-    $balance = max(0, (float) $booking->total_amount - (float) $booking->amount_paid);
+    $e = $p['eur'] ?? [];
+    $money = fn ($usd, $eur = null) => \Modules\Pricing\Support\Money::dual($usd, $eur);
     $isStay = $booking->isStay();
     // Rental days, or nights for a stay (end_at is its last night).
     $days = $p['days'] ?? $booking->lengthInDays();
     $pickup = $booking->pickup_type === 'delivery'
         ? __('core::front.booking_pickup_delivery').($booking->deliveryZone ? ' — '.$booking->deliveryZone->name : '')
-        : __('core::front.booking_pickup_office').($booking->businessLocation ? ' — '.$booking->businessLocation->name : '');
+        : __('core::front.booking_pickup_office').($booking->officeAddress() ? ' — '.$booking->officeAddress() : '');
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
@@ -154,32 +153,37 @@
 
     <h2>{{ __('core::front.receipt_charges') }}</h2>
     <table class="lines">
-        <tr><td>{{ __($isStay ? 'core::front.price_accommodation' : 'core::front.price_base_amount') }}</td><td class="amt">{{ $money($p['base_amount'] ?? $booking->total_amount) }}</td></tr>
+        <tr><td>{{ __($isStay ? 'core::front.price_accommodation' : 'core::front.price_base_amount') }}</td><td class="amt">{{ $money($p['base_amount'] ?? $booking->total_amount, $e['base_amount'] ?? null) }}</td></tr>
 
         @if ((float) ($p['seasonal_adjustment'] ?? 0) != 0)
-            <tr><td>{{ __('core::front.price_seasonal_adjustment') }}</td><td class="amt">{{ $money($p['seasonal_adjustment']) }}</td></tr>
+            <tr><td>{{ __('core::front.price_seasonal_adjustment') }}</td><td class="amt">{{ $money($p['seasonal_adjustment'], $e['seasonal_adjustment'] ?? null) }}</td></tr>
         @endif
 
         @foreach ($p['addon_lines'] ?? [] as $line)
             <tr>
                 <td>{{ is_array($line['name'] ?? null) ? (reset($line['name']) ?: '') : ($line['name'] ?? '') }} × {{ $line['quantity'] ?? 1 }}</td>
-                <td class="amt">{{ $money($line['amount'] ?? 0) }}</td>
+                <td class="amt">{{ $money($line['amount'] ?? 0, $line['amount_eur'] ?? null) }}</td>
             </tr>
         @endforeach
 
         @if ((float) ($p['transfer_fee'] ?? 0) > 0)
-            <tr><td>{{ __('core::front.price_transfer_fee') }}@if ($booking->transferArea) — {{ $booking->transferArea->name }}@endif</td><td class="amt">{{ $money($p['transfer_fee']) }}</td></tr>
+            <tr><td>{{ __('core::front.price_transfer_fee') }}@if ($booking->transferArea) — {{ $booking->transferArea->name }}@endif</td><td class="amt">{{ $money($p['transfer_fee'], $e['transfer_fee'] ?? null) }}</td></tr>
         @endif
 
         @if ((float) ($p['delivery_fee'] ?? 0) > 0)
             <tr><td>{{ __('core::front.price_delivery_fee') }}</td><td class="amt">{{ $money($p['delivery_fee']) }}</td></tr>
         @endif
 
+        {{-- Only older bookings, from when coupons existed, have a discount. --}}
         @if ((float) ($p['coupon_discount'] ?? 0) > 0)
             <tr><td>{{ __('core::front.price_coupon_discount') }} ({{ $p['coupon_code'] ?? '' }})</td><td class="amt">-{{ $money($p['coupon_discount']) }}</td></tr>
         @endif
 
-        <tr class="total"><td>{{ __('core::front.price_total') }}</td><td class="amt">{{ $money($booking->total_amount) }}</td></tr>
+        @if ($booking->displayOfferDiscount())
+            <tr><td>{{ __('core::front.offer_saving') }}</td><td class="amt">{{ $booking->displayOfferDiscount() }}</td></tr>
+        @endif
+
+        <tr class="total"><td>{{ __('core::front.price_total') }}</td><td class="amt">{{ $booking->displayTotal() }}</td></tr>
     </table>
 
     <table class="kv" style="margin-top:8px;">
@@ -190,7 +194,7 @@
     </table>
 
     <table class="balance" style="margin-top:8px;">
-        <tr><td>{{ __($isStay ? 'core::front.receipt_balance_due_stay' : 'core::front.receipt_balance_due') }}</td><td style="text-align:right;">{{ $money($balance) }}</td></tr>
+        <tr><td>{{ __($isStay ? 'core::front.receipt_balance_due_stay' : 'core::front.receipt_balance_due') }}</td><td style="text-align:right;">{{ $booking->displayBalance() }}</td></tr>
     </table>
 
     <div class="footer">

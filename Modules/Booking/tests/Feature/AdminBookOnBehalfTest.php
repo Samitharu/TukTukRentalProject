@@ -117,7 +117,7 @@ it('previews the same total and the free units before saving', function (): void
         'full_name' => '', 'email' => '', // the customer part isn't needed for a quote
     ]))
         ->assertOk()
-        ->assertJson(['total' => 65, 'units_total' => 1, 'units_free' => 1, 'coupon_applied' => false]);
+        ->assertJson(['total' => 65, 'units_total' => 1, 'units_free' => 1, 'display' => ['total' => '$65.00']]);
 
     expect(Booking::query()->count())->toBe(0);
 

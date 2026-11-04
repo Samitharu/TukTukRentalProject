@@ -1,71 +1,10 @@
 @php
-    $currency = config('pricing.default_currency');
+    $eur = $price->eur ?? [];
+    $money = fn (float $usd, string $key) => \Modules\Pricing\Support\Money::dual($usd, $eur[$key] ?? null);
 @endphp
 <x-core::layouts.public :title="__('core::front.booking_review_title').' · '.config('app.name')">
     <x-slot:scripts>
         <script nonce="{{ csp_nonce() }}">
-            {{--
-                public/assets/vendor/alpine.min.js is the official @alpinejs/csp
-                build: its expression evaluator is a restricted-grammar
-                interpreter, not `new Function(...)`, so it has no `JSON`
-                global and can't run `x-data="bookingReview(JSON.parse(...))"`
-                the way regular Alpine can. The fix is the pattern Alpine's own
-                CSP docs recommend: register the component with Alpine.data()
-                in a real <script> (plain JS, no expression-grammar limits),
-                and have it read its initial data from data-* attributes
-                (already HTML-escaped by Blade's {{ }}) inside init() — never
-                pass anything but a bare `name()` call through the x-data
-                attribute itself.
-            --}}
-            document.addEventListener('alpine:init', () => {
-                Alpine.data('bookingReview', () => ({
-                    price: {},
-                    couponCode: '',
-                    error: null,
-                    loading: false,
-                    recalcUrl: '',
-                    errorText: '',
-                    init() {
-                        this.price = JSON.parse(this.$el.dataset.price);
-                        this.couponCode = this.$el.dataset.coupon;
-                        this.recalcUrl = this.$el.dataset.recalcUrl;
-                        this.errorText = this.$el.dataset.errorText;
-                    },
-                    money(value) {
-                        return Number(value).toFixed(2);
-                    },
-                    async applyCoupon() {
-                        this.loading = true;
-                        this.error = null;
-
-                        try {
-                            const response = await fetch(this.recalcUrl, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Accept': 'application/json',
-                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                                },
-                                body: JSON.stringify({ coupon_code: this.couponCode }),
-                            });
-
-                            const data = await response.json();
-
-                            if (! response.ok) {
-                                this.error = data.message || this.errorText;
-                                return;
-                            }
-
-                            this.price = data;
-                        } catch (e) {
-                            this.error = this.errorText;
-                        } finally {
-                            this.loading = false;
-                        }
-                    },
-                }));
-            });
-
             // Double-submit guard: disable "Confirm" once the form really
             // submits (the browser's own required/checkbox validation has
             // passed). The server is idempotent anyway — see
@@ -84,22 +23,11 @@
     </x-slot:scripts>
 
     <section class="section booking-flow">
-        <div
-            class="container"
-            style="max-width:40rem;"
-            x-data="bookingReview()"
-            data-price="{{ json_encode($price->toArray()) }}"
-            data-coupon="{{ $state['coupon_code'] ?? '' }}"
-            data-recalc-url="{{ route('booking.review.recalculate') }}"
-            data-error-text="{{ __('core::front.booking_coupon_invalid') }}"
-        >
+        <div class="container" style="max-width:40rem;">
             @include('booking::front.steps._indicator', ['current' => 'review'])
 
             <h1>{{ __('core::front.booking_review_title') }}</h1>
 
-            @error('coupon_code')
-                <div class="alert alert--warning" role="alert">{{ $message }}</div>
-            @enderror
             @error('booking')
                 <div class="alert alert--warning" role="alert">{{ $message }}</div>
             @enderror
@@ -144,9 +72,28 @@
                             {{ __('core::front.booking_review_addons') }}
                             <a href="{{ route('booking.addons') }}" style="font-weight:400;font-size:var(--font-size-sm);">{{ __('core::front.booking_review_edit') }}</a>
                         </h2>
-                        <template x-for="line in price.addon_lines" :key="line.addon_id">
-                            <p x-text="line.name + ' × ' + line.quantity"></p>
-                        </template>
+                        @foreach ($price->addonLines as $line)
+                            <p>{{ $line['name'] }} × {{ $line['quantity'] }}</p>
+                        @endforeach
+                    @endif
+
+                    @if ($chosenOffer)
+                        <h2 style="font-size:var(--font-size-base);">
+                            {{ __('core::front.offer_added_heading') }}
+                            <a href="{{ route('booking.offer', ['offer' => $chosenOffer->id]) }}" style="font-weight:400;font-size:var(--font-size-sm);">{{ __('core::front.booking_review_edit') }}</a>
+                        </h2>
+                        <p>{{ $chosenOffer->offeredPackage->name }}</p>
+                        <p class="text-muted">
+                            @if ($chosenOffer->offeredPackage->isTransfer())
+                                {{ \Illuminate\Support\Carbon::parse($state['offer']['start_date'])->format('d M Y') }}, {{ $state['offer']['transfer_time'] }} &middot; {{ __($state['offer']['transfer_direction'] === 'departure' ? 'core::front.transfer_departure' : 'core::front.transfer_arrival') }} &middot; {{ $state['offer']['flight_number'] }} &middot; {{ $state['offer']['transfer_address'] }}
+                            @elseif ($chosenOffer->offeredPackage->isHourly())
+                                {{ \Illuminate\Support\Carbon::parse($state['offer']['start_date'])->format('d M Y') }}, {{ $state['offer']['start_time'] }} ({{ trans_choice('core::front.booking_hours_count', (int) $state['offer']['hours'], ['count' => (int) $state['offer']['hours']]) }})
+                            @elseif ($chosenOffer->offeredPackage->isStay())
+                                {{ __('core::front.booking_check_in') }}: {{ \Illuminate\Support\Carbon::parse($state['offer']['start_date'])->format('d M Y') }} &rarr; {{ __('core::front.booking_check_out') }}: {{ \Illuminate\Support\Carbon::parse($state['offer']['end_date'])->addDay()->format('d M Y') }}
+                            @else
+                                {{ \Illuminate\Support\Carbon::parse($state['offer']['start_date'])->format('d M Y') }} &rarr; {{ \Illuminate\Support\Carbon::parse($state['offer']['end_date'])->format('d M Y') }}
+                            @endif
+                        </p>
                     @endif
 
                     <h2 style="font-size:var(--font-size-base);">
@@ -157,63 +104,67 @@
                 </div>
             </div>
 
-            <div class="field" style="display:flex;gap:var(--space-2);align-items:flex-end;">
-                <div style="flex:1;">
-                    <label for="coupon_code">{{ __('core::front.booking_coupon_code') }}</label>
-                    <input type="text" id="coupon_code" x-model="couponCode">
-                </div>
-                <button type="button" class="btn btn--secondary" @click="applyCoupon()" :disabled="loading" style="margin-bottom:var(--space-3);">
-                    {{ __('core::front.booking_coupon_apply') }}
-                </button>
-            </div>
-            <p class="field-error" x-show="error" x-text="error" x-cloak></p>
-
             <div class="price-breakdown" style="margin-bottom:var(--space-4);">
                 <dl>
-                    <dt>{{ __($isStay ? 'core::front.price_accommodation' : 'core::front.price_base_amount') }}</dt><dd x-text="money(price.base_amount) + ' {{ $currency }}'"></dd>
+                    <dt>{{ __($isStay ? 'core::front.price_accommodation' : 'core::front.price_base_amount') }}</dt><dd>{{ $money($price->baseAmount, 'base_amount') }}</dd>
 
-                    <template x-if="price.transfer_fee > 0">
-                        <dt>{{ __('core::front.price_transfer_fee') }}</dt>
-                    </template>
-                    <template x-if="price.transfer_fee > 0">
-                        <dd x-text="money(price.transfer_fee) + ' {{ $currency }}'"></dd>
-                    </template>
+                    @if ($price->transferFee > 0)
+                        <dt>{{ __('core::front.price_transfer_fee') }}</dt><dd>{{ $money($price->transferFee, 'transfer_fee') }}</dd>
+                    @endif
 
-                    <template x-if="price.seasonal_adjustment != 0">
-                        <dt>{{ __('core::front.price_seasonal_adjustment') }}</dt>
-                    </template>
-                    <template x-if="price.seasonal_adjustment != 0">
-                        <dd x-text="money(price.seasonal_adjustment) + ' {{ $currency }}'"></dd>
-                    </template>
+                    @if ($price->seasonalAdjustment != 0)
+                        <dt>{{ __('core::front.price_seasonal_adjustment') }}</dt><dd>{{ $money($price->seasonalAdjustment, 'seasonal_adjustment') }}</dd>
+                    @endif
 
-                    <template x-if="price.addons_total > 0">
-                        <dt>{{ __('core::front.price_addons_total') }}</dt>
-                    </template>
-                    <template x-if="price.addons_total > 0">
-                        <dd x-text="money(price.addons_total) + ' {{ $currency }}'"></dd>
-                    </template>
+                    @if ($price->addonsTotal > 0)
+                        <dt>{{ __('core::front.price_addons_total') }}</dt><dd>{{ $money($price->addonsTotal, 'addons_total') }}</dd>
+                    @endif
 
-                    <template x-if="price.delivery_fee > 0">
-                        <dt>{{ __('core::front.price_delivery_fee') }}</dt>
-                    </template>
-                    <template x-if="price.delivery_fee > 0">
-                        <dd x-text="money(price.delivery_fee) + ' {{ $currency }}'"></dd>
-                    </template>
+                    @if ($price->deliveryFee > 0)
+                        <dt>{{ __('core::front.price_delivery_fee') }}</dt><dd>{{ \Modules\Pricing\Support\Money::usd($price->deliveryFee) }}</dd>
+                    @endif
 
-                    <dt>{{ __('core::front.price_subtotal') }}</dt><dd x-text="money(price.rental_subtotal) + ' {{ $currency }}'"></dd>
+                    <dt>{{ __('core::front.price_subtotal') }}</dt><dd>{{ $money($price->rentalSubtotal(), 'rental_subtotal') }}</dd>
 
-                    <template x-if="price.coupon_discount > 0">
-                        <dt>{{ __('core::front.price_coupon_discount') }} (<span x-text="price.coupon_code"></span>)</dt>
-                    </template>
-                    <template x-if="price.coupon_discount > 0">
-                        <dd x-text="'-' + money(price.coupon_discount) + ' {{ $currency }}'"></dd>
-                    </template>
+                    @if ($price->offerDiscount > 0)
+                        <dt>{{ __('core::front.offer_saving') }}</dt><dd>{{ \Modules\Pricing\Support\Money::dual(-$price->offerDiscount, isset($eur['offer_discount']) ? -$eur['offer_discount'] : null) }}</dd>
+                    @endif
 
                     <div class="total-row" style="display:contents;">
-                        <dt>{{ __('core::front.price_total') }}</dt><dd x-text="money(price.total) + ' {{ $currency }}'"></dd>
+                        <dt>{{ __('core::front.price_total') }}</dt><dd>{{ $money($price->total, 'total') }}</dd>
                     </div>
+
+                    @if ($offeredPrice)
+                        @php $bothEur = isset($eur['total'], $offeredPrice->eur['total']) ? $eur['total'] + $offeredPrice->eur['total'] : null; @endphp
+                        <dt>{{ $chosenOffer->offeredPackage->name }}</dt><dd>{{ \Modules\Pricing\Support\Money::dual($offeredPrice->total, $offeredPrice->eur['total'] ?? null) }}</dd>
+
+                        <div class="total-row" style="display:contents;">
+                            <dt>{{ __('core::front.offer_total_both') }}</dt><dd>{{ \Modules\Pricing\Support\Money::dual($price->total + $offeredPrice->total, $bothEur) }}</dd>
+                        </div>
+                    @endif
                 </dl>
             </div>
+
+            @if ($chosenOffer)
+                <form method="POST" action="{{ route('booking.offer.remove') }}" style="margin-bottom:var(--space-4);">
+                    @csrf
+                    <button type="submit" class="btn btn--secondary">{{ __('core::front.offer_remove') }}</button>
+                </form>
+            @endif
+
+            @foreach ($availableOffers as $offer)
+                @php $fromTier = $offer->offeredPackage->pricingTiers->first(); @endphp
+                <div class="card" style="margin-bottom:var(--space-4);">
+                    <div class="card__body">
+                        <h2 style="font-size:var(--font-size-base);">{{ __('core::front.offer_title') }}</h2>
+                        <p>{{ __('core::front.offer_intro', ['package' => $offer->offeredPackage->name, 'saving' => $offer->displayDiscount(), 'main' => $package->name]) }}</p>
+                        @if ($fromTier)
+                            <p class="text-muted">{{ $offer->offeredPackage->name }}: {{ $fromTier->displayPrice() }} {{ __($offer->offeredPackage->priceSuffixKey()) }}</p>
+                        @endif
+                        <a href="{{ route('booking.offer', ['offer' => $offer->id]) }}" class="btn btn--primary">{{ __('core::front.offer_add') }}</a>
+                    </div>
+                </div>
+            @endforeach
 
             <p class="text-muted">{{ __(match (true) {
                 $isStay => 'core::front.booking_pay_on_arrival_notice',

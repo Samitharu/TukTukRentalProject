@@ -8,13 +8,15 @@ namespace Modules\Pricing\DataObjects;
  * The full, itemized result of PricingService::calculate() — the single
  * shape rendered on the booking review step and re-validated server-side
  * at checkout. Never trust a client-submitted total (brief §7); this is
- * always recomputed from scratch from the stored package/season/addon/
- * coupon records.
+ * always recomputed from scratch from the stored package/season/addon
+ * records.
  */
 final readonly class PriceBreakdown
 {
     /**
-     * @param array<int, array{addon_id: int, name: string, quantity: int, amount: float}> $addonLines
+     * @param array<int, array{addon_id: int, name: string, quantity: int, amount: float, amount_eur: float|null}> $addonLines
+     * @param array{base_amount: float, seasonal_adjustment: float, addons_total: float, transfer_fee: float, rental_subtotal: float, total: float}|null $eur
+     *        the same bill from the EUR prices; null when a priced part has none
      */
     public function __construct(
         public string $currencyCode,
@@ -24,15 +26,15 @@ final readonly class PriceBreakdown
         public array $addonLines,
         public float $addonsTotal,
         public float $deliveryFee,
-        public ?string $couponCode,
-        public float $couponDiscount,
         public float $total,
         public float $depositAmount,
         // Set only for an hourly package: the hours priced (days is then 1).
         public ?int $hours = null,
-        // Airport pickups: the destination area's trip price. Part of the
-        // subtotal (unlike the delivery fee), so coupons apply to it.
+        // Airport pickups: the destination area's trip price.
         public float $transferFee = 0.0,
+        public ?array $eur = null,
+        // Taken off the total for booking a package offer's other package too.
+        public float $offerDiscount = 0.0,
     ) {
     }
 
@@ -59,11 +61,11 @@ final readonly class PriceBreakdown
             'delivery_fee' => $this->deliveryFee,
             'transfer_fee' => $this->transferFee,
             'rental_subtotal' => $this->rentalSubtotal(),
-            'coupon_code' => $this->couponCode,
-            'coupon_discount' => $this->couponDiscount,
+            'offer_discount' => $this->offerDiscount,
             'total' => $this->total,
             'deposit_amount' => $this->depositAmount,
             'balance_due' => $this->balanceDue(),
+            'eur' => $this->eur,
         ];
     }
 }

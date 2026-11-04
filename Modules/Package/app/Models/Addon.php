@@ -7,6 +7,7 @@ namespace Modules\Package\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Modules\Pricing\Support\Money;
 use Spatie\Translatable\HasTranslations;
 
 /**
@@ -14,6 +15,7 @@ use Spatie\Translatable\HasTranslations;
  * @property array<string,string> $name
  * @property array<string,string>|null $description
  * @property float $price
+ * @property float|null $price_eur
  * @property string $pricing_unit
  * @property int $max_quantity
  * @property bool $is_active
@@ -34,6 +36,7 @@ final class Addon extends Model
         'name',
         'description',
         'price',
+        'price_eur',
         'pricing_unit',
         'max_quantity',
         'is_active',
@@ -44,6 +47,7 @@ final class Addon extends Model
     {
         return [
             'price' => 'decimal:2',
+            'price_eur' => 'decimal:2',
             'max_quantity' => 'integer',
             'is_active' => 'boolean',
             'sort_order' => 'integer',
@@ -62,5 +66,22 @@ final class Addon extends Model
             : (float) $this->price;
 
         return round($unitPrice * $quantity, 2);
+    }
+
+    /** priceFor() from the EUR price; null while there is none. */
+    public function eurPriceFor(int $days, int $quantity = 1): ?float
+    {
+        if ($this->price_eur === null) {
+            return null;
+        }
+
+        $days = $this->pricing_unit === self::UNIT_PER_DAY ? max($days, 1) : 1;
+
+        return round((float) $this->price_eur * $days * $quantity, 2);
+    }
+
+    public function displayPrice(): string
+    {
+        return Money::dual($this->price, $this->price_eur);
     }
 }

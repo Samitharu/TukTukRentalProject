@@ -1,5 +1,5 @@
 @php
-    $currency = config('pricing.default_currency');
+    $currency = 'USD / EUR';
 @endphp
 <x-core::layouts.public :title="__('core::front.pricing_title').' · '.config('app.name')" :description="__('core::front.pricing_intro', ['currency' => $currency])">
     <section class="section">
@@ -30,7 +30,7 @@
                                                 {{ $tier->min_days }}{{ $tier->max_days ? '–'.$tier->max_days : '+' }} {{ __('core::front.packages_unit_'.$package->tierUnit()) }}
                                             </td>
                                             <td style="padding:0.4rem 0;border-bottom:1px solid var(--color-border);text-align:right;font-weight:700;">
-                                                {{ $tier->price }} {{ $currency }} {{ __($package->priceSuffixKey()) }}
+                                                {{ $tier->displayPrice() }} {{ __($package->priceSuffixKey()) }}
                                             </td>
                                         </tr>
                                     @endforeach

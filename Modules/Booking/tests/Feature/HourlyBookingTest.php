@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\VehicleReservationSlot;
 use Modules\Availability\Services\AvailabilityService;
 use Modules\Booking\Models\Booking;
@@ -22,7 +21,6 @@ use Spatie\Permission\Models\Permission;
 beforeEach(function (): void {
     Locale::query()->create(['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]);
 
-    $this->location = BusinessLocation::factory()->create(['is_active' => true]);
     $this->vehicle = Vehicle::factory()->create();
 
     $this->hourly = Package::factory()->create([
@@ -59,7 +57,6 @@ function startSingleDayRental(string $date = '2027-01-10'): void
         'start_date' => $date,
         'end_date' => $date,
         'pickup_type' => 'office',
-        'business_location_id' => test()->location->id,
     ])->assertRedirect('/en/booking/package');
 }
 
@@ -136,7 +133,6 @@ it('does not offer an hourly package for a multi-day rental', function (): void 
         'start_date' => '2027-01-10',
         'end_date' => '2027-01-12',
         'pickup_type' => 'office',
-        'business_location_id' => $this->location->id,
     ]);
 
     $this->get('/en/booking/package')->assertOk()->assertSee('Island Explorer')->assertDontSee('City Hop');

@@ -25,9 +25,7 @@ final class TransferAreaRequest extends FormRequest
         return [
             ...TranslatableRules::forField('name', max: 120),
             'price' => ['required', 'numeric', 'min:0', 'max:100000'],
-            // There and back, so the vehicle's next trip can't be booked
-            // before it is free again. 15 min to 16 h.
-            'duration_minutes' => ['required', 'integer', 'min:15', 'max:960'],
+            'price_eur' => ['required', 'numeric', 'min:0', 'max:100000'],
             'sort_order' => ['required', 'integer', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
         ];

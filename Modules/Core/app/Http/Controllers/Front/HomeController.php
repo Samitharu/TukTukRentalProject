@@ -8,7 +8,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Modules\CMS\Models\Review;
-use Modules\CMS\Models\Testimonial;
 use Modules\Core\Support\Seo;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Fleet\Models\VehicleCategory;
@@ -17,7 +16,7 @@ use Modules\Package\Models\Package;
 /**
  * Deliberate exception to Core's normal "nothing depends on Core" rule
  * (docs/02-modules.md): a homepage is inherently cross-cutting — it
- * teases the fleet, packages, and testimonials all at once — and none of
+ * teases the fleet, packages, and reviews all at once — and none of
  * those three domain modules is the "right" owner of it. Adding a
  * dedicated module for one controller would be over-engineering; this is
  * the one place in the app allowed to reach across Fleet/Package/CMS like
@@ -50,16 +49,15 @@ final class HomeController extends Controller
     }
 
     /**
-     * Approved booking reviews (submitted by customers after a rental) and
-     * approved admin-curated testimonials, normalised into one newest-first
-     * list for the homepage slider. Rating-only reviews are skipped — a
-     * slide without any words says nothing to the next traveller.
+     * Approved booking reviews (submitted by customers after a rental),
+     * newest first, for the homepage slider. Rating-only reviews are skipped
+     * — a slide without any words says nothing to the next traveller.
      *
      * @return Collection<int, array{name: string, initials: string, country: ?string, rating: int, content: string, verified: bool, date: \Illuminate\Support\Carbon|null}>
      */
     private function customerReviews(): Collection
     {
-        $reviews = Review::query()
+        return Review::query()
             ->approved()
             ->where('content', '!=', '')
             ->latest()
@@ -72,26 +70,8 @@ final class HomeController extends Controller
                 (string) $review->content,
                 $review->booking_id !== null,
                 $review->created_at,
-            ));
-
-        $testimonials = Testimonial::query()
-            ->approved()
-            ->latest()
-            ->limit(self::MAX_CUSTOMER_REVIEWS)
-            ->get()
-            ->map(fn (Testimonial $testimonial): array => $this->slide(
-                $testimonial->customer_name,
-                $testimonial->country,
-                $testimonial->rating,
-                (string) $testimonial->content,
-                false,
-                $testimonial->created_at,
-            ));
-
-        return $reviews->concat($testimonials)
+            ))
             ->filter(fn (array $slide): bool => $slide['content'] !== '')
-            ->sortByDesc(fn (array $slide): int => $slide['date']?->getTimestamp() ?? 0)
-            ->take(self::MAX_CUSTOMER_REVIEWS)
             ->values();
     }
 

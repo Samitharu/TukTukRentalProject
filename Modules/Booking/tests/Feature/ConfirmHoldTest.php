@@ -26,8 +26,6 @@ function samplePriceBreakdown(): PriceBreakdown
         addonLines: [],
         addonsTotal: 0,
         deliveryFee: 0,
-        couponCode: null,
-        couponDiscount: 0,
         total: 50,
         depositAmount: 0,
     );

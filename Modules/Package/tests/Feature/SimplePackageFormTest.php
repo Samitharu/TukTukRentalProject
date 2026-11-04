@@ -18,7 +18,6 @@ use Modules\Pricing\Services\PricingService;
 beforeEach(function (): void {
     Locale::query()->create(['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]);
     $this->seed(AdminDatabaseSeeder::class);
-    config(['admin.two_factor_enforced_roles' => []]);
 
     $this->admin = User::factory()->create();
     $this->admin->assignRole('Admin');
@@ -35,6 +34,7 @@ function createSimplePackage(object $test, array $fields): Package
         'name' => ['en' => 'Test Package'],
         'product_category_id' => $test->tukTukLine->id,
         'vehicle_type_id' => $test->tukTuk->id,
+        'price_eur' => '15',
     ], $fields))->assertSessionHasNoErrors()->assertRedirect('/control-panel/packages');
 
     return Package::query()->latest('id')->firstOrFail();
@@ -68,7 +68,7 @@ it('creates a km package: one price including km, extra km charged', function ()
     $package = createSimplePackage($this, [
         'product_category_id' => $this->rentLine->id,
         'vehicle_type_id' => $this->suv->id,
-        'charge' => 'km_package', 'price' => '30', 'included_km' => '100', 'extra_km_rate' => '0.30', 'package_days' => '1',
+        'charge' => 'km_package', 'price' => '30', 'included_km' => '100', 'extra_km_rate' => '0.30', 'extra_km_rate_eur' => '0.25', 'package_days' => '1',
     ]);
 
     expect($package->pricing_model)->toBe(Package::MODEL_FIXED_BUNDLE)
@@ -81,7 +81,7 @@ it('creates a km package: one price including km, extra km charged', function ()
 it('asks for the km details of a km package, and for a price', function (): void {
     $this->actingAs($this->admin)->post('/control-panel/packages', [
         'name' => ['en' => 'KM'], 'product_category_id' => $this->tukTukLine->id, 'charge' => 'km_package',
-    ])->assertSessionHasErrors(['price', 'included_km', 'extra_km_rate']);
+    ])->assertSessionHasErrors(['price', 'price_eur', 'included_km', 'extra_km_rate', 'extra_km_rate_eur']);
 });
 
 it('only offers ways of charging that fit the category', function (): void {
@@ -98,7 +98,7 @@ it('edits a package with the same simple form and updates its one price', functi
 
     $this->actingAs($this->admin)->put("/control-panel/packages/{$package->id}", [
         'name' => ['en' => 'Test Package'], 'product_category_id' => $this->tukTukLine->id,
-        'vehicle_type_id' => '', 'charge' => 'per_hour', 'price' => '7', 'min_hours' => '1',
+        'vehicle_type_id' => '', 'charge' => 'per_hour', 'price' => '7', 'price_eur' => '6', 'min_hours' => '1',
     ])->assertSessionHasNoErrors();
 
     $package->refresh();

@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Booking\Mail\NewBookingPlacedMail;
 use Modules\Booking\Models\Booking;
 use Modules\Booking\Services\BookingService;
@@ -28,7 +27,6 @@ beforeEach(function (): void {
 
     config(['booking.admin_notification_emails' => ['owner@tuktuk.test', 'desk@tuktuk.test']]);
 
-    $this->location = BusinessLocation::factory()->create(['is_active' => true]);
     $this->vehicle = Vehicle::factory()->create();
     $this->package = Package::factory()->create(['min_days' => 1]);
     $this->package->pricingTiers()->create(['min_days' => 1, 'max_days' => null, 'price' => 25]);
@@ -43,7 +41,6 @@ function emailTestBook(object $test, array $driver = [], ?Closure $beforeConfirm
         'start_date' => $test->start->toDateString(),
         'end_date' => $test->start->addDays(2)->toDateString(),
         'pickup_type' => 'office',
-        'business_location_id' => $test->location->id,
     ]);
     $test->post('/en/booking/package', ['package_id' => $test->package->id]);
     $test->post('/en/booking/addons', []);
@@ -63,11 +60,11 @@ function emailTestBook(object $test, array $driver = [], ?Closure $beforeConfirm
 
 function emailTestManualBooking(object $test, string $holdKey): Booking
 {
-    $price = app(PricingService::class)->calculate($test->package, $test->start, 3, [], null, null);
+    $price = app(PricingService::class)->calculate($test->package, $test->start, 3);
 
     return app(BookingService::class)->createManualBooking(
         ['hold_key' => $holdKey, 'start_at' => $test->start->toDateString(), 'end_at' => $test->start->addDays(2)->toDateString(), 'vehicle_id' => $test->vehicle->id, 'package_id' => $test->package->id],
-        ['email' => 'walkin@example.test', 'full_name' => 'Walk In', 'pickup_type' => 'office', 'business_location_id' => $test->location->id],
+        ['email' => 'walkin@example.test', 'full_name' => 'Walk In', 'pickup_type' => 'office'],
         $price,
     );
 }

@@ -2,14 +2,12 @@
 
 declare(strict_types=1);
 
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Booking\Models\Booking;
 use Modules\CMS\Models\Review;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Localization\Models\Locale;
 use Modules\Package\Models\Addon;
 use Modules\Package\Models\Package;
-use Modules\Pricing\Models\Coupon;
 
 /**
  * End-to-end coverage of the public 5-step booking wizard (brief §4) —
@@ -22,7 +20,6 @@ use Modules\Pricing\Models\Coupon;
 beforeEach(function (): void {
     Locale::query()->create(['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]);
 
-    $this->location = BusinessLocation::factory()->create(['is_active' => true]);
     $this->vehicle = Vehicle::factory()->create();
 
     $this->package = Package::factory()->create(['min_days' => 1, 'max_days' => null]);
@@ -55,7 +52,6 @@ it('walks through all five steps and creates a confirmed booking with no payment
         'start_date' => '2027-01-10',
         'end_date' => '2027-01-13',
         'pickup_type' => 'office',
-        'business_location_id' => $this->location->id,
     ])->assertRedirect('/en/booking/package');
 
     $this->post('/en/booking/package', [
@@ -86,56 +82,10 @@ it('walks through all five steps and creates a confirmed booking with no payment
         ->and((float) $booking->total_amount)->toEqualWithDelta(96.0, 0.01); // (20/day * 4 days) + (2 * 8 flat addon)
 });
 
-it('recalculates the price server-side when a valid coupon is applied on the review step', function (): void {
-    Coupon::query()->create([
-        'code' => 'SAVE10',
-        'type' => Coupon::TYPE_PERCENT,
-        'value' => 10,
-        'is_active' => true,
-        'usage_count' => 0,
-    ]);
-
-    $this->post('/en/booking/start', [
-        'start_date' => '2027-02-01',
-        'end_date' => '2027-02-03',
-        'pickup_type' => 'office',
-        'business_location_id' => $this->location->id,
-    ]);
-    $this->post('/en/booking/package', ['package_id' => $this->package->id]);
-    $this->post('/en/booking/addons', []);
-    $this->post('/en/booking/details', driverDetailsPayload());
-
-    $response = $this->postJson('/en/booking/review/recalculate', ['coupon_code' => 'save10']);
-
-    $response->assertOk();
-    $response->assertJson(['coupon_code' => 'SAVE10', 'total' => 54.0]); // (20/day * 3 days) - 10%
-
-    $this->post('/en/booking/confirm', ['terms_accepted' => '1']);
-
-    expect(Coupon::query()->where('code', 'SAVE10')->value('usage_count'))->toBe(1);
-});
-
-it('rejects an invalid coupon code without mutating the session price', function (): void {
-    $this->post('/en/booking/start', [
-        'start_date' => '2027-03-01',
-        'end_date' => '2027-03-02',
-        'pickup_type' => 'office',
-        'business_location_id' => $this->location->id,
-    ]);
-    $this->post('/en/booking/package', ['package_id' => $this->package->id]);
-    $this->post('/en/booking/addons', []);
-    $this->post('/en/booking/details', driverDetailsPayload());
-
-    $response = $this->postJson('/en/booking/review/recalculate', ['coupon_code' => 'DOES-NOT-EXIST']);
-
-    $response->assertStatus(422);
-});
-
 it('does not ask where to collect the tuk tuk and always books office pickup', function (): void {
     $this->get('/en/booking/start')
         ->assertOk()
         ->assertDontSee('name="pickup_type"', false)
-        ->assertDontSee('name="business_location_id"', false)
         ->assertDontSee('name="delivery_zone_id"', false);
 
     // Even a forged delivery choice is ignored.
@@ -152,7 +102,6 @@ it('does not ask where to collect the tuk tuk and always books office pickup', f
 
     $booking = Booking::query()->sole();
     expect($booking->pickup_type)->toBe('office')
-        ->and($booking->business_location_id)->toBe($this->location->id)
         ->and($booking->delivery_zone_id)->toBeNull();
 });
 
@@ -174,7 +123,6 @@ it('does not let a package outside the selected day range be chosen', function (
         'start_date' => '2027-04-01',
         'end_date' => '2027-04-10', // 10 days — outside the 1-2 day package
         'pickup_type' => 'office',
-        'business_location_id' => $this->location->id,
     ]);
 
     $response = $this->post('/en/booking/package', ['package_id' => $shortPackage->id]);
@@ -188,7 +136,6 @@ function completeBookingFlow($test): Booking
         'start_date' => '2027-05-01',
         'end_date' => '2027-05-03',
         'pickup_type' => 'office',
-        'business_location_id' => $test->location->id,
     ]);
     $test->post('/en/booking/package', ['package_id' => $test->package->id]);
     $test->post('/en/booking/addons', ['addons' => [$test->addon->id => 1]]);

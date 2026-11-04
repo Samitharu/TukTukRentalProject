@@ -5,7 +5,6 @@ declare(strict_types=1);
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Modules\Admin\Http\Middleware\EnforceTwoFactor;
 use Modules\Admin\Http\Middleware\EnsureAdminSessionIsFresh;
 use Modules\Admin\Http\Middleware\RestrictAdminIpAllowlist;
 use Modules\Core\Http\Middleware\NoIndex;
@@ -29,7 +28,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'noindex' => NoIndex::class,
             'admin.ip' => RestrictAdminIpAllowlist::class,
             'admin.session' => EnsureAdminSessionIsFresh::class,
-            'admin.2fa' => EnforceTwoFactor::class,
         ]);
 
         $middleware->group('admin', [
@@ -38,7 +36,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.ip',
             'auth',
             'admin.session',
-            'admin.2fa',
         ]);
 
         $middleware->throttleApi();

@@ -24,7 +24,7 @@ function confirmedBookingFor(BookingService $service, int $vehicleId, string $st
         'vehicle_id' => $vehicleId,
     ]);
 
-    $price = new PriceBreakdown('USD', 2, 50, 0, [], 0, 0, null, 0, 50, 0);
+    $price = new PriceBreakdown('USD', 2, 50, 0, [], 0, 0, 50, 0);
 
     return $service->confirmHold($hold, ['email' => Str::uuid().'@example.test', 'full_name' => 'Tester'], $price);
 }

@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Models\User;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Availability\Models\VehicleReservationSlot;
 use Modules\Booking\Models\Booking;
 use Modules\Fleet\Models\Vehicle;
@@ -21,7 +20,6 @@ use Spatie\Permission\Models\Permission;
 beforeEach(function (): void {
     Locale::query()->create(['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]);
 
-    BusinessLocation::factory()->create(['is_active' => true]);
     $this->tukTuk = Vehicle::factory()->create();
     $this->cabana = Vehicle::factory()->stay()->create(['name' => ['en' => 'Sunset Cabana']]);
 
@@ -103,7 +101,7 @@ it('only offers stay packages in a stay booking, and tuk tuk packages in a renta
     $this->post('/en/booking/package', ['package_id' => $this->tukTukPackage->id])->assertNotFound();
 
     $this->get('/en/booking/start?kind=vehicle');
-    $this->post('/en/booking/start', ['start_date' => '2027-02-01', 'end_date' => '2027-02-04', 'pickup_type' => 'office', 'business_location_id' => BusinessLocation::query()->value('id')]);
+    $this->post('/en/booking/start', ['start_date' => '2027-02-01', 'end_date' => '2027-02-04', 'pickup_type' => 'office']);
 
     $this->get('/en/booking/package')->assertOk()->assertSee('Island Explorer')->assertDontSee('Surf & Stay');
 });

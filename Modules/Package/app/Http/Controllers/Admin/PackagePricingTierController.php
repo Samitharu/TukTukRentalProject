@@ -7,6 +7,7 @@ namespace Modules\Package\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Modules\Package\Http\Requests\Admin\StorePricingTierRequest;
+use Modules\Package\Http\Requests\Admin\UpdatePricingTierRequest;
 use Modules\Package\Models\Package;
 use Modules\Package\Models\PackagePricingTier;
 use Modules\Package\Services\PackagePricingTierValidator;
@@ -33,6 +34,15 @@ final class PackagePricingTierController extends Controller
         $package->pricingTiers()->create($request->validated());
 
         return redirect()->route('admin.packages.edit', $package)->with('status', __('Pricing tier added.'));
+    }
+
+    public function update(UpdatePricingTierRequest $request, Package $package, PackagePricingTier $tier): RedirectResponse
+    {
+        abort_unless($tier->package_id === $package->id, 404);
+
+        $tier->update($request->validated());
+
+        return redirect()->route('admin.packages.edit', $package)->with('status', __('Pricing tier updated.'));
     }
 
     public function destroy(Package $package, PackagePricingTier $tier): RedirectResponse

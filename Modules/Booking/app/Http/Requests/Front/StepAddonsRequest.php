@@ -18,7 +18,6 @@ final class StepAddonsRequest extends FormRequest
         return [
             'addons' => ['nullable', 'array'],
             'addons.*' => ['integer', 'min:0', 'max:20'],
-            'coupon_code' => ['nullable', 'string', 'max:40'],
         ];
     }
 }

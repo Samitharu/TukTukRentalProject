@@ -46,8 +46,13 @@
                             <dd>{{ $booking->vehicle->name }}@if ($booking->vehicle->plate_no) ({{ $booking->vehicle->plate_no }})@endif</dd>
                         @endif
 
+                        @if ($booking->displayOfferDiscount())
+                            <dt class="text-muted">{{ __('core::front.offer_saving') }}</dt>
+                            <dd>{{ $booking->displayOfferDiscount() }}</dd>
+                        @endif
+
                         <dt class="text-muted">{{ __('core::front.price_total') }}</dt>
-                        <dd>{{ $booking->total_amount }} {{ $booking->currency_code }}</dd>
+                        <dd>{{ $booking->displayTotal() }}</dd>
                     </dl>
 
                     <a href="{{ route('booking.receipt', ['reference' => $booking->reference]) }}" class="btn btn--secondary btn--block" style="margin-top:var(--space-4);" download>
@@ -56,6 +61,35 @@
                     </a>
                 </div>
             </div>
+
+            @if ($booking->linkedBooking)
+                @php $linked = $booking->linkedBooking; @endphp
+                <div class="card" style="margin-bottom:var(--space-4);">
+                    <div class="card__body">
+                        <h2 style="font-size:var(--font-size-base);">{{ __('core::front.offer_also_booked') }}</h2>
+                        <p style="font-weight:800;letter-spacing:0.05em;">{{ $linked->reference }}</p>
+                        <dl style="display:grid;grid-template-columns:auto 1fr;gap:0.5rem 1rem;margin:0;">
+                            <dt class="text-muted">{{ __('core::front.booking_review_package') }}</dt>
+                            <dd>{{ $linked->package?->name }}</dd>
+
+                            <dt class="text-muted">{{ __('core::front.booking_review_dates') }}</dt>
+                            <dd>{{ $linked->isStay() ? $linked->start_at->format('d M Y').' → '.$linked->checkOutDate()->format('d M Y') : $linked->rentalPeriod() }}</dd>
+
+                            @if ($linked->displayOfferDiscount())
+                                <dt class="text-muted">{{ __('core::front.offer_saving') }}</dt>
+                                <dd>{{ $linked->displayOfferDiscount() }}</dd>
+                            @endif
+
+                            <dt class="text-muted">{{ __('core::front.price_total') }}</dt>
+                            <dd>{{ $linked->displayTotal() }}</dd>
+
+                            <dt class="text-muted">{{ __('core::front.offer_total_both') }}</dt>
+                            <dd><strong>{{ $booking->displayTotalWithLinked() }}</strong></dd>
+                        </dl>
+                        <a href="{{ route('booking.confirmation', ['reference' => $linked->reference]) }}" class="btn btn--secondary btn--block" style="margin-top:var(--space-4);">{{ __('core::front.email_confirm_view_booking') }}</a>
+                    </div>
+                </div>
+            @endif
 
             <p>{{ __(match (true) {
                 $booking->isStay() => 'core::front.booking_confirmation_next_steps_stay',
@@ -69,10 +103,16 @@
                         @include('fleet::front._location', ['unit' => $booking->vehicle])
                     </div>
                 </div>
-            @elseif ($booking->pickup_type === 'office' && $booking->businessLocation?->hasLocation())
+            @elseif ($booking->officeAddress())
                 <div class="card" style="margin-bottom:var(--space-4);">
                     <div class="card__body">
-                        @include('fleet::front._location', ['unit' => $booking->businessLocation])
+                        <div class="unit-location">
+                            <h2 style="font-size:var(--font-size-base);">{{ __('core::front.location_title') }}</h2>
+                            <p class="text-muted">{{ $booking->officeAddress() }}</p>
+                            <div class="unit-location__actions">
+                                <a href="{{ $booking->officeMapUrl() }}" class="btn btn--secondary" target="_blank" rel="noopener noreferrer">{{ __('core::front.location_open_map') }}</a>
+                            </div>
+                        </div>
                     </div>
                 </div>
             @endif

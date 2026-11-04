@@ -79,7 +79,7 @@
                         <select id="transfer_area_id" name="transfer_area_id" required>
                             <option value="">&nbsp;</option>
                             @foreach ($transferAreas as $area)
-                                <option value="{{ $area->id }}" @selected((string) old('transfer_area_id', $state['transfer_area_id'] ?? '') === (string) $area->id)>{{ $area->name }} — {{ number_format((float) $area->price, 2) }} {{ config('pricing.default_currency') }}</option>
+                                <option value="{{ $area->id }}" @selected((string) old('transfer_area_id', $state['transfer_area_id'] ?? '') === (string) $area->id)>{{ $area->name }} — {{ $area->displayPrice() }}</option>
                             @endforeach
                         </select>
                         @error('transfer_area_id')<p class="field-error">{{ $message }}</p>@enderror
@@ -107,7 +107,7 @@
 
                     @if (! $isStay)
                         {{-- Rentals are only collected at the office — no pickup choice. --}}
-                        <p class="text-muted">{{ __('core::front.booking_pickup_office') }}{{ $office ? ' — '.$office->name : '' }}</p>
+                        <p class="text-muted">{{ __('core::front.booking_pickup_office') }}</p>
                     @endif
                 @endif
 

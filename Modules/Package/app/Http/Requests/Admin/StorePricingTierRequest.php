@@ -19,6 +19,7 @@ final class StorePricingTierRequest extends FormRequest
             'min_days' => ['required', 'integer', 'min:1'],
             'max_days' => ['nullable', 'integer', 'gte:min_days'],
             'price' => ['required', 'numeric', 'min:0'],
+            'price_eur' => ['required', 'numeric', 'min:0'],
         ];
     }
 }

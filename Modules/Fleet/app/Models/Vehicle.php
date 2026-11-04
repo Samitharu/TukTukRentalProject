@@ -23,7 +23,6 @@ use Spatie\Translatable\HasTranslations;
  *
  * @property int $id
  * @property int $category_id
- * @property int|null $base_location_id
  * @property array<string,string> $name
  * @property string|null $plate_no
  * @property string|null $model
@@ -59,7 +58,6 @@ final class Vehicle extends Model
 
     protected $fillable = [
         'category_id',
-        'base_location_id',
         'name',
         'plate_no',
         'model',

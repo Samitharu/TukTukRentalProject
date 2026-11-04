@@ -6,7 +6,6 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Modules\Availability\Models\BusinessLocation;
 use Modules\Booking\Mail\BookingConfirmationMail;
 use Modules\Booking\Mail\NewBookingPlacedMail;
 use Modules\Booking\Models\Booking;
@@ -24,15 +23,12 @@ beforeEach(function (): void {
     Locale::query()->create(['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]);
     Locale::query()->create(['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch', 'is_default' => false, 'is_active' => true, 'sort_order' => 2]);
 
-    config(['booking.admin_notification_emails' => ['owner@tuktuk.test'], 'core.business.email' => 'hello@tuktuk.test']);
-
-    $this->location = BusinessLocation::factory()->create([
-        'is_active' => true,
-        'address' => 'Lewis Place, Negombo',
-        'google_maps_url' => 'https://maps.app.goo.gl/Office123',
-        'lat' => 7.2083,
-        'lng' => 79.8358,
+    config([
+        'booking.admin_notification_emails' => ['owner@tuktuk.test'],
+        'core.business.email' => 'hello@tuktuk.test',
+        'core.business.address' => 'Lewis Place, Negombo',
     ]);
+
     $this->vehicle = Vehicle::factory()->create();
     $this->package = Package::factory()->create(['min_days' => 1]);
     $this->package->pricingTiers()->create(['min_days' => 1, 'max_days' => null, 'price' => 25]);
@@ -47,7 +43,6 @@ function customerEmailBook(object $test, string $locale = 'en'): void
         'start_date' => $test->start->toDateString(),
         'end_date' => $test->start->addDays(2)->toDateString(),
         'pickup_type' => 'office',
-        'business_location_id' => $test->location->id,
     ]);
     $test->post("/{$locale}/booking/package", ['package_id' => $test->package->id]);
     $test->post("/{$locale}/booking/addons", []);
@@ -84,7 +79,7 @@ it('emails the customer in the language they booked in', function (): void {
     Mail::assertQueued(BookingConfirmationMail::class, fn (BookingConfirmationMail $mail) => $mail->locale === 'de');
 });
 
-it('renders the booking details, pickup map and links back to the booking', function (): void {
+it('renders the booking details, office address and links back to the booking', function (): void {
     customerEmailBook($this);
     $booking = Booking::query()->sole();
 
@@ -94,10 +89,22 @@ it('renders the booking details, pickup map and links back to the booking', func
     expect($html)->toContain($booking->reference)
         ->toContain('Kenji Sato')
         ->toContain('Lewis Place, Negombo')
-        ->toContain('https://maps.app.goo.gl/Office123')
+        ->toContain('https://www.google.com/maps/search/?api=1&amp;query=Lewis%20Place%2C%20Negombo')
         ->toContain('/en/booking/confirmation/'.$booking->reference)
         ->toContain('/en/booking/confirmation/'.$booking->reference.'/receipt')
         ->not->toContain('/control-panel/');
+});
+
+it('leaves the office address out while it is still the placeholder', function (): void {
+    config(['core.business.address' => '[Address pending]']);
+
+    customerEmailBook($this);
+    $booking = Booking::query()->sole();
+
+    expect($booking->officeAddress())->toBeNull()
+        ->and((new BookingConfirmationMail($booking))->locale('en')->render())->not->toContain('Address pending');
+
+    $this->get('/en/booking/confirmation/'.$booking->reference)->assertOk()->assertDontSee('google.com/maps/search', false);
 });
 
 it('renders in German with German links', function (): void {
@@ -121,10 +128,10 @@ it('renders in German with German links', function (): void {
 it('also confirms an admin manual booking to the customer', function (): void {
     Mail::fake();
 
-    $price = app(PricingService::class)->calculate($this->package, $this->start, 3, [], null, null);
+    $price = app(PricingService::class)->calculate($this->package, $this->start, 3);
     app(BookingService::class)->createManualBooking(
         ['hold_key' => (string) Str::uuid(), 'start_at' => $this->start->toDateString(), 'end_at' => $this->start->addDays(2)->toDateString(), 'vehicle_id' => $this->vehicle->id, 'package_id' => $this->package->id],
-        ['email' => 'walkin@example.test', 'full_name' => 'Walk In', 'pickup_type' => 'office', 'business_location_id' => $this->location->id],
+        ['email' => 'walkin@example.test', 'full_name' => 'Walk In', 'pickup_type' => 'office'],
         $price,
     );
 

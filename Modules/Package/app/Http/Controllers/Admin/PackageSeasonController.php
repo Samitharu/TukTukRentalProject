@@ -55,6 +55,7 @@ final class PackageSeasonController extends Controller
             'ends_on' => $newSeason['ends_on'],
             'price_modifier_type' => $request->string('price_modifier_type')->toString(),
             'price_modifier_value' => $request->input('price_modifier_value'),
+            'price_modifier_value_eur' => $request->input('price_modifier_type') === PackageSeason::MODIFIER_FIXED ? $request->input('price_modifier_value_eur') : null,
             'weekday_mask' => $weekdayMask,
             'priority' => $request->integer('priority', 0),
         ]);

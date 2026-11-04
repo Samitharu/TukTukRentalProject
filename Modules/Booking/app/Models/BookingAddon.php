@@ -13,6 +13,7 @@ use Modules\Package\Models\Addon;
  * @property int $addon_id
  * @property int $quantity
  * @property float $unit_price
+ * @property float|null $unit_price_eur
  */
 final class BookingAddon extends Model
 {
@@ -23,6 +24,7 @@ final class BookingAddon extends Model
         'addon_id',
         'quantity',
         'unit_price',
+        'unit_price_eur',
     ];
 
     protected function casts(): array
@@ -30,6 +32,7 @@ final class BookingAddon extends Model
         return [
             'quantity' => 'integer',
             'unit_price' => 'decimal:2',
+            'unit_price_eur' => 'decimal:2',
         ];
     }
 

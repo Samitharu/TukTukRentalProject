@@ -14,7 +14,6 @@ use Modules\Package\Support\DefaultProductCategories;
 beforeEach(function (): void {
     Locale::query()->create(['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]);
     $this->seed(AdminDatabaseSeeder::class);
-    config(['admin.two_factor_enforced_roles' => []]);
 
     $this->admin = User::factory()->create();
     $this->admin->assignRole('Admin');
@@ -80,6 +79,50 @@ it('lets an Admin create a category with a cover photo', function (): void {
     expect($category->isActivity())->toBeTrue()
         ->and($category->slugFor('en'))->toBe('yoga-retreats');
     Storage::disk('public')->assertExists($category->image_path);
+});
+
+it('only needs a name and booking style, adding a new category at the end', function (): void {
+    $this->actingAs($this->admin)->post('/control-panel/package-categories', [
+        'name' => ['en' => 'Yoga Retreats'],
+        'kind' => Package::KIND_ACTIVITY,
+    ])->assertRedirect('/control-panel/package-categories');
+
+    $category = ProductCategory::query()->where('name->en', 'Yoga Retreats')->firstOrFail();
+
+    expect($category->sort_order)->toBe((int) ProductCategory::query()->max('sort_order'))
+        ->and(ProductCategory::query()->where('sort_order', $category->sort_order)->count())->toBe(1);
+});
+
+it('keeps a category where it is when the position is left empty', function (): void {
+    $position = $this->surfing->sort_order;
+
+    $this->actingAs($this->admin)->put("/control-panel/package-categories/{$this->surfing->id}", [
+        'name' => ['en' => 'Kite & Surfing'],
+        'kind' => $this->surfing->kind,
+        'sort_order' => '',
+    ])->assertSessionHasNoErrors();
+
+    expect($this->surfing->fresh()->sort_order)->toBe($position);
+});
+
+it('folds other languages away, unfolding them when one has a mistake', function (): void {
+    Locale::query()->create(['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch', 'is_default' => false, 'is_active' => true, 'sort_order' => 2]);
+
+    $folded = '<details style="margin-top:0.25rem;" >';
+    $unfolded = '<details style="margin-top:0.25rem;"  open >';
+
+    $this->actingAs($this->admin)->get('/control-panel/package-categories/create')
+        ->assertOk()
+        ->assertSee('Other languages (optional)')
+        ->assertSee($folded, false)
+        ->assertDontSee($unfolded, false);
+
+    $this->from('/control-panel/package-categories/create')->post('/control-panel/package-categories', [
+        'name' => ['en' => 'Yoga', 'de' => str_repeat('x', 121)],
+        'kind' => Package::KIND_ACTIVITY,
+    ])->assertSessionHasErrors('name.de');
+
+    $this->get('/control-panel/package-categories/create')->assertSee($unfolded, false);
 });
 
 it('lets a Booking Agent see categories but not change them', function (): void {
@@ -177,8 +220,8 @@ it('moves uncategorised packages into the default category for their kind', func
 it('renders the category and package admin screens', function (): void {
     $hourly = Package::factory()->create(['product_category_id' => $this->tukTuks->id, 'pricing_model' => Package::MODEL_PER_HOUR, 'min_hours' => 2]);
 
-    $this->actingAs($this->admin)->get('/control-panel/package-categories/create')->assertOk()->assertSee('Booking style');
-    $this->actingAs($this->admin)->get("/control-panel/package-categories/{$this->tukTuks->id}/edit")->assertOk()->assertSee('booking style is locked');
+    $this->actingAs($this->admin)->get('/control-panel/package-categories/create')->assertOk()->assertSee('How customers book');
+    $this->actingAs($this->admin)->get("/control-panel/package-categories/{$this->tukTuks->id}/edit")->assertOk()->assertSee('so this is locked');
     $this->actingAs($this->admin)->get('/control-panel/packages/create?category='.$this->surfing->id)->assertOk()->assertSee('How is it charged?')->assertSee('Per person');
     $this->actingAs($this->admin)->get("/control-panel/packages/{$hourly->id}/edit")->assertOk()->assertSee('From (hours)')->assertSee('Price per hour for this tier');
     $this->actingAs($this->admin)->get('/control-panel/packages?category='.$this->tukTuks->id)->assertOk()->assertSee($hourly->name);

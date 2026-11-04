@@ -2,10 +2,7 @@
      Rendered in the customer's locale (see BookingConfirmationMail). --}}
 @php
     $isStay = $booking->isStay();
-    $currency = $booking->currency_code;
-    $money = fn ($value) => number_format((float) $value, 2).' '.$currency;
     $balance = max(0, (float) $booking->total_amount - (float) $booking->amount_paid);
-    $location = $booking->pickup_type === 'office' ? $booking->businessLocation : null;
 @endphp
 <x-mail::message>
 # {{ __('core::front.booking_confirmation_title') }}
@@ -47,24 +44,33 @@
 @if ($booking->vehicle)
 | **{{ __('core::front.booking_status_vehicle') }}** | {{ $md($booking->vehicle->name) }} |
 @endif
-| **{{ __('core::front.receipt_pickup') }}** | {{ $booking->pickup_type === 'delivery' ? __('core::front.booking_pickup_delivery').($booking->deliveryZone ? ' — '.$md($booking->deliveryZone->name) : '') : __('core::front.booking_pickup_office').($location ? ' — '.$md($location->name) : '') }} |
+| **{{ __('core::front.receipt_pickup') }}** | {{ $booking->pickup_type === 'delivery' ? __('core::front.booking_pickup_delivery').($booking->deliveryZone ? ' — '.$md($booking->deliveryZone->name) : '') : __('core::front.booking_pickup_office') }} |
 @endif
 | **{{ __('core::front.booking_status_package') }}** | {{ $md($booking->package?->name ?? '—') }} |
 @if ($booking->addons->isNotEmpty())
 | **{{ __('core::front.email_confirm_addons') }}** | {{ $booking->addons->map(fn ($line) => $md($line->addon?->name ?? '#'.$line->addon_id).' × '.$line->quantity)->implode(', ') }} |
 @endif
-| **{{ __('core::front.email_confirm_total') }}** | **{{ $money($booking->total_amount) }}** |
+@if ($booking->displayOfferDiscount())
+| **{{ __('core::front.offer_saving') }}** | {{ $booking->displayOfferDiscount() }} |
+@endif
+| **{{ __('core::front.email_confirm_total') }}** | **{{ $booking->displayTotal() }}** |
+@if ($booking->linkedBooking)
+| **{{ __('core::front.offer_also_booked') }}** | {{ $booking->linkedBooking->reference }} — {{ $md($booking->linkedBooking->package?->name ?? '—') }} |
+@endif
 @if ((float) $booking->deposit_amount > 0)
-| **{{ __('core::front.receipt_deposit') }}** | {{ $money($booking->deposit_amount) }} |
+| **{{ __('core::front.receipt_deposit') }}** | {{ \Modules\Pricing\Support\Money::usd($booking->deposit_amount) }} |
 @endif
 @if ($balance > 0)
-| **{{ __($isStay ? 'core::front.receipt_balance_due_stay' : 'core::front.receipt_balance_due') }}** | {{ $money($balance) }} |
+| **{{ __($isStay ? 'core::front.receipt_balance_due_stay' : 'core::front.receipt_balance_due') }}** | {{ $booking->displayBalance() }} |
 @endif
 </x-mail::table>
 
-@php $place = $isStay ? $booking->vehicle : $location; @endphp
+@php $place = $isStay ? $booking->vehicle : null; @endphp
 @if ($place?->hasLocation())
 **{{ __('core::front.location_title') }}:** {{ $place->address ? $md($place->address).' — ' : '' }}[{{ __('core::front.location_open_map') }}]({{ $place->mapUrl() }})@if ($place->directionsUrl()) · [{{ __('core::front.location_directions') }}]({{ $place->directionsUrl() }})@endif
+
+@elseif ($booking->officeAddress())
+**{{ __('core::front.location_title') }}:** {{ $md($booking->officeAddress()) }} — [{{ __('core::front.location_open_map') }}]({{ $booking->officeMapUrl() }})
 
 @endif
 {{ __($isStay ? 'core::front.booking_confirmation_next_steps_stay' : ($booking->isTransfer() ? 'core::front.booking_confirmation_next_steps_transfer' : 'core::front.booking_confirmation_next_steps')) }}
