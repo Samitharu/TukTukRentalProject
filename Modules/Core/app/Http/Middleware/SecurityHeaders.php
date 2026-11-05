@@ -47,6 +47,8 @@ final class SecurityHeaders
             "img-src 'self' data: https:",
             "font-src 'self' data:",
             "connect-src 'self'",
+            // The Google map in the public footer.
+            'frame-src https://www.google.com',
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",

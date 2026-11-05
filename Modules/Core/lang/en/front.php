@@ -18,6 +18,7 @@ return [
     'nav_cancellation' => 'Cancellation Policy',
     'book_now' => 'Book Now',
     'footer_explore' => 'Explore',
+    'footer_map_title' => 'Our location on Google Maps',
     'footer_legal' => 'Legal',
     'footer_contact' => 'Contact',
     'all_rights_reserved' => 'All rights reserved.',

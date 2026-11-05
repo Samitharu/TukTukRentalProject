@@ -6,12 +6,14 @@ namespace Modules\Core\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @property int $id
  * @property string|null $logo_path
  * @property string|null $hero_image_path
  * @property string|null $tripadvisor_url
+ * @property string|null $footer_map_url
  */
 final class SiteSetting extends Model
 {
@@ -21,6 +23,7 @@ final class SiteSetting extends Model
         'logo_path',
         'hero_image_path',
         'tripadvisor_url',
+        'footer_map_url',
     ];
 
     protected static function booted(): void
@@ -41,6 +44,37 @@ final class SiteSetting extends Model
     public function logoUrl(): ?string
     {
         return $this->logo_path ? asset('storage/'.$this->logo_path) : null;
+    }
+
+    /**
+     * The logo embedded in the markup, for PDFs: DomPDF does not fetch images
+     * over the network. Sized to fit the box whatever the logo's shape. Null
+     * when there is no logo or its file has gone or is unreadable.
+     *
+     * @return array{src: string, width: int, height: int}|null
+     */
+    public function logoForPdf(int $maxWidth, int $maxHeight): ?array
+    {
+        $disk = Storage::disk('public');
+
+        if (! $this->logo_path || ! $disk->exists($this->logo_path)) {
+            return null;
+        }
+
+        $contents = (string) $disk->get($this->logo_path);
+        $size = @getimagesizefromstring($contents);
+
+        if ($size === false) {
+            return null;
+        }
+
+        $scale = min($maxWidth / $size[0], $maxHeight / $size[1]);
+
+        return [
+            'src' => 'data:'.$size['mime'].';base64,'.base64_encode($contents),
+            'width' => (int) round($size[0] * $scale),
+            'height' => (int) round($size[1] * $scale),
+        ];
     }
 
     public function heroImageUrl(): ?string

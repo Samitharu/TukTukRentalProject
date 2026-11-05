@@ -52,6 +52,21 @@
     </div>
 
     <div class="admin-card">
+        <h2>{{ __('Footer map') }}</h2>
+        <p style="color:#5b6b64;">{{ __('Shows your location on a Google map in the footer of every page. In Google Maps, find your business, then choose Share > Embed a map > Copy HTML and paste it here. Leave empty to hide the map.') }}</p>
+
+        <form method="POST" action="{{ route('admin.branding.update') }}" novalidate>
+            @csrf
+            <div class="admin-form-field">
+                <label for="footer_map_url">{{ __('Google Maps embed code') }}</label>
+                <textarea id="footer_map_url" name="footer_map_url" rows="3" placeholder="&lt;iframe src=&quot;https://www.google.com/maps/embed?pb=...&quot;&gt;&lt;/iframe&gt;">{{ old('footer_map_url', $settings->footer_map_url) }}</textarea>
+                @error('footer_map_url')<p style="color:#b3261e;">{{ $message }}</p>@enderror
+            </div>
+            <button type="submit" class="admin-btn">{{ __('Save') }}</button>
+        </form>
+    </div>
+
+    <div class="admin-card">
         <h2>{{ __('Tripadvisor') }}</h2>
         <p style="color:#5b6b64;">{{ __('Shows a floating Tripadvisor button on every page of the website, linking to your reviews. Leave empty to hide it.') }}</p>
 

@@ -41,6 +41,11 @@ final class BrandingController extends Controller
             $settings->update(['tripadvisor_url' => $request->validated('tripadvisor_url') ?: null]);
         }
 
+        // Also its own form: blank removes the map from the footer.
+        if ($request->has('footer_map_url')) {
+            $settings->update(['footer_map_url' => $request->validated('footer_map_url') ?: null]);
+        }
+
         return redirect()->route('admin.branding.edit')->with('status', __('Branding updated.'));
     }
 

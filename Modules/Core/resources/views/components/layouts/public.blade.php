@@ -170,6 +170,10 @@
                         @endif
                     </p>
                     <p><a href="mailto:{{ config('core.business.email') }}">{{ config('core.business.email') }}</a></p>
+                    {{-- No referrerpolicy here, though Google's own code sets one: it would send Google the full page address, and on booking pages that holds the private reference. --}}
+                    @if ($siteSettings->footer_map_url)
+                        <iframe class="site-footer__map" src="{{ $siteSettings->footer_map_url }}" title="{{ __('core::front.footer_map_title') }}" loading="lazy" allowfullscreen></iframe>
+                    @endif
                 </div>
                 <div>
                     <h3>{{ __('core::front.footer_explore') }}</h3>

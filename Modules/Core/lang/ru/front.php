@@ -18,6 +18,7 @@ return [
     'nav_cancellation' => 'Политика отмены',
     'book_now' => 'Забронировать',
     'footer_explore' => 'Разделы',
+    'footer_map_title' => 'Мы на Google Картах',
     'footer_legal' => 'Правовая информация',
     'footer_contact' => 'Контакты',
     'all_rights_reserved' => 'Все права защищены.',

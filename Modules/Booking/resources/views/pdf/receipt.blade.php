@@ -5,6 +5,7 @@
     //
     // Packages booked in the same checkout share one receipt, whichever
     // booking's reference it was opened from.
+    $logo = \Modules\Core\Models\SiteSetting::current()->logoForPdf(120, 56);
     $bookings = $booking->checkoutBookings();
     $isCombined = $bookings->count() > 1;
     $money = fn ($usd, $eur = null) => \Modules\Pricing\Support\Money::dual($usd, $eur);
@@ -62,6 +63,11 @@
     <div class="band">
         <table>
             <tr>
+                @if ($logo)
+                    <td style="width:{{ $logo['width'] + 14 }}px;vertical-align:middle;">
+                        <img src="{{ $logo['src'] }}" alt="" width="{{ $logo['width'] }}" height="{{ $logo['height'] }}">
+                    </td>
+                @endif
                 <td>
                     <div class="brand">{{ config('app.name') }}</div>
                     @if (config('core.business.tagline'))
@@ -74,7 +80,7 @@
                         {{ config('core.business.phone') }} · {{ config('core.business.email') }}
                     </div>
                 </td>
-                <td style="text-align:right;">
+                <td style="text-align:right;width:170px;">
                     <div class="doc-title">{{ __('core::front.receipt_title') }}</div>
                     <div class="muted" style="margin-top:6px;">{{ __('core::front.receipt_issued') }}: {{ now()->format('d M Y') }}</div>
                 </td>

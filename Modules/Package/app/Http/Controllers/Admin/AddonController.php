@@ -7,6 +7,7 @@ namespace Modules\Package\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Modules\Package\Http\Requests\Admin\StoreAddonRequest;
 use Modules\Package\Http\Requests\Admin\UpdateAddonRequest;
 use Modules\Package\Models\Addon;
@@ -59,6 +60,17 @@ final class AddonController extends Controller
     public function destroy(Addon $addon): RedirectResponse
     {
         $this->authorize('delete', $addon);
+
+        // Booking pages and receipts read the add-on's name, so the database
+        // refuses to delete one that bookings use.
+        $bookingCount = DB::table('booking_addons')->where('addon_id', $addon->id)->count();
+
+        if ($bookingCount > 0) {
+            return back()->withErrors(['addon' => __(':name cannot be removed because existing bookings use it (:count). To stop offering it, open Edit and untick Active.', [
+                'name' => $addon->name,
+                'count' => $bookingCount,
+            ])]);
+        }
 
         $addon->delete();
 

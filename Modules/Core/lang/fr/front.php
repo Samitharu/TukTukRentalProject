@@ -18,6 +18,7 @@ return [
     'nav_cancellation' => "Politique d'annulation",
     'book_now' => 'Réserver',
     'footer_explore' => 'Explorer',
+    'footer_map_title' => 'Notre emplacement sur Google Maps',
     'footer_legal' => 'Mentions légales',
     'footer_contact' => 'Contact',
     'all_rights_reserved' => 'Tous droits réservés.',

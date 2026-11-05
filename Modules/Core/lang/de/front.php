@@ -18,6 +18,7 @@ return [
     'nav_cancellation' => 'Stornierungsbedingungen',
     'book_now' => 'Jetzt buchen',
     'footer_explore' => 'Entdecken',
+    'footer_map_title' => 'Unser Standort auf Google Maps',
     'footer_legal' => 'Rechtliches',
     'footer_contact' => 'Kontakt',
     'all_rights_reserved' => 'Alle Rechte vorbehalten.',
