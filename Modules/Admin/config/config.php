@@ -9,6 +9,13 @@ return [
     // noise; not a real security boundary on its own (auth + roles are).
     'path' => env('ADMIN_PATH', 'control-panel'),
 
+    // Used only by SuperAdminSeeder. Blank means the seeder creates nobody.
+    'super_admin' => [
+        'name' => env('SUPER_ADMIN_NAME', 'Happy Journey Admin'),
+        'email' => env('SUPER_ADMIN_EMAIL', ''),
+        'password' => env('SUPER_ADMIN_PASSWORD', ''),
+    ],
+
     'ip_allowlist' => [
         'enabled' => env('ADMIN_IP_ALLOWLIST_ENABLED', false),
         'ips' => array_filter(array_map('trim', explode(',', (string) env('ADMIN_IP_ALLOWLIST', '')))),
