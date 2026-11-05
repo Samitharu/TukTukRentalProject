@@ -163,7 +163,12 @@
                 <div>
                     <h3>{{ config('app.name') }}</h3>
                     <p class="text-muted" style="color:var(--color-ink-300);">{{ config('core.business.address') }}</p>
-                    <p><a href="tel:{{ config('core.business.phone') }}">{{ config('core.business.phone') }}</a></p>
+                    <p>
+                        <a href="tel:{{ config('core.business.phone') }}">{{ config('core.business.phone') }}</a>
+                        @if (filled(config('core.business.phone_2')))
+                            | <a href="tel:{{ config('core.business.phone_2') }}">{{ config('core.business.phone_2') }}</a>
+                        @endif
+                    </p>
                     <p><a href="mailto:{{ config('core.business.email') }}">{{ config('core.business.email') }}</a></p>
                 </div>
                 <div>

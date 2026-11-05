@@ -11,6 +11,8 @@ return [
     // now so it's one place to change ahead of that.
     'business' => [
         'phone' => env('BUSINESS_PHONE', '+94 00 000 0000'),
+        // A second number shown beside the first in the footer; optional.
+        'phone_2' => env('BUSINESS_PHONE_2', ''),
         'whatsapp' => env('BUSINESS_WHATSAPP', '94000000000'), // digits only, no + or spaces
         'email' => env('BUSINESS_EMAIL', 'hello@mirandatuktuk.example'),
         'address' => env('BUSINESS_ADDRESS', '[Address pending — see docs/01-architecture.md §7]'),
