@@ -40,4 +40,10 @@ final class PackageImage extends Model
     {
         return asset('storage/'.$this->path);
     }
+
+    /** The small square copy PackageImageService makes of every upload. */
+    public function thumbUrl(): string
+    {
+        return asset('storage/'.preg_replace('/\.webp$/', '-thumb.webp', $this->path));
+    }
 }

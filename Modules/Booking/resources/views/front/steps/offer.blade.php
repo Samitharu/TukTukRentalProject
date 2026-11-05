@@ -9,6 +9,7 @@
     <section class="section booking-flow">
         <div class="container" style="max-width:40rem;">
             <h1>{{ $title }}</h1>
+            @include('package::front._gallery-trigger', ['package' => $offered, 'class' => 'package-gallery__banner'])
             @if ($offer)
                 <p class="offer-flag">{{ __('core::front.offer_page_intro', ['saving' => $offer->displayDiscount(), 'main' => $offer->package->name]) }}</p>
             @elseif ($savingOnAdded)

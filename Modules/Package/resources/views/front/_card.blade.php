@@ -1,8 +1,6 @@
 {{-- One package card on the packages and category pages. --}}
 <article class="card package-card">
-    @if ($package->primaryImage())
-        <img src="{{ asset('storage/'.$package->primaryImage()->path) }}" alt="{{ $package->name }}" loading="lazy">
-    @endif
+    @include('package::front._gallery-trigger', ['package' => $package])
     <div class="card__body">
         @if ($package->is_featured)
             <span class="badge">{{ __('core::front.home_featured_packages') }}</span>

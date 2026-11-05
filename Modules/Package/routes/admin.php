@@ -19,6 +19,7 @@ Route::prefix('packages')->name('packages.')->group(function (): void {
     Route::put('/{package}', [PackageController::class, 'update'])->name('update');
     Route::delete('/{package}', [PackageController::class, 'destroy'])->name('destroy');
     Route::delete('/{package}/images/{image}', [PackageController::class, 'destroyImage'])->name('images.destroy');
+    Route::put('/{package}/images/{image}/cover', [PackageController::class, 'setCoverImage'])->name('images.cover');
 
     Route::post('/{package}/pricing-tiers', [PackagePricingTierController::class, 'store'])->name('pricing-tiers.store');
     Route::put('/{package}/pricing-tiers/{tier}', [PackagePricingTierController::class, 'update'])->name('pricing-tiers.update');

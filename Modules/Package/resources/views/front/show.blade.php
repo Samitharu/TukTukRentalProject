@@ -3,15 +3,21 @@
         <div class="container">
             <div class="grid grid--2">
                 <div>
-                    @if ($package->images->isNotEmpty())
-                        <img src="{{ asset('storage/'.$package->images->first()->path) }}" alt="{{ $package->name }}" style="border-radius:var(--radius-md);width:100%;aspect-ratio:4/3;object-fit:cover;margin-bottom:var(--space-3);">
-                        @if ($package->images->count() > 1)
-                            <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:var(--space-4);">
-                                @foreach ($package->images->skip(1) as $image)
-                                    <img src="{{ asset('storage/'.$image->path) }}" alt="" style="border-radius:var(--radius-sm);aspect-ratio:1;object-fit:cover;">
-                                @endforeach
-                            </div>
-                        @endif
+                    @include('package::front._gallery-trigger', ['package' => $package, 'class' => 'package-gallery__main'])
+                    @php $photos = $package->galleryImages(); @endphp
+                    @if ($photos->count() > 1)
+                        <div class="package-gallery__thumbs">
+                            @foreach ($photos as $photo)
+                                @continue($loop->first)
+                                <button
+                                    type="button"
+                                    data-gallery="{{ json_encode($photos->map(fn ($item) => $item->url())->all()) }}"
+                                    data-gallery-title="{{ $package->name }}"
+                                    data-gallery-start="{{ $loop->index }}"
+                                    aria-label="{{ __('core::front.gallery_photo', ['number' => $loop->iteration]) }}"
+                                ><img src="{{ $photo->thumbUrl() }}" alt="" loading="lazy"></button>
+                            @endforeach
+                        </div>
                     @endif
 
                     <h1>{{ $package->name }}</h1>

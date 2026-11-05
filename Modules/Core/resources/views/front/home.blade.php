@@ -99,12 +99,18 @@
                             </div>
                         </div>
                         @if ($packageImages->isNotEmpty())
-                            <div class="package-feature__photos">
-                                @foreach ($packageImages as $image)
+                            <button
+                                type="button"
+                                class="package-feature__photos"
+                                data-gallery="{{ json_encode($package->galleryImages()->map(fn ($photo) => $photo->url())->all()) }}"
+                                data-gallery-title="{{ $package->name }}"
+                                aria-label="{{ __('core::front.gallery_open', ['package' => $package->name]) }}"
+                            >
+                                @foreach ($package->galleryImages()->take(2) as $image)
                                     <img src="{{ $image->url() }}" alt="" loading="lazy" class="package-feature__photo">
                                 @endforeach
                                 <span class="package-feature__explore">{{ __('core::front.packages_explore_more') }}</span>
-                            </div>
+                            </button>
                         @endif
                     </article>
                 @endforeach

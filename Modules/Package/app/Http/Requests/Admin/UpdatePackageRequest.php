@@ -40,6 +40,7 @@ final class UpdatePackageRequest extends FormRequest
             'category_ids.*' => ['integer', 'exists:vehicle_categories,id'],
             'vehicle_ids' => ['nullable', 'array'],
             'vehicle_ids.*' => ['integer', 'exists:vehicles,id'],
+            'cover_image' => ['nullable', 'image', 'max:8192', 'mimes:jpg,jpeg,png,webp'],
             'images' => ['nullable', 'array'],
             'images.*' => ['image', 'max:8192', 'mimes:jpg,jpeg,png,webp'],
         ];

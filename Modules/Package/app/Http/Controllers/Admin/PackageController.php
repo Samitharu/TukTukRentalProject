@@ -73,9 +73,7 @@ final class PackageController extends Controller
         $this->syncOffers($package, $request);
         $this->syncPrice($package, $request);
 
-        foreach ($request->file('images', []) as $index => $file) {
-            $this->images->store($package, $file, isPrimary: $index === 0);
-        }
+        $this->storePhotos($package, $request);
 
         return $request->filled('price')
             ? redirect()->route('admin.packages.index')->with('status', __('Package created.'))
@@ -121,11 +119,21 @@ final class PackageController extends Controller
         $this->syncOffers($package, $request);
         $this->syncPrice($package, $request);
 
+        $this->storePhotos($package, $request);
+
+        return redirect()->route('admin.packages.edit', $package)->with('status', __('Package updated.'));
+    }
+
+    /** A new cover replaces the old one as the cover; the old one stays among the photos. */
+    private function storePhotos(Package $package, StorePackageRequest|UpdatePackageRequest $request): void
+    {
+        if ($request->hasFile('cover_image')) {
+            $this->images->store($package, $request->file('cover_image'), isPrimary: true);
+        }
+
         foreach ($request->file('images', []) as $file) {
             $this->images->store($package, $file);
         }
-
-        return redirect()->route('admin.packages.edit', $package)->with('status', __('Package updated.'));
     }
 
     /**
@@ -137,7 +145,7 @@ final class PackageController extends Controller
     private function packageData(StorePackageRequest|UpdatePackageRequest $request): array
     {
         $data = $request->safe()->except([
-            'category_ids', 'vehicle_ids', 'images', 'offered_addon_ids', 'included_addon_ids', 'offers',
+            'category_ids', 'vehicle_ids', 'images', 'cover_image', 'offered_addon_ids', 'included_addon_ids', 'offers',
             // The simple form's own fields (see SimplePackageForm).
             'charge', 'price', 'price_eur', 'package_days', 'daily_km', 'daily_extra_km_rate', 'daily_extra_km_rate_eur', 'vehicle_type_id',
         ]);
@@ -241,5 +249,16 @@ final class PackageController extends Controller
         $this->images->delete($image);
 
         return redirect()->route('admin.packages.edit', $package)->with('status', __('Image removed.'));
+    }
+
+    public function setCoverImage(Package $package, PackageImage $image): RedirectResponse
+    {
+        $this->authorize('update', $package);
+
+        abort_unless($image->package_id === $package->id, 404);
+
+        $this->images->setCover($image);
+
+        return redirect()->route('admin.packages.edit', $package)->with('status', __('Cover image changed.'));
     }
 }

@@ -43,6 +43,15 @@
                 @can('viewAny', \Modules\Availability\Models\TransferArea::class)
                     <li><a href="{{ route('admin.transfer-areas.index') }}" @if(request()->routeIs('admin.transfer-areas.*')) aria-current="page" @endif>{{ __('Airport Pickup Areas') }}</a></li>                @endcan
                 @can('cms.view')
+                    @php $unreadMessages = \Modules\CMS\Models\ContactSubmission::query()->where('is_read', false)->count(); @endphp
+                    <li>
+                        <a href="{{ route('admin.messages.index') }}" @if(request()->routeIs('admin.messages.*')) aria-current="page" @endif>
+                            {{ __('Messages') }}
+                            @if ($unreadMessages > 0)
+                                <span class="admin-nav__count" aria-label="{{ __(':count unread', ['count' => $unreadMessages]) }}">{{ $unreadMessages }}</span>
+                            @endif
+                        </a>
+                    </li>
                     <li><a href="{{ route('admin.pages.index') }}" @if(request()->routeIs('admin.pages.*')) aria-current="page" @endif>{{ __('Pages') }}</a></li>
                     <li><a href="{{ route('admin.faqs.index') }}" @if(request()->routeIs('admin.faqs.*')) aria-current="page" @endif>{{ __('FAQs') }}</a></li>
                     <li><a href="{{ route('admin.blog.index') }}" @if(request()->routeIs('admin.blog.*')) aria-current="page" @endif>{{ __('Blog') }}</a></li>

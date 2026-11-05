@@ -132,8 +132,17 @@
 </div>
 
 <div class="admin-form-field">
-    <label for="images">{{ $package ? __('Add more photos') : __('Photos') }}</label>
+    <label for="cover_image">{{ $package?->images->isNotEmpty() ? __('New cover image') : __('Cover image') }}</label>
+    <input type="file" id="cover_image" name="cover_image" accept="image/jpeg,image/png,image/webp">
+    <p class="admin-hint">{{ __('The main photo customers see first. A wide photo works best. JPG, PNG or WebP, up to 8 MB.') }}</p>
+    @error('cover_image')<p class="field-error" style="color:#b3261e;">{{ __('The photo must be a JPG, PNG or WebP image of up to 8 MB.') }}</p>@enderror
+</div>
+
+<div class="admin-form-field">
+    <label for="images">{{ __('More photos') }}</label>
     <input type="file" id="images" name="images[]" accept="image/jpeg,image/png,image/webp" multiple>
+    <p class="admin-hint">{{ __('Related photos customers can browse. You can select several at once.') }}</p>
+    @error('images.*')<p class="field-error" style="color:#b3261e;">{{ __('Each photo must be a JPG, PNG or WebP image of up to 8 MB.') }}</p>@enderror
 </div>
 
 <fieldset class="admin-form-field">

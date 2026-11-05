@@ -52,9 +52,7 @@
                         @foreach ($packages as $package)
                             @php $full = $isFull($package); @endphp
                             <label class="card package-card package-option {{ $full ? 'package-option--unavailable' : '' }}">
-                                @if ($package->primaryImage())
-                                    <img src="{{ asset('storage/'.$package->primaryImage()->path) }}" alt="{{ $package->name }}" loading="lazy">
-                                @endif
+                                @include('package::front._gallery-trigger', ['package' => $package])
                                 <div class="card__body">
                                     <input type="radio" name="package_id" value="{{ $package->id }}" class="package-option__radio"@checked(! $full && (string) old('package_id', $state['package_id'] ?? '') === (string) $package->id) @disabled($full) required>
                                     @if ($full)

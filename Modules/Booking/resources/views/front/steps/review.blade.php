@@ -46,9 +46,7 @@
                     <p class="offer-card__lead">{{ __('core::front.offer_lead', ['package' => $offered->name, 'main' => $package->name]) }}</p>
 
                     <div class="offer-card__deal">
-                        @if ($offered->primaryImage())
-                            <img src="{{ asset('storage/'.$offered->primaryImage()->path) }}" alt="{{ $offered->name }}" loading="lazy" class="offer-card__photo">
-                        @endif
+                        @include('package::front._gallery-trigger', ['package' => $offered, 'class' => 'gallery-trigger--small', 'photoClass' => 'offer-card__photo', 'thumb' => true, 'compact' => true])
                         <dl class="offer-card__prices">
                             <dt>{{ $package->name }}</dt>
                             <dd>
@@ -78,9 +76,7 @@
                     <p class="offer-card__lead">{{ __('core::front.offer_lead_added', ['package' => $cheaper->name, 'main' => $package->name]) }}</p>
 
                     <div class="offer-card__deal">
-                        @if ($cheaper->primaryImage())
-                            <img src="{{ asset('storage/'.$cheaper->primaryImage()->path) }}" alt="{{ $cheaper->name }}" loading="lazy" class="offer-card__photo">
-                        @endif
+                        @include('package::front._gallery-trigger', ['package' => $cheaper, 'class' => 'gallery-trigger--small', 'photoClass' => 'offer-card__photo', 'thumb' => true, 'compact' => true])
                         @if ($fromTier)
                             <dl class="offer-card__prices">
                                 <dt>{{ $cheaper->name }}</dt>
@@ -239,9 +235,7 @@
                         <h3 class="add-package__line">{{ $line }}</h3>
                         @foreach ($linePackages as $addable)
                         <div class="add-package__row">
-                            @if ($addable->primaryImage())
-                                <img src="{{ asset('storage/'.$addable->primaryImage()->path) }}" alt="" loading="lazy" class="add-package__photo">
-                            @endif
+                            @include('package::front._gallery-trigger', ['package' => $addable, 'class' => 'gallery-trigger--small', 'photoClass' => 'add-package__photo', 'thumb' => true, 'compact' => true])
                             <div class="add-package__info">
                                 <strong>{{ $addable->name }}</strong>
                                 @if ($addable->pricingTiers->isNotEmpty())

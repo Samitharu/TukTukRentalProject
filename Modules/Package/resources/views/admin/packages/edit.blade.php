@@ -11,15 +11,25 @@
     @if ($package->images->isNotEmpty())
         <div class="admin-card">
             <h2>{{ __('Photos') }}</h2>
+            <p class="admin-hint">{{ __('Customers see the cover first, then the others. Removing the cover makes the next photo the cover.') }}</p>
             <div class="admin-image-grid">
-                @foreach ($package->images as $image)
+                @foreach ($package->galleryImages() as $image)
                     <figure>
-                        <img src="{{ asset('storage/'.$image->path) }}" alt="">
+                        <img src="{{ $image->url() }}" alt="">
                         <form method="POST" action="{{ route('admin.packages.images.destroy', [$package, $image]) }}" onsubmit="return confirm('{{ __('Remove this photo?') }}');">
                             @csrf
                             @method('DELETE')
-                            <button type="submit" style="position:absolute;top:2px;right:2px;background:#fff;border:1px solid #b3261e;color:#b3261e;border-radius:50%;width:24px;height:24px;cursor:pointer;">×</button>
+                            <button type="submit" aria-label="{{ __('Remove this photo?') }}" style="position:absolute;top:2px;right:2px;background:#fff;border:1px solid #b3261e;color:#b3261e;border-radius:50%;width:24px;height:24px;cursor:pointer;">×</button>
                         </form>
+                        @if ($loop->first)
+                            <span class="admin-badge" style="position:absolute;top:4px;left:4px;">{{ __('Cover') }}</span>
+                        @else
+                            <form method="POST" action="{{ route('admin.packages.images.cover', [$package, $image]) }}" style="margin-top:0.25rem;">
+                                @csrf
+                                @method('PUT')
+                                <button type="submit" style="background:none;border:none;color:#0f6b4c;cursor:pointer;padding:0;font-size:0.8125rem;">{{ __('Make cover') }}</button>
+                            </form>
+                        @endif
                     </figure>
                 @endforeach
             </div>

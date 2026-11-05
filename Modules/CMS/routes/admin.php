@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 use Modules\CMS\Http\Controllers\Admin\BlogPostController;
+use Modules\CMS\Http\Controllers\Admin\ContactMessageController;
 use Modules\CMS\Http\Controllers\Admin\FaqController;
 use Modules\CMS\Http\Controllers\Admin\PageController;
 use Modules\CMS\Http\Controllers\Admin\ReviewController;
@@ -17,6 +18,13 @@ Route::prefix('reviews')->name('reviews.')->group(function (): void {
     Route::get('/', [ReviewController::class, 'index'])->name('index');
     Route::post('/{review}/toggle-approval', [ReviewController::class, 'toggleApproval'])->name('toggle-approval');
     Route::delete('/{review}', [ReviewController::class, 'destroy'])->name('destroy');
+});
+
+Route::prefix('messages')->name('messages.')->group(function (): void {
+    Route::get('/', [ContactMessageController::class, 'index'])->name('index');
+    Route::get('/{contactMessage}', [ContactMessageController::class, 'show'])->name('show');
+    Route::post('/{contactMessage}/unread', [ContactMessageController::class, 'markUnread'])->name('unread');
+    Route::delete('/{contactMessage}', [ContactMessageController::class, 'destroy'])->name('destroy');
 });
 
 Route::prefix('blog')->name('blog.')->group(function (): void {

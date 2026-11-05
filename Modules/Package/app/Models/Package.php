@@ -249,6 +249,18 @@ final class Package extends Model
         return $this->images->firstWhere('is_primary', true) ?? $this->images->first();
     }
 
+    /**
+     * The cover first, then the rest in upload order.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, PackageImage>
+     */
+    public function galleryImages(): \Illuminate\Database\Eloquent\Collection
+    {
+        $cover = $this->primaryImage();
+
+        return $this->images->sortBy(fn (PackageImage $image) => $image->id === $cover?->id ? 0 : 1)->values();
+    }
+
     public function vehicles(): BelongsToMany
     {
         return $this->belongsToMany(Vehicle::class, 'package_vehicles');

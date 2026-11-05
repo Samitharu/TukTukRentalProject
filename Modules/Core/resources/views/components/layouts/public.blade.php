@@ -293,8 +293,20 @@
         })();
     </script>
 
+    {{-- The full-screen package photos: any [data-gallery] button opens it (package-gallery.js). --}}
+    <dialog class="gallery" data-gallery-dialog aria-label="{{ __('core::front.nav_packages') }}">
+        <button type="button" class="gallery__button gallery__close" data-gallery-close aria-label="{{ __('core::front.gallery_close') }}">&times;</button>
+        <button type="button" class="gallery__button gallery__previous" data-gallery-previous aria-label="{{ __('core::front.gallery_previous') }}">&lsaquo;</button>
+        <figure class="gallery__stage">
+            <img data-gallery-image alt="">
+            <figcaption data-gallery-caption></figcaption>
+        </figure>
+        <button type="button" class="gallery__button gallery__next" data-gallery-next aria-label="{{ __('core::front.gallery_next') }}">&rsaquo;</button>
+    </dialog>
+
     <x-slot:scripts>
         <script src="{{ asset_v('assets/vendor/alpine.min.js') }}" defer nonce="{{ csp_nonce() }}"></script>
+        <script src="{{ asset_v('assets/js/package-gallery.js') }}" defer nonce="{{ csp_nonce() }}"></script>
         {{ $scripts ?? '' }}
     </x-slot:scripts>
 </x-core::layouts.master>

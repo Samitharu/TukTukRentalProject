@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Package\Services;
 
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Drivers\Gd\Driver;
@@ -59,12 +60,31 @@ final class PackageImageService
         ]);
     }
 
+    /** The photo customers see first; the package always has exactly one. */
+    public function setCover(PackageImage $image): void
+    {
+        DB::transaction(function () use ($image): void {
+            PackageImage::query()->where('package_id', $image->package_id)->update(['is_primary' => false]);
+            $image->update(['is_primary' => true]);
+        });
+    }
+
     public function delete(PackageImage $image): void
     {
         $thumbPath = preg_replace('/\.webp$/', '-thumb.webp', $image->path);
 
         Storage::disk('public')->delete(array_filter([$image->path, $thumbPath]));
 
+        $wasCover = $image->is_primary;
+        $package = $image->package;
+
         $image->delete();
+
+        // Removing the cover: the next photo takes over.
+        $next = $wasCover ? $package?->images()->first() : null;
+
+        if ($next !== null) {
+            $this->setCover($next);
+        }
     }
 }
