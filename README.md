@@ -119,6 +119,20 @@ Lightsail instances come with no swap. MySQL, PHP-FPM and the queue worker share
 sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 ```
+## Database backups
+
+A Super Admin can download the database from **Backups** in the control panel. The file is built on request, sent to the browser and deleted from the server. It contains the database only: uploaded photos are in `storage/app/public`, and passport numbers can only be read with the same `APP_KEY`, so back those up separately.
+
+To restore, stop the site first, because this **replaces every table** in the target database, and take a fresh backup of what is there now:
+
+```bash
+php artisan down
+gunzip < backup-file.sql.gz | mysql -u DB_USERNAME -p DB_DATABASE
+php artisan up
+```
+
+Everyone is signed out afterwards, because sessions are not kept in the backup.
+
 ## Running tests
 
 ```bash

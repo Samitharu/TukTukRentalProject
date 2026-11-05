@@ -60,6 +60,9 @@
                 @can('settings.manage')
                     <li><a href="{{ route('admin.branding.edit') }}" @if(request()->routeIs('admin.branding.*')) aria-current="page" @endif>{{ __('Branding') }}</a></li>
                 @endcan
+                @if (auth()->user()?->isSuperAdmin())
+                    <li><a href="{{ route('admin.backups.index') }}" @if(request()->routeIs('admin.backups.*')) aria-current="page" @endif>{{ __('Backups') }}</a></li>
+                @endif
             </ul>
             <a href="{{ route('home', ['locale' => app()->getLocale()]) }}" class="admin-sidebar__website">
                 <span>{{ __('View website') }}</span>
