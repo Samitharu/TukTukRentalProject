@@ -59,6 +59,7 @@
                             @endforeach
                         </table>
 
+                        @include('package::front._offer-flag', ['package' => $package])
                         @include('package::front._package-terms', ['package' => $package])
 
                         @if ($whatsappUrl)

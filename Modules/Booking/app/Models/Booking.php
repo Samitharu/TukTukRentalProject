@@ -184,10 +184,35 @@ final class Booking extends Model
         return $this->belongsTo(TransferArea::class);
     }
 
-    /** The other booking made together with this one through a package offer. */
+    /**
+     * The first booking of a checkout points at the booking that earned its
+     * offer saving (or the first one added); the others point at the first.
+     */
     public function linkedBooking(): BelongsTo
     {
         return $this->belongsTo(self::class, 'linked_booking_id');
+    }
+
+    /**
+     * Everything booked in the same checkout as this one. Works from any of
+     * them: the one this points at, plus all that point at it or at this.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, self>
+     */
+    public function togetherBookings(): \Illuminate\Database\Eloquent\Collection
+    {
+        if ($this->linked_booking_id === null) {
+            return new \Illuminate\Database\Eloquent\Collection();
+        }
+
+        return self::query()
+            ->with('package')
+            ->where(fn ($query) => $query
+                ->whereKey($this->linked_booking_id)
+                ->orWhereIn('linked_booking_id', [$this->id, $this->linked_booking_id]))
+            ->whereKeyNot($this->id)
+            ->orderBy('id')
+            ->get();
     }
 
     /**
@@ -225,14 +250,20 @@ final class Booking extends Model
     /**
      * Where a rental is collected: the business address, when one has been
      * set (config/core's "[… pending]" placeholder isn't shown to customers).
-     * Stays and airport pickups aren't collected from the office.
+     * Stays, airport pickups and activities aren't collected from the office.
      */
     public function officeAddress(): ?string
     {
-        if ($this->isStay() || $this->isTransfer()) {
+        if ($this->isStay() || $this->isTransfer() || $this->isActivity()) {
             return null;
         }
 
+        return self::businessAddress();
+    }
+
+    /** The business's address, unless it is still config/core's "[… pending]" placeholder. */
+    public static function businessAddress(): ?string
+    {
         $address = config('core.business.address');
 
         return is_string($address) && $address !== '' && ! str_starts_with($address, '[') ? $address : null;
@@ -287,6 +318,20 @@ final class Booking extends Model
         return $this->kind() === Package::KIND_STAY;
     }
 
+    /** A lesson or similar: one day, no vehicle, and we confirm the time with the customer. */
+    public function isActivity(): bool
+    {
+        return $this->kind() === Package::KIND_ACTIVITY;
+    }
+
+    /** People booked, for a package priced per person. From the price snapshot, like hours(). */
+    public function people(): ?int
+    {
+        $people = $this->price_breakdown['people'] ?? null;
+
+        return $people !== null ? (int) $people : null;
+    }
+
     /** Return day for a rental; the morning after the last night for a stay. */
     public function checkOutDate(): \Illuminate\Support\Carbon
     {
@@ -319,6 +364,12 @@ final class Booking extends Model
     {
         if ($this->isTransfer()) {
             return $this->start_at->format($dateFormat).', '.$this->start_at->format('H:i');
+        }
+
+        if ($this->isActivity()) {
+            return $this->start_at->format($dateFormat).($this->people() !== null
+                ? ' ('.trans_choice('core::front.booking_people_count', $this->people(), ['count' => $this->people()]).')'
+                : '');
         }
 
         if ($this->isHourly()) {
@@ -358,17 +409,63 @@ final class Booking extends Model
         return $discount > 0 ? Money::dual(-$discount, $discountEur !== null ? -(float) $discountEur : null) : null;
     }
 
-    /** This booking and its linked one together; EUR only if both have it. */
+    /** The whole checkout's total as customers see it: "$72.00 / €65.00". */
     public function displayTotalWithLinked(): string
     {
-        $linked = $this->linkedBooking;
-        $eur = $this->totalEur();
-        $linkedEur = $linked?->totalEur();
+        return Money::dual(...$this->totalsWithLinked());
+    }
+
+    /** The whole checkout's total as staff see it, with LKR. */
+    public function adminTotalWithLinked(): string
+    {
+        return Money::admin(...$this->totalsWithLinked());
+    }
+
+    /** Still to pay on the whole checkout. As displayBalance(): EUR only while nothing is paid. */
+    public function displayBalanceWithLinked(): string
+    {
+        $bookings = $this->owedInCheckout();
+        $paid = (float) $bookings->sum('amount_paid');
+        $eur = $bookings->map(fn (self $booking) => $booking->totalEur());
 
         return Money::dual(
-            (float) $this->total_amount + (float) $linked?->total_amount,
-            $eur !== null && $linkedEur !== null ? $eur + $linkedEur : null,
+            (float) $bookings->sum(fn (self $booking) => max(0, (float) $booking->total_amount - (float) $booking->amount_paid)),
+            $paid === 0.0 && ! $eur->containsStrict(null) ? (float) $eur->sum() : null,
         );
+    }
+
+    /**
+     * The whole checkout in booking order, this one included.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, self>
+     */
+    public function checkoutBookings(): \Illuminate\Database\Eloquent\Collection
+    {
+        return $this->togetherBookings()->push($this)->sortBy('id')->values();
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, self>
+     */
+    private function owedInCheckout(): \Illuminate\Database\Eloquent\Collection
+    {
+        return $this->checkoutBookings()->reject(fn (self $booking) => $booking->status === self::STATUS_CANCELLED);
+    }
+
+    /**
+     * Those still owed in this checkout; EUR only if all have it.
+     *
+     * @return array{0: float, 1: float|null}
+     */
+    private function totalsWithLinked(): array
+    {
+        $bookings = $this->owedInCheckout();
+        $eur = $bookings->map(fn (self $booking) => $booking->totalEur());
+
+        return [
+            (float) $bookings->sum('total_amount'),
+            $eur->containsStrict(null) ? null : (float) $eur->sum(),
+        ];
     }
 
     /** Still to pay. Payments are recorded in USD, so EUR only while nothing is paid. */

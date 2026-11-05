@@ -12,6 +12,7 @@ use BaconQrCode\Writer;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
@@ -47,6 +48,7 @@ use Modules\Package\Models\PackageOffer;
 use Modules\Package\Models\ProductCategory;
 use Modules\Pricing\DataObjects\PriceBreakdown;
 use Modules\Pricing\Services\PricingService;
+use Modules\Pricing\Support\Money;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -125,9 +127,11 @@ final class BookingFlowController extends Controller
         $packages = $this->flowPackages()
             ->where('min_days', '<=', $days)
             ->where(fn ($q) => $q->whereNull('max_days')->orWhere('max_days', '>=', $days))
-            ->with(['pricingTiers', 'images', 'vehicles:id,status', 'categories:id'])
+            ->with(['pricingTiers', 'images', 'liveOffers', 'vehicles:id,status', 'categories:id'])
             ->orderBy('sort_order')
-            ->get();
+            ->get()
+            ->filter(fn (Package $package) => $package->hasPriceForDays($days))
+            ->values();
 
         $vehicleId = BookingFlowState::value('vehicle_id');
         [$start, $end] = $this->datesFromState();
@@ -162,7 +166,7 @@ final class BookingFlowController extends Controller
         $package = $this->flowPackages()->findOrFail($request->validated('package_id'));
         $days = $this->daysFromState();
 
-        if ($days < $package->min_days || ($package->max_days !== null && $days > $package->max_days)) {
+        if ($days < $package->min_days || ($package->max_days !== null && $days > $package->max_days) || ! $package->hasPriceForDays($days)) {
             return back()->withErrors(['package_id' => $this->notEligibleMessage()]);
         }
 
@@ -195,6 +199,7 @@ final class BookingFlowController extends Controller
             'hours' => $hours !== null ? (int) $hours : null,
             // An offer belongs to the package it was taken on.
             'offer' => null,
+            'extras' => $this->extrasWithout($package->id),
             'hold_key' => null,
         ]);
 
@@ -280,6 +285,22 @@ final class BookingFlowController extends Controller
         $chosenOffer = $this->chosenOffer();
         $price = $this->calculatePrice($state);
         $offeredPrice = $chosenOffer !== null ? $this->offers->plan($chosenOffer->offeredPackage, $state['offer'])['price'] : null;
+        $availableOffers = $chosenOffer === null ? $package->availableOffers() : collect();
+        $extras = $state['extras'] ?? [];
+        $addedPackages = $this->addablePackages()->whereKey(array_keys($extras))->with('images')->orderBy('id')->get()
+            ->map(fn (Package $added) => ['package' => $added, 'data' => $extras[$added->id], 'price' => $this->addedPlan($added, $extras[$added->id])['price']]);
+        $throughOffers = $this->packagesAddedThroughOffers();
+        // The saving this package earns on another one, if that one isn't in the checkout yet.
+        $offersOnOthers = $package->offersOnOtherPackages()
+            ->reject(fn (PackageOffer $offer) => array_key_exists($offer->package_id, $extras) || in_array($offer->package_id, $throughOffers, true))
+            ->values();
+
+        // What the customer now sees, for confirm() to compare with.
+        BookingFlowState::put(['extra_savings' => $this->extraSavings()]);
+
+        // Every bill on this page. EUR only if each of them has it.
+        $bills = collect([$price, $offeredPrice, ...$addedPackages->pluck('price')])->filter();
+        $billsEur = $bills->map(fn (PriceBreakdown $bill) => $bill->eur['total'] ?? null);
 
         return view('booking::front.steps.review', [
             'state' => $state,
@@ -289,9 +310,24 @@ final class BookingFlowController extends Controller
             'package' => $package,
             'hourlyRange' => $package->isHourly() ? HourlySchedule::range($state['start_date'], $state['start_time'], (int) $state['hours']) : null,
             'price' => $price,
-            'availableOffers' => $chosenOffer === null ? $package->availableOffers() : collect(),
+            'availableOffers' => $availableOffers,
+            // This customer's bill if they take each offer, for the before and after price.
+            'offerPrices' => $availableOffers->mapWithKeys(fn (PackageOffer $offer) => [$offer->id => $this->pricing->withOffer($package, $price, $offer)]),
             'chosenOffer' => $chosenOffer,
             'offeredPrice' => $offeredPrice,
+            'addedPackages' => $addedPackages,
+            'offersOnOthers' => $offersOnOthers,
+            // A package with a saving has its own card above, so the saving is never missed.
+            'addablePackages' => $this->addablePackages()
+                ->whereNotIn('id', [...$throughOffers, ...$offersOnOthers->pluck('package_id'), ...array_keys($extras)])
+                ->with(['pricingTiers', 'images', 'productCategory'])
+                ->orderBy('sort_order')
+                ->get()
+                ->sortBy(fn (Package $addable) => $addable->productCategory?->sort_order)
+                ->groupBy(fn (Package $addable) => (string) $addable->productCategory?->name),
+            'allBookingsTotal' => $bills->count() > 1
+                ? Money::dual((float) $bills->sum('total'), $billsEur->containsStrict(null) ? null : (float) $billsEur->sum())
+                : null,
         ]);
     }
 
@@ -308,20 +344,10 @@ final class BookingFlowController extends Controller
             return redirect()->route('booking.review');
         }
 
-        $offered = $packageOffer->offeredPackage;
         $chosen = BookingFlowState::value('offer');
 
-        return view('booking::front.steps.offer', [
-            'offer' => $packageOffer,
-            'offered' => $offered,
-            'mainPackage' => $packageOffer->package,
-            // Picking the offer again: what they entered. Otherwise their first day.
-            'values' => is_array($chosen) && (int) ($chosen['offer_id'] ?? 0) === $packageOffer->id ? $chosen : ['start_date' => BookingFlowState::value('start_date')],
-            'asksLicence' => StepOfferRequest::needsLicenceQuestions($offered),
-            'transferAreas' => $offered->isTransfer() ? TransferArea::query()->active()->ordered()->get() : collect(),
-            'hourlyStartTimes' => $offered->isHourly() ? HourlySchedule::startTimes($offered) : [],
-            'hourlyLengths' => $offered->isHourly() ? HourlySchedule::lengths($offered) : [],
-        ]);
+        // Picking the offer again: what they entered.
+        return $this->addedPackageForm($packageOffer->offeredPackage, $packageOffer, is_array($chosen) && (int) ($chosen['offer_id'] ?? 0) === $packageOffer->id ? $chosen : null);
     }
 
     public function storeOffer(StepOfferRequest $request, string $locale, string $offer): RedirectResponse
@@ -333,7 +359,11 @@ final class BookingFlowController extends Controller
         $packageOffer = $this->availableOffer((int) $offer);
 
         if ($packageOffer !== null) {
-            BookingFlowState::put(['offer' => ['offer_id' => $packageOffer->id, ...$request->offerData()], 'hold_key' => null]);
+            BookingFlowState::put([
+                'offer' => ['offer_id' => $packageOffer->id, ...$request->offerData()],
+                'extras' => $this->extrasWithout($packageOffer->offered_package_id),
+                'hold_key' => null,
+            ]);
         }
 
         return redirect()->route('booking.review');
@@ -344,6 +374,60 @@ final class BookingFlowController extends Controller
         BookingFlowState::put(['offer' => null, 'hold_key' => null]);
 
         return redirect()->route('booking.review');
+    }
+
+    /** The review step's "add another package": only what that package needs. */
+    public function addPackage(string $locale, string $package): View|RedirectResponse
+    {
+        if (! $this->readyForReview()) {
+            return redirect()->route('booking.start');
+        }
+
+        $added = $this->addablePackage((int) $package);
+
+        return $added !== null
+            ? $this->addedPackageForm($added, null, BookingFlowState::value('extras', [])[$added->id] ?? null)
+            : redirect()->route('booking.review');
+    }
+
+    public function storeAddedPackage(StepOfferRequest $request, string $locale, string $package): RedirectResponse
+    {
+        if (! $this->readyForReview()) {
+            return redirect()->route('booking.start');
+        }
+
+        $added = $this->addablePackage((int) $package);
+
+        if ($added !== null) {
+            $extras = BookingFlowState::value('extras', []);
+            $extras[$added->id] = $request->offerData();
+
+            BookingFlowState::put(['extras' => $extras, 'hold_key' => null]);
+        }
+
+        return redirect()->route('booking.review');
+    }
+
+    public function removeAddedPackage(string $locale, string $package): RedirectResponse
+    {
+        BookingFlowState::put(['extras' => $this->extrasWithout((int) $package), 'hold_key' => null]);
+
+        return redirect()->route('booking.review');
+    }
+
+    /** @param array<string, mixed>|null $entered  what they entered before; otherwise their first day */
+    private function addedPackageForm(Package $package, ?PackageOffer $offer, ?array $entered): View
+    {
+        return view('booking::front.steps.offer', [
+            'offer' => $offer,
+            'savingOnAdded' => $offer === null ? $this->savingOffer($package) : null,
+            'offered' => $package,
+            'values' => $entered ?? ['start_date' => BookingFlowState::value('start_date')],
+            'asksLicence' => StepOfferRequest::needsLicenceQuestions($package),
+            'transferAreas' => $package->isTransfer() ? TransferArea::query()->active()->ordered()->get() : collect(),
+            'hourlyStartTimes' => $package->isHourly() ? HourlySchedule::startTimes($package) : [],
+            'hourlyLengths' => $package->isHourly() ? HourlySchedule::lengths($package) : [],
+        ]);
     }
 
     public function confirm(Request $request): RedirectResponse
@@ -369,6 +453,12 @@ final class BookingFlowController extends Controller
         // package step's own checks) — re-validate before booking anything.
         if ($redirect = $this->invalidFlowRedirect()) {
             return $redirect;
+        }
+
+        // A saving came or went since the review page: show the new total first.
+        if ($this->extraSavings() !== BookingFlowState::value('extra_savings', [])) {
+            return redirect()->route('booking.review')
+                ->withErrors(['booking' => __('core::front.booking_total_changed')]);
         }
 
         $state = BookingFlowState::get();
@@ -411,27 +501,15 @@ final class BookingFlowController extends Controller
             'customer_session_id' => $request->session()->getId(),
         ];
         $chosenOffer = $this->chosenOffer();
+        $others = $this->otherBookings($state, $chosenOffer, $holdKey, $customerData, $request->session()->getId());
 
         try {
-            if ($chosenOffer !== null) {
-                $plan = $this->offers->plan($chosenOffer->offeredPackage, $state['offer']);
-
-                $booking = $this->bookings->createBookingWithOffer(
+            if ($others !== []) {
+                $booking = $this->bookings->createBookingsTogether(
                     holdData: $holdData,
                     customerData: $customerData,
                     price: $price,
-                    offered: [
-                        'hold' => [
-                            // From the first key, so a double click finds it again.
-                            'hold_key' => $holdKey.'-offer',
-                            'start_at' => $plan['start_at'],
-                            'end_at' => $plan['end_at'],
-                            'package_id' => $chosenOffer->offered_package_id,
-                            'customer_session_id' => $request->session()->getId(),
-                        ],
-                        'customer' => [...$customerData, ...$plan['customer']],
-                        'price' => $plan['price'],
-                    ],
+                    others: $others,
                     source: $source,
                 );
             } else {
@@ -450,13 +528,21 @@ final class BookingFlowController extends Controller
             // booking instead of an error or a second booking.
             $ownHold = BookingHold::query()->where('hold_key', $holdKey)->first();
 
-            // The first package was fine but the offered one has nothing
-            // free: its hold was just released, so show the new total.
-            if ($chosenOffer !== null && $ownHold?->status === BookingHold::STATUS_RELEASED) {
-                BookingFlowState::put(['offer' => null, 'hold_key' => null]);
+            // The first package was fine but an added one has nothing free:
+            // its hold was never made and the rest were just released, so
+            // take that one off and show the new total.
+            if ($others !== [] && $ownHold?->status === BookingHold::STATUS_RELEASED) {
+                $failed = collect($others)->first(fn (array $other) => ! BookingHold::query()->where('hold_key', $other['hold']['hold_key'])->exists());
+                $failedPackageId = (int) ($failed['hold']['package_id'] ?? 0);
+
+                BookingFlowState::put([
+                    'offer' => (int) $chosenOffer?->offered_package_id === $failedPackageId ? null : $state['offer'],
+                    'extras' => $this->extrasWithout($failedPackageId),
+                    'hold_key' => null,
+                ]);
 
                 return redirect()->route('booking.review')
-                    ->withErrors(['booking' => __('core::front.offer_no_longer_valid')]);
+                    ->withErrors(['booking' => __('core::front.package_added_unavailable')]);
             }
 
             if ($ownHold === null) {
@@ -490,7 +576,7 @@ final class BookingFlowController extends Controller
 
     public function confirmation(string $locale, string $reference): View
     {
-        $booking = $this->findBookingOrFail($reference, ['vehicle.category', 'package', 'addons.addon', 'transferArea', 'linkedBooking.package']);
+        $booking = $this->findBookingOrFail($reference, ['vehicle.category', 'package', 'addons.addon', 'transferArea']);
         $review = Review::query()->where('booking_id', $booking->id)->first();
 
         return view('booking::front.steps.confirmation', [
@@ -773,6 +859,132 @@ final class BookingFlowController extends Controller
         return is_array($chosen) ? $this->availableOffer((int) ($chosen['offer_id'] ?? 0)) : null;
     }
 
+    /**
+     * What can be added to the package being booked: anything else on sale,
+     * surfing and other activities too, though on their own those are booked
+     * by message.
+     */
+    private function addablePackages(): Builder
+    {
+        return Package::query()
+            ->active()
+            ->currentlyValid()
+            ->inVisibleCategory()
+            ->whereKeyNot((int) BookingFlowState::value('package_id'));
+    }
+
+    /** One package to add, unless it goes through an offer on the package being booked. */
+    private function addablePackage(int $packageId): ?Package
+    {
+        return in_array($packageId, $this->packagesAddedThroughOffers(), true) ? null : $this->addablePackages()->find($packageId);
+    }
+
+    /**
+     * The offer's card adds these, so the saving on the package being booked
+     * is never missed. Only one offer is taken, so with one taken, the
+     * packages of its other offers can be added like any other.
+     *
+     * @return int[]
+     */
+    private function packagesAddedThroughOffers(): array
+    {
+        $chosen = $this->chosenOffer();
+
+        if ($chosen !== null) {
+            return [$chosen->offered_package_id];
+        }
+
+        return Package::query()->find(BookingFlowState::value('package_id'))?->availableOffers()->pluck('offered_package_id')->all() ?? [];
+    }
+
+    /**
+     * The best offer on an added package that another package in this
+     * checkout earns: booked in either order, the customer gets the saving.
+     */
+    private function savingOffer(Package $added): ?PackageOffer
+    {
+        $inCheckout = [
+            (int) BookingFlowState::value('package_id'),
+            ...array_keys(BookingFlowState::value('extras', [])),
+            ...array_filter([$this->chosenOffer()?->offered_package_id]),
+        ];
+
+        return PackageOffer::query()
+            ->where('package_id', $added->id)
+            ->whereIn('offered_package_id', array_diff($inCheckout, [$added->id]))
+            ->orderByDesc('discount')
+            ->first();
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array{price: PriceBreakdown, start_at: string, end_at: string, customer: array<string, mixed>}
+     */
+    private function addedPlan(Package $added, array $data): array
+    {
+        $plan = $this->offers->plan($added, $data);
+        $offer = $this->savingOffer($added);
+
+        return $offer !== null ? [...$plan, 'price' => $this->pricing->withOffer($added, $plan['price'], $offer)] : $plan;
+    }
+
+    /**
+     * The savings on added packages right now.
+     *
+     * @return array<int, int>  added package id => offer id
+     */
+    private function extraSavings(): array
+    {
+        $extras = BookingFlowState::value('extras', []);
+
+        return $this->addablePackages()->whereKey(array_keys($extras))->get()
+            ->mapWithKeys(fn (Package $added) => [$added->id => $this->savingOffer($added)?->id])
+            ->filter()
+            ->sortKeys()
+            ->all();
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function extrasWithout(int $packageId): array
+    {
+        return array_diff_key(BookingFlowState::value('extras', []), [$packageId => true]);
+    }
+
+    /**
+     * What to book along with the first package: the offer's first, as that
+     * is the booking its saving depends on, then each package added.
+     *
+     * @param array<string, mixed> $state
+     * @param array<string, mixed> $customerData
+     * @return list<array{hold: array<string, mixed>, customer: array<string, mixed>, price: PriceBreakdown}>
+     */
+    private function otherBookings(array $state, ?PackageOffer $offer, string $holdKey, array $customerData, string $sessionId): array
+    {
+        $other = function (array $plan, Package $package, string $keySuffix) use ($holdKey, $customerData, $sessionId): array {
+            return [
+                'hold' => [
+                    // From the first key, so a double click finds it again.
+                    'hold_key' => $holdKey.$keySuffix,
+                    'start_at' => $plan['start_at'],
+                    'end_at' => $plan['end_at'],
+                    'package_id' => $package->id,
+                    'customer_session_id' => $sessionId,
+                ],
+                'customer' => [...$customerData, ...$plan['customer']],
+                'price' => $plan['price'],
+            ];
+        };
+
+        $others = $offer !== null ? [$other($this->offers->plan($offer->offeredPackage, $state['offer']), $offer->offeredPackage, '-offer')] : [];
+        $extras = $state['extras'] ?? [];
+
+        foreach ($this->addablePackages()->whereKey(array_keys($extras))->orderBy('id')->get() as $package) {
+            $others[] = $other($this->addedPlan($package, $extras[$package->id]), $package, '-'.$package->id);
+        }
+
+        return $others;
+    }
+
     private function notEligibleMessage(): string
     {
         return __(BookingFlowState::isStay() ? 'core::front.booking_package_not_eligible_stay' : 'core::front.booking_package_not_eligible');
@@ -812,7 +1024,7 @@ final class BookingFlowController extends Controller
 
         $package = $this->flowPackages()->find(BookingFlowState::value('package_id'));
 
-        if ($package === null || $days < $package->min_days || ($package->max_days !== null && $days > $package->max_days)) {
+        if ($package === null || $days < $package->min_days || ($package->max_days !== null && $days > $package->max_days) || ! $package->hasPriceForDays($days)) {
             BookingFlowState::put(['package_id' => null, 'hold_key' => null]);
 
             return redirect()->route('booking.package')
@@ -850,6 +1062,23 @@ final class BookingFlowController extends Controller
 
                 return redirect()->route('booking.review')
                     ->withErrors(['booking' => __('core::front.offer_no_longer_valid')]);
+            }
+        }
+
+        // The same for each package added.
+        $extras = BookingFlowState::value('extras', []);
+
+        if ($extras !== []) {
+            $added = $this->addablePackages()->whereKey(array_keys($extras))->get()->keyBy('id');
+            $stillValid = array_filter($extras, fn (array $data, int $id) => $added->has($id)
+                && ! CarbonImmutable::parse($data['start_date'])->lt(CarbonImmutable::today())
+                && OfferedBookingPlanner::problems($added->get($id), $data) === [], ARRAY_FILTER_USE_BOTH);
+
+            if (count($stillValid) !== count($extras)) {
+                BookingFlowState::put(['extras' => $stillValid, 'hold_key' => null]);
+
+                return redirect()->route('booking.review')
+                    ->withErrors(['booking' => __('core::front.package_added_unavailable')]);
             }
         }
 

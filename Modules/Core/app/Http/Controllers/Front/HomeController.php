@@ -33,7 +33,7 @@ final class HomeController extends Controller
             ->currentlyValid()
             ->inVisibleCategory()
             ->where('is_featured', true)
-            ->with(['images', 'routeSlugs' => fn ($q) => $q->where('locale', app()->getLocale())])
+            ->with(['images', 'liveOffers', 'routeSlugs' => fn ($q) => $q->where('locale', app()->getLocale())])
             ->orderBy('sort_order')
             ->limit(3)
             ->get();

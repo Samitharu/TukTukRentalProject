@@ -15,6 +15,7 @@
                 {{ __($package->priceSuffixKey()) }}
             </p>
         @endif
+        @include('package::front._offer-flag', ['package' => $package])
         @include('package::front._package-terms', ['package' => $package])
         <a href="{{ route('packages.show', $package->slugFor(app()->getLocale()) ?? $package->id) }}" class="btn btn--secondary">{{ __('core::front.packages_view_details') }}</a>
     </div>

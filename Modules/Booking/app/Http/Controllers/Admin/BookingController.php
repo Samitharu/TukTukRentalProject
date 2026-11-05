@@ -176,11 +176,11 @@ final class BookingController extends Controller
             if ($quote['offer'] !== null) {
                 $plan = $quote['offer']['plan'];
 
-                $booking = $this->bookings->createBookingWithOffer(
+                $booking = $this->bookings->createBookingsTogether(
                     holdData: $holdData,
                     customerData: $customerData,
                     price: $quote['price'],
-                    offered: [
+                    others: [[
                         'hold' => [
                             'hold_key' => (string) Str::uuid(),
                             'start_at' => $plan['start_at'],
@@ -189,7 +189,7 @@ final class BookingController extends Controller
                         ],
                         'customer' => [...$customerData, ...$plan['customer']],
                         'price' => $plan['price'],
-                    ],
+                    ]],
                     notifyCustomer: $notifyCustomer,
                 );
             } else {

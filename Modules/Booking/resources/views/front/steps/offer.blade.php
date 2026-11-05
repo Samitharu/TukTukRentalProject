@@ -9,9 +9,15 @@
     <section class="section booking-flow">
         <div class="container" style="max-width:40rem;">
             <h1>{{ $title }}</h1>
-            <p class="text-muted">{{ __('core::front.offer_page_intro', ['saving' => $offer->displayDiscount(), 'main' => $mainPackage->name]) }}</p>
+            @if ($offer)
+                <p class="offer-flag">{{ __('core::front.offer_page_intro', ['saving' => $offer->displayDiscount(), 'main' => $offer->package->name]) }}</p>
+            @elseif ($savingOnAdded)
+                <p class="offer-flag">{{ __('core::front.offer_page_intro', ['saving' => $savingOnAdded->displayDiscount(), 'main' => $offered->name]) }}</p>
+            @else
+                <p class="text-muted">{{ __('core::front.package_add_page_intro') }}</p>
+            @endif
 
-            <form class="booking-panel" method="POST" action="{{ route('booking.offer.store', ['offer' => $offer->id]) }}" novalidate>
+            <form class="booking-panel" method="POST" action="{{ $offer ? route('booking.offer.store', ['offer' => $offer->id]) : route('booking.add.store', ['package' => $offered->id]) }}" novalidate>
                 @csrf
 
                 @if ($offered->isTransfer())
@@ -67,6 +73,22 @@
                         <input type="text" id="transfer_address" name="offer[transfer_address]" value="{{ $value('transfer_address') }}" maxlength="255" placeholder="{{ __('core::front.transfer_address_placeholder') }}" required>
                         @error('offer.transfer_address')<p class="field-error">{{ $message }}</p>@enderror
                     </div>
+                @elseif ($offered->isActivity())
+                    <div class="field">
+                        <label for="start_date">{{ __('core::front.booking_activity_date') }}</label>
+                        <input type="date" id="start_date" name="offer[start_date]" min="{{ now()->toDateString() }}" value="{{ $value('start_date') }}" required>
+                        @error('offer.start_date')<p class="field-error">{{ $message }}</p>@enderror
+                    </div>
+
+                    @if ($offered->pricing_model === \Modules\Package\Models\Package::MODEL_PER_PERSON)
+                        <div class="field">
+                            <label for="people">{{ __('core::front.booking_people') }}</label>
+                            <input type="number" id="people" name="offer[people]" min="1" max="50" value="{{ $value('people') ?: 1 }}" required>
+                            @error('offer.people')<p class="field-error">{{ $message }}</p>@enderror
+                        </div>
+                    @endif
+
+                    <p class="text-muted">{{ __('core::front.booking_activity_note') }}</p>
                 @elseif ($offered->isHourly())
                     <div class="field">
                         <label for="start_date">{{ __('core::front.booking_start_date') }}</label>

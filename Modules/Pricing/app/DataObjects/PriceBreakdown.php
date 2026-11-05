@@ -35,6 +35,8 @@ final readonly class PriceBreakdown
         public ?array $eur = null,
         // Taken off the total for booking a package offer's other package too.
         public float $offerDiscount = 0.0,
+        // Set only for a package priced per person: the people priced.
+        public ?int $people = null,
     ) {
     }
 
@@ -54,6 +56,7 @@ final readonly class PriceBreakdown
             'currency_code' => $this->currencyCode,
             'days' => $this->days,
             'hours' => $this->hours,
+            'people' => $this->people,
             'base_amount' => $this->baseAmount,
             'seasonal_adjustment' => $this->seasonalAdjustment,
             'addon_lines' => $this->addonLines,

@@ -9,7 +9,12 @@
 
 {{ __('core::front.email_confirm_greeting', ['name' => $md($booking->customer?->full_name)]) }}
 
-{{ __($isStay ? 'core::front.email_confirm_intro_stay' : ($booking->isTransfer() ? 'core::front.email_confirm_intro_transfer' : 'core::front.email_confirm_intro'), ['app' => config('app.name')]) }}
+{{ __(match (true) {
+    $isStay => 'core::front.email_confirm_intro_stay',
+    $booking->isTransfer() => 'core::front.email_confirm_intro_transfer',
+    $booking->isActivity() => 'core::front.email_confirm_intro_activity',
+    default => 'core::front.email_confirm_intro',
+}, ['app' => config('app.name')]) }}
 
 <x-mail::panel>
 {{ __('core::front.booking_confirmation_reference') }}: **{{ $booking->reference }}**
@@ -34,6 +39,8 @@
 @if ($booking->vehicle)
 | **{{ __('core::front.booking_status_unit') }}** | {{ $md($booking->vehicle->name) }} |
 @endif
+@elseif ($booking->isActivity())
+| **{{ __('core::front.booking_activity_date') }}** | {{ $booking->rentalPeriod('D j M Y') }} |
 @else
 @if ($booking->isHourly())
 | **{{ __('core::front.booking_status_dates') }}** | {{ $booking->rentalPeriod('D j M Y') }} |
@@ -54,14 +61,18 @@
 | **{{ __('core::front.offer_saving') }}** | {{ $booking->displayOfferDiscount() }} |
 @endif
 | **{{ __('core::front.email_confirm_total') }}** | **{{ $booking->displayTotal() }}** |
-@if ($booking->linkedBooking)
-| **{{ __('core::front.offer_also_booked') }}** | {{ $booking->linkedBooking->reference }} — {{ $md($booking->linkedBooking->package?->name ?? '—') }} |
+@php $together = $booking->togetherBookings(); @endphp
+@foreach ($together as $linked)
+| **{{ __('core::front.offer_also_booked') }}** | {{ $linked->reference }} — {{ $md($linked->package?->name ?? '—') }} — {{ $linked->displayTotal() }} |
+@endforeach
+@if ($together->isNotEmpty())
+| **{{ __('core::front.offer_total_all') }}** | **{{ $booking->displayTotalWithLinked() }}** |
 @endif
 @if ((float) $booking->deposit_amount > 0)
 | **{{ __('core::front.receipt_deposit') }}** | {{ \Modules\Pricing\Support\Money::usd($booking->deposit_amount) }} |
 @endif
 @if ($balance > 0)
-| **{{ __($isStay ? 'core::front.receipt_balance_due_stay' : 'core::front.receipt_balance_due') }}** | {{ $booking->displayBalance() }} |
+| **{{ __($isStay ? 'core::front.receipt_balance_due_stay' : ($booking->isActivity() ? 'core::front.receipt_balance_due_activity' : 'core::front.receipt_balance_due')) }}** | {{ $booking->displayBalance() }} |
 @endif
 </x-mail::table>
 
@@ -73,7 +84,12 @@
 **{{ __('core::front.location_title') }}:** {{ $md($booking->officeAddress()) }} — [{{ __('core::front.location_open_map') }}]({{ $booking->officeMapUrl() }})
 
 @endif
-{{ __($isStay ? 'core::front.booking_confirmation_next_steps_stay' : ($booking->isTransfer() ? 'core::front.booking_confirmation_next_steps_transfer' : 'core::front.booking_confirmation_next_steps')) }}
+{{ __(match (true) {
+    $isStay => 'core::front.booking_confirmation_next_steps_stay',
+    $booking->isTransfer() => 'core::front.booking_confirmation_next_steps_transfer',
+    $booking->isActivity() => 'core::front.booking_confirmation_next_steps_activity',
+    default => 'core::front.booking_confirmation_next_steps',
+}) }}
 
 <x-mail::button :url="$bookingUrl">
 {{ __('core::front.email_confirm_view_booking') }}

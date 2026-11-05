@@ -33,6 +33,67 @@
             @enderror
             <p class="text-muted">{{ __('core::front.booking_review_intro') }}</p>
 
+            @foreach ($availableOffers as $offer)
+                @php
+                    $offered = $offer->offeredPackage;
+                    $fromTier = $offered->pricingTiers->first();
+                    $withOffer = $offerPrices[$offer->id];
+                    $saving = \Modules\Pricing\Support\Money::dual($withOffer->offerDiscount, $withOffer->eur['offer_discount'] ?? null);
+                @endphp
+                <section class="offer-card">
+                    <span class="offer-card__tag">{{ __('core::front.offer_title') }}</span>
+                    <h2 class="offer-card__headline">{{ __('core::front.offer_headline', ['saving' => $saving, 'main' => $package->name]) }}</h2>
+                    <p class="offer-card__lead">{{ __('core::front.offer_lead', ['package' => $offered->name, 'main' => $package->name]) }}</p>
+
+                    <div class="offer-card__deal">
+                        @if ($offered->primaryImage())
+                            <img src="{{ asset('storage/'.$offered->primaryImage()->path) }}" alt="{{ $offered->name }}" loading="lazy" class="offer-card__photo">
+                        @endif
+                        <dl class="offer-card__prices">
+                            <dt>{{ $package->name }}</dt>
+                            <dd>
+                                <s>{{ $money($price->total, 'total') }}</s>
+                                <strong>{{ \Modules\Pricing\Support\Money::dual($withOffer->total, $withOffer->eur['total'] ?? null) }}</strong>
+                            </dd>
+                            @if ($fromTier)
+                                <dt>{{ $offered->name }}</dt>
+                                <dd>{{ __('core::front.packages_from') }} {{ $fromTier->displayPrice() }} {{ __($offered->priceSuffixKey()) }}</dd>
+                            @endif
+                        </dl>
+                    </div>
+
+                    <a href="{{ route('booking.offer', ['offer' => $offer->id]) }}" class="btn btn--accent btn--block offer-card__cta">{{ __('core::front.offer_cta', ['package' => $offered->name, 'saving' => $saving]) }}</a>
+                    <p class="offer-card__note">{{ __('core::front.offer_no_details') }}</p>
+                </section>
+            @endforeach
+
+            @foreach ($offersOnOthers as $offer)
+                @php
+                    $cheaper = $offer->package;
+                    $fromTier = $cheaper->pricingTiers->first();
+                @endphp
+                <section class="offer-card">
+                    <span class="offer-card__tag">{{ __('core::front.offer_title') }}</span>
+                    <h2 class="offer-card__headline">{{ __('core::front.offer_headline', ['saving' => $offer->displayDiscount(), 'main' => $cheaper->name]) }}</h2>
+                    <p class="offer-card__lead">{{ __('core::front.offer_lead_added', ['package' => $cheaper->name, 'main' => $package->name]) }}</p>
+
+                    <div class="offer-card__deal">
+                        @if ($cheaper->primaryImage())
+                            <img src="{{ asset('storage/'.$cheaper->primaryImage()->path) }}" alt="{{ $cheaper->name }}" loading="lazy" class="offer-card__photo">
+                        @endif
+                        @if ($fromTier)
+                            <dl class="offer-card__prices">
+                                <dt>{{ $cheaper->name }}</dt>
+                                <dd>{{ __('core::front.packages_from') }} {{ $fromTier->displayPrice() }} {{ __($cheaper->priceSuffixKey()) }}</dd>
+                            </dl>
+                        @endif
+                    </div>
+
+                    <a href="{{ route('booking.add', ['package' => $cheaper->id]) }}" class="btn btn--accent btn--block offer-card__cta">{{ __('core::front.offer_cta', ['package' => $cheaper->name, 'saving' => $offer->displayDiscount()]) }}</a>
+                    <p class="offer-card__note">{{ __('core::front.offer_no_details') }}</p>
+                </section>
+            @endforeach
+
             <div class="card" style="margin-bottom:var(--space-4);">
                 <div class="card__body">
                     <h2 style="font-size:var(--font-size-base);">
@@ -83,18 +144,21 @@
                             <a href="{{ route('booking.offer', ['offer' => $chosenOffer->id]) }}" style="font-weight:400;font-size:var(--font-size-sm);">{{ __('core::front.booking_review_edit') }}</a>
                         </h2>
                         <p>{{ $chosenOffer->offeredPackage->name }}</p>
-                        <p class="text-muted">
-                            @if ($chosenOffer->offeredPackage->isTransfer())
-                                {{ \Illuminate\Support\Carbon::parse($state['offer']['start_date'])->format('d M Y') }}, {{ $state['offer']['transfer_time'] }} &middot; {{ __($state['offer']['transfer_direction'] === 'departure' ? 'core::front.transfer_departure' : 'core::front.transfer_arrival') }} &middot; {{ $state['offer']['flight_number'] }} &middot; {{ $state['offer']['transfer_address'] }}
-                            @elseif ($chosenOffer->offeredPackage->isHourly())
-                                {{ \Illuminate\Support\Carbon::parse($state['offer']['start_date'])->format('d M Y') }}, {{ $state['offer']['start_time'] }} ({{ trans_choice('core::front.booking_hours_count', (int) $state['offer']['hours'], ['count' => (int) $state['offer']['hours']]) }})
-                            @elseif ($chosenOffer->offeredPackage->isStay())
-                                {{ __('core::front.booking_check_in') }}: {{ \Illuminate\Support\Carbon::parse($state['offer']['start_date'])->format('d M Y') }} &rarr; {{ __('core::front.booking_check_out') }}: {{ \Illuminate\Support\Carbon::parse($state['offer']['end_date'])->addDay()->format('d M Y') }}
-                            @else
-                                {{ \Illuminate\Support\Carbon::parse($state['offer']['start_date'])->format('d M Y') }} &rarr; {{ \Illuminate\Support\Carbon::parse($state['offer']['end_date'])->format('d M Y') }}
-                            @endif
-                        </p>
+                        @include('booking::front.steps._added-package-period', ['added' => $chosenOffer->offeredPackage, 'data' => $state['offer']])
                     @endif
+
+                    @foreach ($addedPackages as $added)
+                        <h2 style="font-size:var(--font-size-base);">
+                            {{ __('core::front.package_added_heading') }}
+                            <a href="{{ route('booking.add', ['package' => $added['package']->id]) }}" style="font-weight:400;font-size:var(--font-size-sm);">{{ __('core::front.booking_review_edit') }}</a>
+                        </h2>
+                        <p>{{ $added['package']->name }}</p>
+                        @include('booking::front.steps._added-package-period', ['added' => $added['package'], 'data' => $added['data']])
+                        <form method="POST" action="{{ route('booking.add.remove', ['package' => $added['package']->id]) }}">
+                            @csrf
+                            <button type="submit" class="added-package__remove">{{ __('core::front.package_added_remove') }}</button>
+                        </form>
+                    @endforeach
 
                     <h2 style="font-size:var(--font-size-base);">
                         {{ __($isStay || $isTransfer ? 'core::front.booking_review_guest' : 'core::front.booking_review_driver') }}
@@ -106,7 +170,11 @@
 
             <div class="price-breakdown" style="margin-bottom:var(--space-4);">
                 <dl>
-                    <dt>{{ __($isStay ? 'core::front.price_accommodation' : 'core::front.price_base_amount') }}</dt><dd>{{ $money($price->baseAmount, 'base_amount') }}</dd>
+                    <dt>{{ __(match (true) {
+                        $isStay => 'core::front.price_accommodation',
+                        $isTransfer => 'core::front.price_airport_pickup',
+                        default => 'core::front.price_base_amount',
+                    }) }}</dt><dd>{{ $money($price->baseAmount, 'base_amount') }}</dd>
 
                     @if ($price->transferFee > 0)
                         <dt>{{ __('core::front.price_transfer_fee') }}</dt><dd>{{ $money($price->transferFee, 'transfer_fee') }}</dd>
@@ -127,7 +195,7 @@
                     <dt>{{ __('core::front.price_subtotal') }}</dt><dd>{{ $money($price->rentalSubtotal(), 'rental_subtotal') }}</dd>
 
                     @if ($price->offerDiscount > 0)
-                        <dt>{{ __('core::front.offer_saving') }}</dt><dd>{{ \Modules\Pricing\Support\Money::dual(-$price->offerDiscount, isset($eur['offer_discount']) ? -$eur['offer_discount'] : null) }}</dd>
+                        <dt class="offer-saving">{{ __('core::front.offer_saving') }}</dt><dd class="offer-saving">{{ \Modules\Pricing\Support\Money::dual(-$price->offerDiscount, isset($eur['offer_discount']) ? -$eur['offer_discount'] : null) }}</dd>
                     @endif
 
                     <div class="total-row" style="display:contents;">
@@ -135,11 +203,19 @@
                     </div>
 
                     @if ($offeredPrice)
-                        @php $bothEur = isset($eur['total'], $offeredPrice->eur['total']) ? $eur['total'] + $offeredPrice->eur['total'] : null; @endphp
                         <dt>{{ $chosenOffer->offeredPackage->name }}</dt><dd>{{ \Modules\Pricing\Support\Money::dual($offeredPrice->total, $offeredPrice->eur['total'] ?? null) }}</dd>
+                    @endif
 
+                    @foreach ($addedPackages as $added)
+                        @if ($added['price']->offerDiscount > 0)
+                            <dt class="offer-saving">{{ __('core::front.offer_saving') }}</dt><dd class="offer-saving">{{ \Modules\Pricing\Support\Money::dual(-$added['price']->offerDiscount, isset($added['price']->eur['offer_discount']) ? -$added['price']->eur['offer_discount'] : null) }}</dd>
+                        @endif
+                        <dt>{{ $added['package']->name }}</dt><dd>{{ \Modules\Pricing\Support\Money::dual($added['price']->total, $added['price']->eur['total'] ?? null) }}</dd>
+                    @endforeach
+
+                    @if ($allBookingsTotal)
                         <div class="total-row" style="display:contents;">
-                            <dt>{{ __('core::front.offer_total_both') }}</dt><dd>{{ \Modules\Pricing\Support\Money::dual($price->total + $offeredPrice->total, $bothEur) }}</dd>
+                            <dt>{{ __('core::front.offer_total_all') }}</dt><dd>{{ $allBookingsTotal }}</dd>
                         </div>
                     @endif
                 </dl>
@@ -152,19 +228,32 @@
                 </form>
             @endif
 
-            @foreach ($availableOffers as $offer)
-                @php $fromTier = $offer->offeredPackage->pricingTiers->first(); @endphp
-                <div class="card" style="margin-bottom:var(--space-4);">
-                    <div class="card__body">
-                        <h2 style="font-size:var(--font-size-base);">{{ __('core::front.offer_title') }}</h2>
-                        <p>{{ __('core::front.offer_intro', ['package' => $offer->offeredPackage->name, 'saving' => $offer->displayDiscount(), 'main' => $package->name]) }}</p>
-                        @if ($fromTier)
-                            <p class="text-muted">{{ $offer->offeredPackage->name }}: {{ $fromTier->displayPrice() }} {{ __($offer->offeredPackage->priceSuffixKey()) }}</p>
-                        @endif
-                        <a href="{{ route('booking.offer', ['offer' => $offer->id]) }}" class="btn btn--primary">{{ __('core::front.offer_add') }}</a>
-                    </div>
-                </div>
-            @endforeach
+            @if ($addablePackages->isNotEmpty())
+                <details class="add-package" open>
+                    <summary>
+                        <span aria-hidden="true" class="add-package__plus">+</span>
+                        <span>{{ __('core::front.package_add_heading') }}</span>
+                    </summary>
+                    <p class="add-package__intro">{{ __('core::front.package_add_intro') }}</p>
+                    @foreach ($addablePackages as $line => $linePackages)
+                        <h3 class="add-package__line">{{ $line }}</h3>
+                        @foreach ($linePackages as $addable)
+                        <div class="add-package__row">
+                            @if ($addable->primaryImage())
+                                <img src="{{ asset('storage/'.$addable->primaryImage()->path) }}" alt="" loading="lazy" class="add-package__photo">
+                            @endif
+                            <div class="add-package__info">
+                                <strong>{{ $addable->name }}</strong>
+                                @if ($addable->pricingTiers->isNotEmpty())
+                                    <span class="text-muted">{{ __('core::front.packages_from') }} {{ $addable->pricingTiers->first()->displayPrice() }} {{ __($addable->priceSuffixKey()) }}</span>
+                                @endif
+                            </div>
+                            <a href="{{ route('booking.add', ['package' => $addable->id]) }}" class="btn btn--secondary">{{ __('core::front.package_add_button') }}</a>
+                        </div>
+                        @endforeach
+                    @endforeach
+                </details>
+            @endif
 
             <p class="text-muted">{{ __(match (true) {
                 $isStay => 'core::front.booking_pay_on_arrival_notice',

@@ -62,8 +62,8 @@
                 </div>
             </div>
 
-            @if ($booking->linkedBooking)
-                @php $linked = $booking->linkedBooking; @endphp
+            @php $together = $booking->togetherBookings(); @endphp
+            @foreach ($together as $linked)
                 <div class="card" style="margin-bottom:var(--space-4);">
                     <div class="card__body">
                         <h2 style="font-size:var(--font-size-base);">{{ __('core::front.offer_also_booked') }}</h2>
@@ -82,18 +82,23 @@
 
                             <dt class="text-muted">{{ __('core::front.price_total') }}</dt>
                             <dd>{{ $linked->displayTotal() }}</dd>
-
-                            <dt class="text-muted">{{ __('core::front.offer_total_both') }}</dt>
-                            <dd><strong>{{ $booking->displayTotalWithLinked() }}</strong></dd>
                         </dl>
                         <a href="{{ route('booking.confirmation', ['reference' => $linked->reference]) }}" class="btn btn--secondary btn--block" style="margin-top:var(--space-4);">{{ __('core::front.email_confirm_view_booking') }}</a>
                     </div>
                 </div>
+            @endforeach
+
+            @if ($together->isNotEmpty())
+                <p class="all-bookings-total">
+                    <span>{{ __('core::front.offer_total_all') }}</span>
+                    <strong>{{ $booking->displayTotalWithLinked() }}</strong>
+                </p>
             @endif
 
             <p>{{ __(match (true) {
                 $booking->isStay() => 'core::front.booking_confirmation_next_steps_stay',
                 $booking->isTransfer() => 'core::front.booking_confirmation_next_steps_transfer',
+                $booking->isActivity() => 'core::front.booking_confirmation_next_steps_activity',
                 default => 'core::front.booking_confirmation_next_steps',
             }) }}</p>
 

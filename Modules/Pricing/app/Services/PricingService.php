@@ -36,18 +36,20 @@ final class PricingService
         ?DeliveryZone $deliveryZone = null,
         ?int $hours = null,
         ?TransferArea $transferArea = null,
+        ?int $people = null,
     ): PriceBreakdown {
         // An hourly package is a single-day rental priced by the hour;
         // add-ons see it as the one day it is.
         $hours = $package->isHourly() ? max($hours ?? (int) $package->min_hours, 1) : null;
+        $people = $package->pricing_model === Package::MODEL_PER_PERSON ? max($people ?? 1, 1) : null;
 
         $endDate = $startDate->addDays(max($days - 1, 0));
 
-        // Tiers count hours for an hourly package, days for any other.
-        $tier = $this->tierFor($package, $hours ?? $days);
+        // Tiers count hours for an hourly package, people for a per-person one, days for any other.
+        $tier = $this->tierFor($package, $hours ?? $people ?? $days);
         $season = $this->seasonFor($package, $startDate, $endDate);
 
-        $baseAmount = $this->baseAmount($package, (float) ($tier?->price ?? 0), $days, $hours);
+        $baseAmount = $this->baseAmount($package, (float) ($tier?->price ?? 0), $days, $hours ?? $people);
         $seasonalAdjustment = $season?->modifierFor($baseAmount) ?? 0.0;
         [$addonLines, $addonsTotal] = $this->calculateAddons($package, $addonSelections, $days);
         $deliveryFee = (float) ($deliveryZone?->extra_fee ?? 0);
@@ -71,7 +73,8 @@ final class PricingService
             depositAmount: $depositAmount,
             hours: $hours,
             transferFee: $transferFee,
-            eur: $this->eurAmounts($package, $tier, $season, $days, $hours, $addonLines, $deliveryFee, $transferArea),
+            eur: $this->eurAmounts($package, $tier, $season, $days, $hours ?? $people, $addonLines, $deliveryFee, $transferArea),
+            people: $people,
         );
     }
 
@@ -104,6 +107,7 @@ final class PricingService
             transferFee: $price->transferFee,
             eur: $eur,
             offerDiscount: $discount,
+            people: $price->people,
         );
     }
 
@@ -115,13 +119,13 @@ final class PricingService
      * @param array<int, array{amount_eur: float|null}> $addonLines
      * @return array{base_amount: float, seasonal_adjustment: float, addons_total: float, transfer_fee: float, rental_subtotal: float, total: float}|null
      */
-    private function eurAmounts(Package $package, ?PackagePricingTier $tier, ?PackageSeason $season, int $days, ?int $hours, array $addonLines, float $deliveryFee, ?TransferArea $transferArea): ?array
+    private function eurAmounts(Package $package, ?PackagePricingTier $tier, ?PackageSeason $season, int $days, ?int $rateUnits, array $addonLines, float $deliveryFee, ?TransferArea $transferArea): ?array
     {
         if ($tier !== null && $tier->price_eur === null) {
             return null;
         }
 
-        $base = $this->baseAmount($package, (float) ($tier?->price_eur ?? 0), $days, $hours);
+        $base = $this->baseAmount($package, (float) ($tier?->price_eur ?? 0), $days, $rateUnits);
         $seasonal = $season === null ? 0.0 : $season->eurModifierFor($base);
         $transfer = $package->isTransfer() && $transferArea !== null ? $transferArea->price_eur : 0.0;
         $addonAmounts = array_column($addonLines, 'amount_eur');
@@ -144,12 +148,12 @@ final class PricingService
         ];
     }
 
-    /** $rate is the tier's price in one currency. */
-    private function baseAmount(Package $package, float $rate, int $days, ?int $hours): float
+    /** $rate is the tier's price in one currency; $rateUnits the hours or people it is multiplied by, if any. */
+    private function baseAmount(Package $package, float $rate, int $days, ?int $rateUnits): float
     {
-        if ($hours !== null) {
+        if ($rateUnits !== null) {
             // e.g. 1-3 h at 8/h, 4+ h at 6/h.
-            return round($rate * $hours, 2);
+            return round($rate * $rateUnits, 2);
         }
 
         if ($package->pricing_model === Package::MODEL_FIXED_BUNDLE) {
@@ -167,7 +171,7 @@ final class PricingService
 
     /**
      * The tier covering $units — days for most packages, hours for an hourly
-     * one (tier columns are named for the original, day case).
+     * one, people for a per-person one (tier columns are named for the original, day case).
      */
     private function tierFor(Package $package, int $units): ?PackagePricingTier
     {

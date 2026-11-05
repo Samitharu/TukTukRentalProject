@@ -25,6 +25,8 @@
             @if ($booking->vehicle?->mapUrl())
                 <p><strong>{{ __('Location') }}:</strong> <a href="{{ $booking->vehicle->mapUrl() }}" target="_blank" rel="noopener noreferrer">{{ $booking->vehicle->address ?: __('View on Google Maps') }}</a></p>
             @endif
+        @elseif ($booking->isActivity())
+            <p><strong>{{ __('Activity date') }}:</strong> {{ $booking->rentalPeriod('Y-m-d') }}</p>
         @elseif ($booking->isHourly())
             <p><strong>{{ __('Hourly rental') }}:</strong> {{ $booking->rentalPeriod('Y-m-d') }} — {{ __('tuk tuk blocked for the whole day') }}</p>
         @else
@@ -35,11 +37,15 @@
             <p><strong>{{ __('Offer saving') }}:</strong> {{ $booking->displayOfferDiscount() }}</p>
         @endif
         <p><strong>{{ __('Total') }}:</strong> {{ $booking->adminTotal() }} ({{ __('deposit') }}: {{ \Modules\Pricing\Support\Money::usd($booking->deposit_amount) }})</p>
-        @if ($booking->linkedBooking)
-            <p><strong>{{ __('Booked together with') }}:</strong> <a href="{{ route('admin.bookings.show', $booking->linkedBooking) }}">{{ $booking->linkedBooking->reference }}</a> — {{ $booking->linkedBooking->package?->name }} ({{ ucfirst(str_replace('_', ' ', $booking->linkedBooking->status)) }})</p>
-            @if ($booking->displayOfferDiscount() && $booking->linkedBooking->status === \Modules\Booking\Models\Booking::STATUS_CANCELLED)
-                <div class="admin-alert admin-alert--warn">{{ __('The other booking was cancelled, but this one still has its offer saving. Charge the difference if the offer no longer applies.') }}</div>
-            @endif
+        @php $together = $booking->togetherBookings(); @endphp
+        @foreach ($together as $linked)
+            <p><strong>{{ __('Booked together with') }}:</strong> <a href="{{ route('admin.bookings.show', $linked) }}">{{ $linked->reference }}</a> — {{ $linked->package?->name }} — {{ $linked->adminTotal() }} ({{ ucfirst(str_replace('_', ' ', $linked->status)) }})</p>
+        @endforeach
+        @if ($together->isNotEmpty())
+            <p><strong>{{ __('Total for all bookings') }}:</strong> {{ $booking->adminTotalWithLinked() }}</p>
+        @endif
+        @if ($booking->displayOfferDiscount() && $booking->linkedBooking?->status === \Modules\Booking\Models\Booking::STATUS_CANCELLED)
+            <div class="admin-alert admin-alert--warn">{{ __('The other booking was cancelled, but this one still has its offer saving. Charge the difference if the offer no longer applies.') }}</div>
         @endif
         @if ($booking->extraCharges->isNotEmpty())
             <p><strong>{{ __('Extra charges') }}:</strong></p>
@@ -155,11 +161,11 @@
                 </div>
             @else
             <div class="admin-form-field">
-                <label for="start_date">{{ $booking->isStay() ? __('New check-in date') : __('New pickup date') }}</label>
+                <label for="start_date">{{ $booking->isStay() ? __('New check-in date') : ($booking->isActivity() ? __('New date') : __('New pickup date')) }}</label>
                 <input type="date" id="start_date" name="start_date" value="{{ $booking->start_at->toDateString() }}" required>
             </div>
             <div class="admin-form-field">
-                <label for="end_date">{{ $booking->isStay() ? __('New check-out date') : __('New return date') }}</label>
+                <label for="end_date">{{ $booking->isStay() ? __('New check-out date') : ($booking->isActivity() ? __('Same date again') : __('New return date')) }}</label>
                 <input type="date" id="end_date" name="end_date" value="{{ $booking->checkOutDate()->toDateString() }}" required>
             </div>
             @endif

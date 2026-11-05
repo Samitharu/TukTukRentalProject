@@ -206,14 +206,35 @@ final class Package extends Model
     /**
      * The offers a customer can take right now: the package they would add
      * is on sale and booked online.
-     *
+     */
+    public function liveOffers(): HasMany
+    {
+        return $this->offers()
+            ->with(['offeredPackage.pricingTiers', 'offeredPackage.images'])
+            ->whereHas('offeredPackage', fn (Builder $package) => $package->active()->bookable()->currentlyValid()->inVisibleCategory())
+            ->orderBy('id');
+    }
+
+    /**
      * @return \Illuminate\Database\Eloquent\Collection<int, PackageOffer>
      */
     public function availableOffers(): \Illuminate\Database\Eloquent\Collection
     {
-        return $this->offers()
-            ->with('offeredPackage.pricingTiers')
-            ->whereHas('offeredPackage', fn (Builder $package) => $package->active()->bookable()->currentlyValid()->inVisibleCategory())
+        return $this->liveOffers()->get();
+    }
+
+    /**
+     * The same offers seen from the other side: packages that become cheaper
+     * when they are booked together with this one.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, PackageOffer>
+     */
+    public function offersOnOtherPackages(): \Illuminate\Database\Eloquent\Collection
+    {
+        return PackageOffer::query()
+            ->where('offered_package_id', $this->id)
+            ->with(['package.pricingTiers', 'package.images'])
+            ->whereHas('package', fn (Builder $package) => $package->active()->bookable()->currentlyValid()->inVisibleCategory())
             ->orderBy('id')
             ->get();
     }
@@ -262,10 +283,26 @@ final class Package extends Model
         return $this->pricing_model === self::MODEL_PER_HOUR;
     }
 
-    /** Its line's vehicles come from partners: always bookable, reserves no unit. */
+    /** An activity, or its line's vehicles come from partners: always bookable, reserves no unit. */
     public function hasUnlimitedUnits(): bool
     {
-        return $this->productCategory?->unlimited_units ?? false;
+        return $this->isActivity() || ($this->productCategory?->unlimited_units ?? false);
+    }
+
+    /**
+     * Whether a price exists for this many days or nights. When its prices
+     * stop short of that length PricingService finds none and the bill comes
+     * to nothing, so such a booking must not be accepted. Hourly and
+     * per-person prices count hours and people, which are checked apart.
+     */
+    public function hasPriceForDays(int $days): bool
+    {
+        if ($this->isHourly() || $this->pricing_model === self::MODEL_PER_PERSON) {
+            return true;
+        }
+
+        return $this->pricingTiers->isEmpty()
+            || $this->pricingTiers->contains(fn (PackagePricingTier $tier) => $tier->min_days <= $days && ($tier->max_days === null || $tier->max_days >= $days));
     }
 
     /** Whether the package goes through the online booking flow (Phase 1: not activities). */

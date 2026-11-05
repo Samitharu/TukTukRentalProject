@@ -292,24 +292,32 @@ final class BookingService
     }
 
     /**
-     * A booking together with the second one of a package offer: both are
-     * made or neither is, and they point at each other. Returns the first.
+     * A booking together with others: all are made or none is. The others
+     * point at the first, and the first at the first of them, which is a
+     * package offer's booking when there is one. Returns the first.
      *
-     * @param array{hold: array, customer: array, price: PriceBreakdown} $offered
+     * @param list<array{hold: array, customer: array, price: PriceBreakdown}> $others
      */
-    public function createBookingWithOffer(array $holdData, array $customerData, PriceBreakdown $price, array $offered, array $source = [], bool $notifyCustomer = true): Booking
+    public function createBookingsTogether(array $holdData, array $customerData, PriceBreakdown $price, array $others, array $source = [], bool $notifyCustomer = true): Booking
     {
         $holds = [$this->createHold($holdData)];
 
         try {
-            $holds[] = $this->createHold($offered['hold']);
+            foreach ($others as $other) {
+                $holds[] = $this->createHold($other['hold']);
+            }
 
-            return $this->transaction(function () use ($holds, $customerData, $price, $offered, $source, $notifyCustomer): Booking {
+            return $this->transaction(function () use ($holds, $customerData, $price, $others, $source, $notifyCustomer): Booking {
                 $booking = $this->confirmHold($holds[0], $customerData, $price, $source, $notifyCustomer);
-                $second = $this->confirmHold($holds[1], $offered['customer'], $offered['price'], $source, $notifyCustomer);
 
-                $booking->update(['linked_booking_id' => $second->id]);
-                $second->update(['linked_booking_id' => $booking->id]);
+                foreach ($others as $index => $other) {
+                    $added = $this->confirmHold($holds[$index + 1], $other['customer'], $other['price'], $source, $notifyCustomer);
+                    $added->update(['linked_booking_id' => $booking->id]);
+
+                    if ($index === 0) {
+                        $booking->update(['linked_booking_id' => $added->id]);
+                    }
+                }
 
                 return $booking;
             });

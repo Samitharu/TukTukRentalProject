@@ -52,6 +52,7 @@ final class OfferedBookingPlanner
                 'offer.start_time' => ['required', 'string'],
                 'offer.hours' => ['required', 'integer'],
             ],
+            $package->isActivity() => $package->pricing_model === Package::MODEL_PER_PERSON ? ['offer.people' => ['required', 'integer', 'min:1', 'max:50']] : [],
             $package->isStay() => ['offer.end_date' => ['required', 'date', 'after:offer.start_date']],
             default => ['offer.end_date' => ['required', 'date', 'after_or_equal:offer.start_date']],
         }];
@@ -66,7 +67,7 @@ final class OfferedBookingPlanner
         $start = (string) $input['start_date'];
 
         return [...$input, 'end_date' => match (true) {
-            $package->isTransfer(), $package->isHourly() => $start,
+            $package->isTransfer(), $package->isHourly(), $package->isActivity() => $start,
             $package->isStay() => CarbonImmutable::parse($input['end_date'])->subDay()->toDateString(),
             default => (string) $input['end_date'],
         }];
@@ -98,9 +99,18 @@ final class OfferedBookingPlanner
             return $problem === null ? [] : ['offer.start_time' => $problem];
         }
 
+        if ($package->isActivity()) {
+            $people = (int) ($data['people'] ?? 0);
+
+            // Its tiers count people: with none covering them there is no price.
+            return $package->pricing_model === Package::MODEL_PER_PERSON && ! $package->pricingTiers()->where('min_days', '<=', $people)->where(fn ($tier) => $tier->whereNull('max_days')->orWhere('max_days', '>=', $people))->exists()
+                ? ['offer.people' => __('core::front.booking_people_not_available')]
+                : [];
+        }
+
         $days = self::days($data);
 
-        if ($days < $package->min_days || ($package->max_days !== null && $days > $package->max_days)) {
+        if ($days < $package->min_days || ($package->max_days !== null && $days > $package->max_days) || ! $package->hasPriceForDays($days)) {
             return ['offer.end_date' => __($package->isStay() ? 'core::front.booking_package_not_eligible_stay' : 'core::front.booking_package_not_eligible')];
         }
 
@@ -130,7 +140,7 @@ final class OfferedBookingPlanner
         };
 
         return [
-            'price' => $this->pricing->calculate($package, CarbonImmutable::parse($start), self::days($data), hours: $hours, transferArea: $area),
+            'price' => $this->pricing->calculate($package, CarbonImmutable::parse($start), self::days($data), hours: $hours, transferArea: $area, people: isset($data['people']) ? (int) $data['people'] : null),
             'start_at' => $startAt,
             'end_at' => $endAt,
             'customer' => [
@@ -141,7 +151,7 @@ final class OfferedBookingPlanner
                 'transfer_address' => $area !== null ? $data['transfer_address'] : null,
                 'transfer_area_id' => $area?->id,
                 // Only a rental's driver needs a permit.
-                'has_international_permit' => ! $package->isStay() && ! $package->isTransfer() && (bool) ($data['has_international_permit'] ?? false),
+                'has_international_permit' => ! $package->isStay() && ! $package->isTransfer() && ! $package->isActivity() && (bool) ($data['has_international_permit'] ?? false),
                 'special_requests' => null,
             ],
         ];
@@ -166,11 +176,13 @@ final class OfferedBookingPlanner
             'offer.start_date' => __(match (true) {
                 $package->isTransfer() => 'core::front.transfer_date',
                 $package->isStay() => 'core::front.booking_check_in',
+                $package->isActivity() => 'core::front.booking_activity_date',
                 default => 'core::front.booking_start_date',
             }),
             'offer.end_date' => __($package->isStay() ? 'core::front.booking_check_out' : 'core::front.booking_end_date'),
             'offer.start_time' => __('core::front.booking_start_time'),
             'offer.hours' => __('core::front.booking_hours'),
+            'offer.people' => __('core::front.booking_people'),
             'offer.transfer_direction' => __('core::front.transfer_direction'),
             'offer.transfer_time' => __('core::front.transfer_time'),
             'offer.flight_number' => __('core::front.transfer_flight_number'),

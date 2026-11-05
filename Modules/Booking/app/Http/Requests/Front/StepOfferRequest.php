@@ -13,9 +13,10 @@ use Modules\Package\Models\Package;
 use Modules\Package\Models\PackageOffer;
 
 /**
- * The review step's "add this package and save". Everything about the
- * customer is already known; a rental's licence questions are only asked
- * here if the first booking didn't ask them (a stay or airport pickup).
+ * The review step's "add this package", with an offer's saving or without.
+ * Everything about the customer is already known; a rental's licence
+ * questions are only asked here if the first booking didn't ask them (a
+ * stay or airport pickup).
  */
 final class StepOfferRequest extends FormRequest
 {
@@ -36,10 +37,12 @@ final class StepOfferRequest extends FormRequest
         }
     }
 
-    /** Null when the offer doesn't exist: the controller redirects first, so only for safety. */
+    /** Null when it doesn't exist: the controller redirects first, so only for safety. */
     private function offered(): ?Package
     {
-        return $this->offeredPackage ??= PackageOffer::query()->find((int) $this->route('offer'))?->offeredPackage;
+        return $this->offeredPackage ??= $this->route('offer') !== null
+            ? PackageOffer::query()->find((int) $this->route('offer'))?->offeredPackage
+            : Package::query()->find((int) $this->route('package'));
     }
 
     public function asksLicence(): bool
@@ -49,7 +52,7 @@ final class StepOfferRequest extends FormRequest
 
     public static function needsLicenceQuestions(?Package $offered): bool
     {
-        return $offered !== null && ! $offered->isStay() && ! $offered->isTransfer()
+        return $offered !== null && ! $offered->isStay() && ! $offered->isTransfer() && ! $offered->isActivity()
             && (BookingFlowState::isStay() || BookingFlowState::isTransfer());
     }
 

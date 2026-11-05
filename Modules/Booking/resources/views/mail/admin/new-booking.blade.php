@@ -6,6 +6,8 @@
 **{{ $booking->reference }}** — {{ __('Airport pickup') }} {{ $booking->rentalPeriod('D j M Y') }}
 @elseif ($booking->isStay())
 **{{ $booking->reference }}** — {{ __('Check-in') }} {{ $booking->start_at->format('D j M Y') }} → {{ __('check-out') }} {{ $booking->checkOutDate()->format('D j M Y') }} ({{ trans_choice(':count night|:count nights', $days, ['count' => $days]) }})
+@elseif ($booking->isActivity())
+**{{ $booking->reference }}** — {{ $booking->rentalPeriod('D j M Y') }}
 @else
 @if ($booking->isHourly())
 **{{ $booking->reference }}** — {{ $booking->rentalPeriod('D j M Y') }}
@@ -31,6 +33,9 @@
 @elseif ($booking->isStay())
 | **{{ __('Service') }}** | {{ $md($booking->serviceLabel()) }}{{ $booking->vehicle?->address ? ' — '.$md($booking->vehicle->address) : '' }} |
 | **{{ __('Package') }}** | {{ $booking->package?->name ?? '—' }} |
+@elseif ($booking->isActivity())
+| **{{ __('Service') }}** | {{ $booking->serviceLabel() }} |
+| **{{ __('Package') }}** | {{ $booking->package?->name ?? '—' }} |
 @else
 | **{{ __('Service') }}** | {{ $booking->serviceLabel() }} |
 | **{{ __('Package') }}** | {{ $booking->package?->name ?? '—' }} |
@@ -42,8 +47,12 @@
 | **{{ __('Offer saving') }}** | {{ $booking->displayOfferDiscount() }} |
 @endif
 | **{{ __('Total') }}** | {{ $booking->adminTotal() }} |
-@if ($booking->linkedBooking)
-| **{{ __('Booked together with') }}** | {{ $booking->linkedBooking->reference }} — {{ $md($booking->linkedBooking->package?->name ?? '—') }} |
+@php $together = $booking->togetherBookings(); @endphp
+@foreach ($together as $linked)
+| **{{ __('Booked together with') }}** | {{ $linked->reference }} — {{ $md($linked->package?->name ?? '—') }} — {{ $linked->adminTotal() }} |
+@endforeach
+@if ($together->isNotEmpty())
+| **{{ __('Total for all bookings') }}** | **{{ $booking->adminTotalWithLinked() }}** |
 @endif
 @if ((float) $booking->deposit_amount > 0)
 | **{{ __('Deposit') }}** | {{ \Modules\Pricing\Support\Money::usd($booking->deposit_amount) }} |

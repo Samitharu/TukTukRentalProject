@@ -31,6 +31,10 @@ Route::prefix('booking')->name('booking.')->middleware('noindex')->group(functio
     Route::post('offer/{offer}', [BookingFlowController::class, 'storeOffer'])->whereNumber('offer')->middleware('throttle:30,1')->name('offer.store');
     Route::post('offer-remove', [BookingFlowController::class, 'removeOffer'])->middleware('throttle:30,1')->name('offer.remove');
 
+    Route::get('add/{package}', [BookingFlowController::class, 'addPackage'])->whereNumber('package')->name('add');
+    Route::post('add/{package}', [BookingFlowController::class, 'storeAddedPackage'])->whereNumber('package')->middleware('throttle:30,1')->name('add.store');
+    Route::post('add/{package}/remove', [BookingFlowController::class, 'removeAddedPackage'])->whereNumber('package')->middleware('throttle:30,1')->name('add.remove');
+
     Route::post('confirm', [BookingFlowController::class, 'confirm'])->middleware('throttle:10,1')->name('confirm');
     Route::get('confirmation/{reference}', [BookingFlowController::class, 'confirmation'])->middleware('throttle:60,1')->name('confirmation');
     Route::get('status/{reference}', [BookingFlowController::class, 'status'])->name('status');

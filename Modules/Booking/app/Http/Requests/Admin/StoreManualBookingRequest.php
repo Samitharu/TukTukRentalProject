@@ -202,6 +202,13 @@ final class StoreManualBookingRequest extends FormRequest
                     $validator->errors()->add('end_date', __('Check-out must be at least one night after check-in.'));
                 }
 
+                // A stay's end date is the check-out day, so it isn't a night booked.
+                $days = (int) CarbonImmutable::parse($this->input('start_date'))->diffInDays(CarbonImmutable::parse($this->input('end_date'))) + ($package?->isStay() ? 0 : 1);
+
+                if ($package !== null && ! $package->hasPriceForDays($days)) {
+                    $validator->errors()->add('end_date', __('This package has no price for that many days. Add a price for this length on the package, or pick another package.'));
+                }
+
                 $vehicle = $this->filled('vehicle_id') ? Vehicle::query()->with('category')->find($this->integer('vehicle_id')) : null;
 
                 if ($package !== null && $vehicle !== null && $vehicle->kind() !== $package->kind) {

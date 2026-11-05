@@ -65,6 +65,7 @@
                                     @if ($package->pricingTiers->isNotEmpty())
                                         <p><strong>{{ __('core::front.packages_from') }} {{ $package->pricingTiers->first()->displayPrice() }}</strong> {{ __($package->priceSuffixKey()) }}</p>
                                     @endif
+                                    @include('package::front._offer-flag', ['package' => $package])
                                     @include('package::front._km-allowance', ['package' => $package])
                                     @if ($package->isHourly() && ! $full)
                                         @php $chosen = old('hourly.'.$package->id, ($state['package_id'] ?? null) == $package->id ? ['start_time' => $state['start_time'] ?? null, 'hours' => $state['hours'] ?? null] : []); @endphp

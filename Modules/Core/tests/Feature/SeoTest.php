@@ -51,7 +51,7 @@ it('targets tuk tuk rental in Negombo on the home page', function (): void {
     expect($html)
         ->toContain('<title>Tuk Tuk Rental in Negombo, Sri Lanka · '.e(config('app.name')).'</title>')
         ->toMatch('#<meta name="description" content="[^"]*Negombo#')
-        ->toMatch('#<h1 class="hero__title">[^<]*<span[^>]*>tuk tuk.*?</span> in Negombo#s');
+        ->toMatch('#<h1 class="hero__title">[^<]*<span[^>]*>Sri Lanka.*?</span> adventure starts in Negombo#s');
 
     $business = collect(jsonLdBlocks($html))->firstWhere('@type', 'AutoRental');
     expect($business['address']['addressLocality'])->toBe('Negombo')

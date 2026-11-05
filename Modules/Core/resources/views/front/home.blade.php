@@ -7,13 +7,13 @@
         ['label' => __('core::front.trust_cancellation'), 'icon' => 'calendar'],
     ];
 
-    // Highlights the first "tuk tuk" in the hero title with the accent
+    // Highlights the locale's chosen phrase in the hero title with the accent
     // colour + hand-drawn underline, same as the reference design — only
-    // kicks in when that literal phrase is present, so locales whose
-    // translation doesn't contain it just render the plain heading.
+    // kicks in when that phrase is present, so a title without it just
+    // renders as the plain heading.
     $heroTitle = __('core::front.home_hero_title');
     $heroTitleHtml = preg_replace(
-        '/(tuk\s?tuk)/i',
+        '/('.preg_quote(__('core::front.home_hero_highlight'), '/').')/u',
         '<span class="hero__highlight">$1<svg class="hero__highlight-underline" viewBox="0 0 160 20" preserveAspectRatio="none" aria-hidden="true"><path d="M4 14c30-10 120-10 152 0" stroke="currentColor" stroke-width="6" stroke-linecap="round" fill="none"/></svg></span>',
         $heroTitle,
         1
@@ -85,6 +85,7 @@
                         <div class="package-feature__body">
                             <h3>{{ $package->name }}</h3>
                             <p class="text-muted">{{ \Illuminate\Support\Str::limit(strip_tags((string) $package->description), 110) }}</p>
+                            @include('package::front._offer-flag', ['package' => $package])
                             <div class="package-feature__meta">
                                 <span class="package-feature__price">
                                     {{ __('core::front.packages_from') }}

@@ -76,10 +76,10 @@ final class PackageController extends Controller
         $package = Package::findBySlug($locale, $slug);
 
         if ($package === null || ! $package->is_active || ($package->productCategory !== null && ! $package->productCategory->is_active)) {
-            throw new NotFoundHttpException;
+            throw new NotFoundHttpException();
         }
 
-        $package->load(['pricingTiers', 'seasons', 'addons', 'images', 'routeSlugs', 'productCategory.routeSlugs']);
+        $package->load(['pricingTiers', 'seasons', 'addons', 'images', 'liveOffers', 'routeSlugs', 'productCategory.routeSlugs']);
 
         // "Where you'll stay": the cabanas/rooms this package can be booked
         // into, each with its own map pin.
@@ -133,7 +133,7 @@ final class PackageController extends Controller
         $query->active()
             ->currentlyValid()
             // routeSlugs: avoids one slugFor() query per package card.
-            ->with(['pricingTiers', 'images', 'routeSlugs' => fn ($q) => $q->where('locale', app()->getLocale())])
+            ->with(['pricingTiers', 'images', 'liveOffers', 'routeSlugs' => fn ($q) => $q->where('locale', app()->getLocale())])
             ->orderBy('sort_order');
     }
 
