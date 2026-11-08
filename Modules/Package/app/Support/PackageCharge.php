@@ -49,6 +49,9 @@ final class PackageCharge
         Package::KIND_ACTIVITY => [self::PER_PERSON, self::FIXED],
     ];
 
+    /** @var string[] the answers whose price can depend on group size instead */
+    public const array GROUP_PRICED = [self::PER_HOUR, self::PER_DAY, self::KM_PACKAGE, self::FIXED];
+
     /** @var string[] */
     public const array ALL = [
         self::PER_DAY, self::PER_HOUR, self::KM_PACKAGE, self::PER_NIGHT, self::PER_TRIP,
@@ -94,6 +97,7 @@ final class PackageCharge
             'min_days' => self::number($input['min_days'] ?? null) ?? 1,
             'max_days' => self::number($input['max_days'] ?? null),
         ];
+        $none['group_pricing'] = in_array($charge, self::GROUP_PRICED, true) && filter_var($input['group_pricing'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         return match ($charge) {
             self::PER_DAY => [...$none, ...$lengthRange,

@@ -30,7 +30,7 @@
                                                 {{ $tier->min_days }}{{ $tier->max_days ? '–'.$tier->max_days : '+' }} {{ __('core::front.packages_unit_'.$package->tierUnit()) }}
                                             </td>
                                             <td style="padding:0.4rem 0;border-bottom:1px solid var(--color-border);text-align:right;font-weight:700;">
-                                                {{ $tier->displayPrice() }} {{ __($package->priceSuffixKey()) }}
+                                                @include('package::front._tier-price', ['package' => $package, 'tier' => $tier])
                                             </td>
                                         </tr>
                                     @endforeach

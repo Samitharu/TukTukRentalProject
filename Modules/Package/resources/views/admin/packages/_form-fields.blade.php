@@ -25,6 +25,13 @@
     // After a validation error, the boxes as they were ticked (none ticked sends nothing).
     $tickedOffered = session()->hasOldInput() ? array_map('intval', old('offered_addon_ids', [])) : ($offeredAddonIds ?? []);
     $tickedIncluded = session()->hasOldInput() ? array_map('intval', old('included_addon_ids', [])) : ($includedAddonIds ?? []);
+
+    // Prices by group size: the saved rows, or as typed before an error; always a few empty rows to add more.
+    $groupPriced = (bool) old('group_pricing', $package?->group_pricing ?? false);
+    $groupRows = session()->hasOldInput()
+        ? array_values((array) old('group_prices', []))
+        : ($package?->group_pricing ? $package->pricingTiers->map(fn ($tier) => ['from' => $tier->min_days, 'to' => $tier->max_days, 'price' => $tier->price, 'price_eur' => $tier->price_eur])->all() : []);
+    $groupRows = array_pad($groupRows, max(count($groupRows) + 2, 4), ['from' => null, 'to' => null, 'price' => null, 'price_eur' => null]);
 @endphp
 
 <div data-package-form>
@@ -65,10 +72,40 @@
     @error('charge')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
 </fieldset>
 
+<fieldset class="admin-form-field admin-location" data-charge="{{ implode(' ', PackageCharge::GROUP_PRICED) }}" @if (! in_array($selectedCharge, PackageCharge::GROUP_PRICED, true)) hidden @endif>
+    <legend>{{ __('Price by group size') }}</legend>
+    <label style="font-weight:400;"><input type="hidden" name="group_pricing" value="0"><input type="checkbox" name="group_pricing" value="1" data-group-pricing @checked($groupPriced)> {{ __('The price depends on how many people come (e.g. per boat)') }}</label>
+    <div data-group-on @if (! $groupPriced) hidden @endif>
+        <p class="admin-hint">{{ __('One row per group size. Example: 3 to 5 people 10, 6 to 7 people 18. For a package charged per hour or per day, the price is for each hour or day, so 4 people for 2 hours costs 2 × 10. Customers choose how many people when they book; group sizes without a row cannot be booked.') }}</p>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>{{ __('People from') }}</th>
+                    <th>{{ __('People to') }}</th>
+                    <th>{{ __('Price for the group') }} (USD)</th>
+                    <th>{{ __('Price for the group') }} (EUR)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($groupRows as $index => $row)
+                    <tr>
+                        <td><input type="number" name="group_prices[{{ $index }}][from]" value="{{ $row['from'] ?? '' }}" min="1" max="100" aria-label="{{ __('People from') }}" style="width:5rem;"></td>
+                        <td><input type="number" name="group_prices[{{ $index }}][to]" value="{{ $row['to'] ?? '' }}" min="1" max="100" aria-label="{{ __('People to') }}" style="width:5rem;"></td>
+                        <td><input type="number" name="group_prices[{{ $index }}][price]" value="{{ $row['price'] ?? '' }}" min="0" step="0.01" aria-label="{{ __('Price for the group') }} (USD)" style="width:7rem;"></td>
+                        <td><input type="number" name="group_prices[{{ $index }}][price_eur]" value="{{ $row['price_eur'] ?? '' }}" min="0" step="0.01" aria-label="{{ __('Price for the group') }} (EUR)" style="width:7rem;"></td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+        <p class="admin-hint">{{ __('Need more rows? Save, and two more empty rows appear.') }}</p>
+    </div>
+    @error('group_prices')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+</fieldset>
+
 @if ($usesLengthPrices ?? false)
-    <p class="admin-alert">{{ __('This package has different prices depending on the rental length — change them under "Prices by rental length" below.') }}</p>
+    <p class="admin-alert" data-group-off>{{ __('This package has different prices depending on the rental length — change them under "Prices by rental length" below.') }}</p>
 @else
-    <div class="admin-location__coords">
+    <div class="admin-location__coords" data-group-off @if ($groupPriced && in_array($selectedCharge, PackageCharge::GROUP_PRICED, true)) hidden @endif>
         <div class="admin-form-field">
             @foreach ($charges as $value => $kinds)
                 <label for="price" data-charge="{{ $value }}" @if ($selectedCharge !== $value) hidden @endif>{{ PackageCharge::priceLabel($value) }} (USD)</label>

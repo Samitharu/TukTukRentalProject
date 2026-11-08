@@ -56,7 +56,8 @@ final class StepDatesRequest extends FormRequest
                 'transfer_direction' => ['required', Rule::in(Booking::TRANSFER_DIRECTIONS)],
                 'transfer_time' => ['required', 'date_format:H:i'],
                 'flight_number' => ['required', 'string', 'max:10', 'regex:'.TransferSchedule::FLIGHT_NUMBER_PATTERN],
-                'transfer_area_id' => ['required', 'integer', Rule::exists('transfer_areas', 'id')->where('is_active', true)],
+                // Optional: without it the trip costs the package price alone.
+                'transfer_area_id' => ['nullable', 'integer', Rule::exists('transfer_areas', 'id')->where('is_active', true)],
                 'transfer_address' => ['required', 'string', 'max:255'],
             ];
         }

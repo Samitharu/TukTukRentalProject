@@ -87,6 +87,8 @@ final class StoreManualBookingRequest extends FormRequest
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'start_time' => ['nullable', 'string'],
             'hours' => ['nullable', 'integer'],
+            // Packages priced by group size only (required for those in after()).
+            'people' => ['nullable', 'integer', 'min:1', 'max:100'],
             // Tuk tuks are always collected at the office (see
             // BookingController::priceFor()), so pickup is never posted.
             'pickup_type' => ['exclude'],
@@ -176,6 +178,12 @@ final class StoreManualBookingRequest extends FormRequest
                     return;
                 }
 
+                if ($package?->isGroupPriced() && ! $validator->errors()->has('people') && ! $package->hasPriceForPeople($this->integer('people'))) {
+                    $validator->errors()->add('people', $this->filled('people')
+                        ? __('This package has no price for that many people. Its group sizes are: :sizes.', ['sizes' => $package->pricingTiers->map(fn ($tier) => $package->groupSizeLabel($tier))->implode(', ')])
+                        : __('Enter the number of people: this package is priced by group size.'));
+                }
+
                 if ($package?->isHourly()) {
                     if ($this->input('end_date') !== $this->input('start_date')) {
                         $validator->errors()->add('end_date', __('An hourly rental starts and ends on the same day.'));
@@ -191,10 +199,15 @@ final class StoreManualBookingRequest extends FormRequest
                 if ($package?->isTransfer()) {
                     // Staff may book at short notice (a phone call from the
                     // arrivals hall), so no minimum-notice rule here.
-                    foreach (['transfer_direction', 'transfer_time', 'flight_number', 'transfer_area_id', 'transfer_address'] as $field) {
+                    foreach (['transfer_direction', 'transfer_time', 'flight_number', 'transfer_address'] as $field) {
                         if (! $this->filled($field)) {
                             $validator->errors()->add($field, __('Required for an airport pickup package.'));
                         }
+                    }
+
+                    // The area is optional, unless the package has no price without one.
+                    if (! $this->filled('transfer_area_id') && $package->needsTransferArea()) {
+                        $validator->errors()->add('transfer_area_id', __('This package has no price of its own: choose the destination area.'));
                     }
                 }
 

@@ -109,7 +109,11 @@ final class Package extends Model
     protected $attributes = [
         'kind' => self::KIND_VEHICLE,
         'included_km_per_day' => true,
+        'group_pricing' => false,
     ];
+
+    /** Pricing models that can be priced by group size instead. */
+    public const array GROUP_PRICING_MODELS = [self::MODEL_PER_HOUR, self::MODEL_PER_DAY, self::MODEL_FIXED_BUNDLE];
 
     protected $fillable = [
         'kind',
@@ -119,6 +123,7 @@ final class Package extends Model
         'inclusions',
         'exclusions',
         'pricing_model',
+        'group_pricing',
         'min_days',
         'max_days',
         'min_hours',
@@ -140,6 +145,7 @@ final class Package extends Model
     protected function casts(): array
     {
         return [
+            'group_pricing' => 'boolean',
             'min_days' => 'integer',
             'max_days' => 'integer',
             'min_hours' => 'integer',
@@ -295,6 +301,51 @@ final class Package extends Model
         return $this->pricing_model === self::MODEL_PER_HOUR;
     }
 
+    /**
+     * Priced by group size, e.g. per boat: 3–5 people $10, 6–7 people $18.
+     * Its price rows count people; the price found is then charged the
+     * package's usual way (per hour, per day, or once).
+     */
+    public function isGroupPriced(): bool
+    {
+        return $this->group_pricing
+            && ! $this->isStay()
+            && ! $this->isTransfer()
+            && in_array($this->pricing_model, self::GROUP_PRICING_MODELS, true);
+    }
+
+    /**
+     * Whether an airport pickup has a price of its own. One that doesn't is
+     * priced entirely by the destination area, so it can't be booked
+     * without one: it would come to nothing.
+     */
+    public function needsTransferArea(): bool
+    {
+        return $this->isTransfer() && (float) ($this->pricingTiers->first()?->price ?? 0) <= 0;
+    }
+
+    /** Whether a price row covers a group of $people. */
+    public function hasPriceForPeople(int $people): bool
+    {
+        return $people > 0 && $this->pricingTiers->contains(fn (PackagePricingTier $tier) => $tier->covers($people));
+    }
+
+    /**
+     * Every group size that has a price, smallest first, for the "number of
+     * people" choice.
+     *
+     * @return int[]
+     */
+    public function groupSizes(): array
+    {
+        return $this->pricingTiers
+            ->flatMap(fn (PackagePricingTier $tier) => range($tier->min_days, $tier->max_days ?? $tier->min_days))
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
     /** An activity, or its line's vehicles come from partners: always bookable, reserves no unit. */
     public function hasUnlimitedUnits(): bool
     {
@@ -309,7 +360,7 @@ final class Package extends Model
      */
     public function hasPriceForDays(int $days): bool
     {
-        if ($this->isHourly() || $this->pricing_model === self::MODEL_PER_PERSON) {
+        if ($this->isHourly() || $this->pricing_model === self::MODEL_PER_PERSON || $this->isGroupPriced()) {
             return true;
         }
 
@@ -357,6 +408,74 @@ final class Package extends Model
         };
     }
 
+    /**
+     * The tier behind the "from" price: for an hourly package, the one that
+     * covers its minimum hours.
+     */
+    public function fromTier(): ?PackagePricingTier
+    {
+        // Rows count people: the smallest group's price.
+        if ($this->isGroupPriced()) {
+            return $this->pricingTiers->first();
+        }
+
+        if ($this->isHourly()) {
+            $minimum = max((int) $this->min_hours, 1);
+            $covering = $this->pricingTiers->first(fn (PackagePricingTier $tier) => $tier->covers($minimum));
+
+            if ($covering !== null) {
+                return $covering;
+            }
+        }
+
+        return $this->pricingTiers->first();
+    }
+
+    /**
+     * The fewest hours a booking at this tier can be, when that is more than
+     * one; prices are then shown for those hours, not per hour. Null for
+     * packages not priced by the hour.
+     */
+    public function pricedHours(PackagePricingTier $tier): ?int
+    {
+        if (! $this->isHourly()) {
+            return null;
+        }
+
+        // A group-priced row counts people, not hours.
+        $hours = max((int) $this->min_hours, $this->isGroupPriced() ? 1 : $tier->min_days, 1);
+
+        return $hours > 1 ? $hours : null;
+    }
+
+    /** "$12.00 / €10.00" for a 2-hour minimum at $6 an hour; the tier's own price otherwise. */
+    public function tierPrice(PackagePricingTier $tier): string
+    {
+        $hours = $this->pricedHours($tier);
+
+        return $hours === null ? $tier->displayPrice() : $tier->displayPriceFor($hours);
+    }
+
+    /** "3–5 people" for a row of a group-priced package. */
+    public function groupSizeLabel(PackagePricingTier $tier): string
+    {
+        $range = $tier->max_days === null || $tier->max_days === $tier->min_days
+            ? (string) $tier->min_days
+            : $tier->min_days.'–'.$tier->max_days;
+
+        return $range.' '.__('core::front.packages_unit_people');
+    }
+
+    /** What tierPrice() buys: "for 2 hours", or the usual "/ day", "/ hour"… */
+    public function tierPriceSuffix(PackagePricingTier $tier): string
+    {
+        $hours = $this->pricedHours($tier);
+
+        return $hours === null
+            ? __($this->priceSuffixKey())
+            : __('core::front.packages_for_hours', ['hours' => $hours]);
+    }
+
     /** What one tier price buys: "day", "week", "hour"…; null when it's the whole package's price. */
     public function tierPriceUnit(): ?string
     {
@@ -374,8 +493,8 @@ final class Package extends Model
     public function tierUnit(): string
     {
         return match (true) {
+            $this->isGroupPriced(), $this->pricing_model === self::MODEL_PER_PERSON => 'people',
             $this->isHourly() => 'hours',
-            $this->pricing_model === self::MODEL_PER_PERSON => 'people',
             $this->isStay() => 'nights',
             default => 'days',
         };

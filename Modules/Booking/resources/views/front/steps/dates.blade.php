@@ -75,9 +75,9 @@
                     </div>
 
                     <div class="field">
-                        <label for="transfer_area_id">{{ __('core::front.transfer_area') }}</label>
-                        <select id="transfer_area_id" name="transfer_area_id" required>
-                            <option value="">&nbsp;</option>
+                        <label for="transfer_area_id">{{ __('core::front.transfer_area_optional') }}</label>
+                        <select id="transfer_area_id" name="transfer_area_id">
+                            <option value="">{{ __('core::front.transfer_area_none') }}</option>
                             @foreach ($transferAreas as $area)
                                 <option value="{{ $area->id }}" @selected((string) old('transfer_area_id', $state['transfer_area_id'] ?? '') === (string) $area->id)>{{ $area->name }} — {{ $area->displayPrice() }}</option>
                             @endforeach

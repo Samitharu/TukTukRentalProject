@@ -40,19 +40,22 @@ final class OfferedBookingPlanner
             $startDate[] = 'before_or_equal:'.now()->addDays((int) config('availability.maximum_advance_days'))->toDateString();
         }
 
-        return ['offer.start_date' => $startDate, ...match (true) {
+        // A package priced by group size needs the group size, whatever else it asks.
+        $people = $package->isGroupPriced() ? ['offer.people' => ['required', 'integer', 'min:1', 'max:100']] : [];
+
+        return ['offer.start_date' => $startDate, ...$people, ...match (true) {
             $package->isTransfer() => [
                 'offer.transfer_direction' => ['required', Rule::in(Booking::TRANSFER_DIRECTIONS)],
                 'offer.transfer_time' => ['required', 'date_format:H:i'],
                 'offer.flight_number' => ['required', 'string', 'max:10', 'regex:'.TransferSchedule::FLIGHT_NUMBER_PATTERN],
-                'offer.transfer_area_id' => ['required', 'integer', Rule::exists('transfer_areas', 'id')->where('is_active', true)],
+                'offer.transfer_area_id' => ['nullable', 'integer', Rule::exists('transfer_areas', 'id')->where('is_active', true)],
                 'offer.transfer_address' => ['required', 'string', 'max:255'],
             ],
             $package->isHourly() => [
                 'offer.start_time' => ['required', 'string'],
                 'offer.hours' => ['required', 'integer'],
             ],
-            $package->isActivity() => $package->pricing_model === Package::MODEL_PER_PERSON ? ['offer.people' => ['required', 'integer', 'min:1', 'max:50']] : [],
+            $package->isActivity() => $package->pricing_model === Package::MODEL_PER_PERSON || $package->isGroupPriced() ? ['offer.people' => ['required', 'integer', 'min:1', 'max:100']] : [],
             $package->isStay() => ['offer.end_date' => ['required', 'date', 'after:offer.start_date']],
             default => ['offer.end_date' => ['required', 'date', 'after_or_equal:offer.start_date']],
         }];
@@ -83,8 +86,17 @@ final class OfferedBookingPlanner
     {
         $start = (string) $data['start_date'];
 
+        if ($package->isGroupPriced() && ! $package->hasPriceForPeople((int) ($data['people'] ?? 0))) {
+            return ['offer.people' => __('core::front.booking_people_not_available')];
+        }
+
         if ($package->isTransfer()) {
-            if (! TransferArea::query()->active()->whereKey($data['transfer_area_id'] ?? 0)->exists()) {
+            // The area is optional, unless the package has no price without one.
+            if (empty($data['transfer_area_id'])) {
+                if ($package->needsTransferArea()) {
+                    return ['offer.transfer_area_id' => __('core::front.transfer_area_needed')];
+                }
+            } elseif (! TransferArea::query()->active()->whereKey($data['transfer_area_id'])->exists()) {
                 return ['offer.transfer_area_id' => __('core::front.booking_dates_no_longer_valid')];
             }
 
@@ -129,26 +141,27 @@ final class OfferedBookingPlanner
      */
     public function plan(Package $package, array $data): array
     {
-        $area = $package->isTransfer() ? TransferArea::query()->findOrFail($data['transfer_area_id']) : null;
+        $isTransfer = $package->isTransfer();
+        $area = $isTransfer && ! empty($data['transfer_area_id']) ? TransferArea::query()->findOrFail($data['transfer_area_id']) : null;
         $hours = $package->isHourly() ? (int) $data['hours'] : null;
         $start = (string) $data['start_date'];
 
         [$startAt, $endAt] = match (true) {
-            $area !== null => array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), TransferSchedule::range($start, $data['transfer_time'], $area)),
+            $isTransfer => array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), TransferSchedule::range($start, $data['transfer_time'], $area)),
             $hours !== null => array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), HourlySchedule::range($start, $data['start_time'], $hours)),
             default => [$start, (string) $data['end_date']],
         };
 
         return [
-            'price' => $this->pricing->calculate($package, CarbonImmutable::parse($start), self::days($data), hours: $hours, transferArea: $area, people: isset($data['people']) ? (int) $data['people'] : null),
+            'price' => $this->pricing->calculate($package, CarbonImmutable::parse($start), self::days($data), hours: $hours, transferArea: $area, people: isset($data['people']) && ($package->isGroupPriced() || $package->pricing_model === Package::MODEL_PER_PERSON) ? (int) $data['people'] : null),
             'start_at' => $startAt,
             'end_at' => $endAt,
             'customer' => [
                 'pickup_type' => 'office',
                 'delivery_zone_id' => null,
-                'transfer_direction' => $area !== null ? $data['transfer_direction'] : null,
-                'flight_number' => $area !== null ? $data['flight_number'] : null,
-                'transfer_address' => $area !== null ? $data['transfer_address'] : null,
+                'transfer_direction' => $isTransfer ? $data['transfer_direction'] : null,
+                'flight_number' => $isTransfer ? $data['flight_number'] : null,
+                'transfer_address' => $isTransfer ? $data['transfer_address'] : null,
                 'transfer_area_id' => $area?->id,
                 // Only a rental's driver needs a permit.
                 'has_international_permit' => ! $package->isStay() && ! $package->isTransfer() && ! $package->isActivity() && (bool) ($data['has_international_permit'] ?? false),

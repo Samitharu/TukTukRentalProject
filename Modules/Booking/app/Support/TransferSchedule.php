@@ -18,16 +18,20 @@ final class TransferSchedule
     /** Flight numbers: airline code (2–3 letters/digits) + 1–4 digits, optional letter. */
     public const string FLIGHT_NUMBER_PATTERN = '/^[A-Z0-9]{2,3}\s?\d{1,4}[A-Z]?$/';
 
+    /** A trip booked without a destination area: the same length an area has by default. */
+    public const int MINUTES_WITHOUT_AREA = 120;
+
     /**
-     * When the vehicle leaves and when it is free again.
+     * When the vehicle leaves and when it is free again. The destination
+     * area is optional.
      *
      * @return array{0: CarbonImmutable, 1: CarbonImmutable}
      */
-    public static function range(string $date, string $time, TransferArea $area): array
+    public static function range(string $date, string $time, ?TransferArea $area): array
     {
         $start = CarbonImmutable::parse($date.' '.$time);
 
-        return [$start, $start->addMinutes(max($area->duration_minutes, 1))];
+        return [$start, $start->addMinutes(max($area?->duration_minutes ?? self::MINUTES_WITHOUT_AREA, 1))];
     }
 
     /** Null when the pickup time can be booked, otherwise a translated message. */

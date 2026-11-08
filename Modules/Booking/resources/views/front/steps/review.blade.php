@@ -55,7 +55,7 @@
                             </dd>
                             @if ($fromTier)
                                 <dt>{{ $offered->name }}</dt>
-                                <dd>{{ __('core::front.packages_from') }} {{ $fromTier->displayPrice() }} {{ __($offered->priceSuffixKey()) }}</dd>
+                                <dd>@include('package::front._from-price', ['package' => $offered])</dd>
                             @endif
                         </dl>
                     </div>
@@ -80,7 +80,7 @@
                         @if ($fromTier)
                             <dl class="offer-card__prices">
                                 <dt>{{ $cheaper->name }}</dt>
-                                <dd>{{ __('core::front.packages_from') }} {{ $fromTier->displayPrice() }} {{ __($cheaper->priceSuffixKey()) }}</dd>
+                                <dd>@include('package::front._from-price', ['package' => $cheaper])</dd>
                             </dl>
                         @endif
                     </div>
@@ -98,7 +98,7 @@
                     </h2>
                     @if ($isTransfer)
                         <p>{{ \Illuminate\Support\Carbon::parse($state['start_date'])->format('d M Y') }}, {{ $state['transfer_time'] }} &middot; {{ __($state['transfer_direction'] === 'departure' ? 'core::front.transfer_departure' : 'core::front.transfer_arrival') }}</p>
-                        <p class="text-muted">{{ __('core::front.transfer_flight_number') }}: {{ $state['flight_number'] }} &middot; {{ $transferArea?->name }} &middot; {{ $state['transfer_address'] }}</p>
+                        <p class="text-muted">{{ __('core::front.transfer_flight_number') }}: {{ $state['flight_number'] }}@if ($transferArea) &middot; {{ $transferArea->name }}@endif &middot; {{ $state['transfer_address'] }}</p>
                     @elseif ($isStay)
                         @php
                             $checkIn = \Illuminate\Support\Carbon::parse($state['start_date']);
@@ -239,7 +239,7 @@
                             <div class="add-package__info">
                                 <strong>{{ $addable->name }}</strong>
                                 @if ($addable->pricingTiers->isNotEmpty())
-                                    <span class="text-muted">{{ __('core::front.packages_from') }} {{ $addable->pricingTiers->first()->displayPrice() }} {{ __($addable->priceSuffixKey()) }}</span>
+                                    <span class="text-muted">@include('package::front._from-price', ['package' => $addable])</span>
                                 @endif
                             </div>
                             <a href="{{ route('booking.add', ['package' => $addable->id]) }}" class="btn btn--secondary">{{ __('core::front.package_add_button') }}</a>

@@ -8,10 +8,7 @@
         <h3 style="font-size:var(--font-size-lg);">{{ $package->name }}</h3>
         <p class="text-muted">{{ \Illuminate\Support\Str::limit(strip_tags((string) $package->description), 110) }}</p>
         @if ($package->pricingTiers->isNotEmpty())
-            <p>
-                <strong>{{ __('core::front.packages_from') }} {{ $package->pricingTiers->first()->displayPrice() }}</strong>
-                {{ __($package->priceSuffixKey()) }}
-            </p>
+            <p>@include('package::front._from-price', ['package' => $package])</p>
         @endif
         @include('package::front._offer-flag', ['package' => $package])
         @include('package::front._package-terms', ['package' => $package])

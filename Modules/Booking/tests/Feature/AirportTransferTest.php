@@ -200,6 +200,7 @@ it('validates the airport pickup details', function (): void {
     $this->post('/en/booking/start', transferStep1(['flight_number' => 'not a flight', 'transfer_address' => '', 'transfer_time' => '25:00']))
         ->assertSessionHasErrors(['flight_number', 'transfer_address', 'transfer_time']);
 
+    // Optional, but a switched-off area can't be chosen.
     $this->area->update(['is_active' => false]);
     $this->post('/en/booking/start', transferStep1())->assertSessionHasErrors('transfer_area_id');
 });
@@ -251,4 +252,80 @@ it('lets staff book an airport pickup and move it to another time', function ():
 
     expect($booking->fresh()->start_at->format('Y-m-d H:i'))->toBe('2027-03-11 09:15')
         ->and($booking->fresh()->end_at->format('Y-m-d H:i'))->toBe('2027-03-11 10:45');
+});
+
+// ---- Destination area is optional ------------------------------------------------
+
+it('books an airport pickup online without a destination area, at the package price', function (): void {
+    $this->get('/en/booking/start?line='.$this->line->id)->assertOk()->assertSee('Destination area (optional)')->assertSee('Not listed / not sure');
+
+    $this->post('/en/booking/start', transferStep1(['transfer_area_id' => '']))->assertSessionHasNoErrors()->assertRedirect('/en/booking/package');
+    $this->post('/en/booking/package', ['package_id' => $this->package->id])->assertRedirect('/en/booking/addons');
+    $this->post('/en/booking/addons', []);
+    $this->post('/en/booking/details', [
+        'first_name' => 'Ana', 'last_name' => 'Silva', 'email' => 'ana@example.test', 'phone' => '+351 912 000 000',
+        'nationality' => 'PT', 'passport_number' => 'X1', 'marketing_opt_in' => '0',
+    ])->assertRedirect('/en/booking/review');
+
+    $this->get('/en/booking/review')->assertOk()->assertSee('UL504')->assertDontSee('Negombo &middot;', false);
+    $this->post('/en/booking/confirm', ['terms_accepted' => '1'])->assertRedirect();
+
+    $booking = Booking::query()->sole();
+    expect($booking->transfer_area_id)->toBeNull()
+        ->and($booking->flight_number)->toBe('UL504')
+        ->and($booking->transfer_address)->toBe('Jetwing Blue, Negombo')
+        ->and((float) $booking->total_amount)->toBe(10.0)
+        ->and($booking->end_at->format('Y-m-d H:i'))->toBe('2027-03-10 16:30'); // the 2-hour trip length without an area
+
+    $this->get('/en/booking/confirmation/'.$booking->reference)->assertOk()->assertDontSee('Destination area');
+    $this->get('/en/booking/confirmation/'.$booking->reference.'/receipt')->assertOk();
+});
+
+it('still needs the area when the package has no price of its own', function (): void {
+    $this->package->pricingTiers()->update(['price' => 0]);
+
+    $this->get('/en/booking/start?line='.$this->line->id);
+    $this->post('/en/booking/start', transferStep1(['transfer_area_id' => '']))->assertRedirect('/en/booking/package');
+
+    $this->post('/en/booking/package', ['package_id' => $this->package->id])
+        ->assertRedirect('/en/booking/start')
+        ->assertSessionHasErrors('transfer_area_id');
+
+    expect(Booking::query()->count())->toBe(0);
+});
+
+it('lets staff book an airport pickup without an area, unless the package needs one', function (): void {
+    Permission::findOrCreate('bookings.view');
+    Permission::findOrCreate('bookings.manage');
+    $admin = User::factory()->create();
+    $admin->givePermissionTo(['bookings.view', 'bookings.manage']);
+
+    $payload = [
+        'package_id' => $this->package->id, 'start_date' => '2027-03-10', 'transfer_direction' => 'arrival',
+        'transfer_time' => '05:00', 'flight_number' => 'EK 651', 'transfer_address' => 'Villa 12, Negombo',
+        'full_name' => 'Phone Customer', 'email' => 'phone@example.test',
+    ];
+
+    $this->actingAs($admin)->post('/control-panel/bookings', $payload)->assertSessionHasNoErrors()->assertRedirect();
+
+    $booking = Booking::query()->sole();
+    expect($booking->transfer_area_id)->toBeNull()->and((float) $booking->total_amount)->toBe(10.0);
+    $this->actingAs($admin)->get('/control-panel/bookings/'.$booking->id)->assertOk();
+
+    $this->package->pricingTiers()->update(['price' => 0]);
+    $this->actingAs($admin)->post('/control-panel/bookings', [...$payload, 'transfer_time' => '18:00'])->assertSessionHasErrors('transfer_area_id');
+});
+
+it('lets an airport pickup added to another booking skip the area', function (): void {
+    $data = ['start_date' => '2027-03-10', 'end_date' => '2027-03-10', 'transfer_direction' => 'arrival', 'transfer_time' => '14:30', 'flight_number' => 'UL504', 'transfer_address' => 'Jetwing Blue'];
+    $plan = app(Modules\Booking\Services\OfferedBookingPlanner::class)->plan($this->package, $data);
+
+    expect(Modules\Booking\Services\OfferedBookingPlanner::problems($this->package, $data))->toBe([])
+        ->and($plan['price']->total)->toBe(10.0)
+        ->and($plan['end_at'])->toBe('2027-03-10 16:30:00')
+        ->and($plan['customer']['flight_number'])->toBe('UL504')
+        ->and($plan['customer']['transfer_area_id'])->toBeNull();
+
+    $this->package->pricingTiers()->update(['price' => 0]);
+    expect(Modules\Booking\Services\OfferedBookingPlanner::problems($this->package->fresh(), $data))->toHaveKey('offer.transfer_area_id');
 });

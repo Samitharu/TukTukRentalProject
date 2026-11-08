@@ -75,11 +75,21 @@
             form.querySelectorAll('[data-charge]').forEach(function (section) {
                 toggle(section, listHas(section.getAttribute('data-charge'), charge));
             });
+
+            // Prices by group size replace the single price box.
+            var groupBox = form.querySelector('[data-group-pricing]');
+            var groupOn = !!groupBox && !groupBox.disabled && groupBox.checked;
+            form.querySelectorAll('[data-group-on]').forEach(function (section) {
+                toggle(section, groupOn);
+            });
+            form.querySelectorAll('[data-group-off]').forEach(function (section) {
+                toggle(section, !groupOn);
+            });
         }
 
         category.addEventListener('change', apply);
         form.addEventListener('change', function (event) {
-            if (event.target.name === 'charge') {
+            if (event.target.name === 'charge' || event.target.name === 'group_pricing') {
                 apply();
             }
         });

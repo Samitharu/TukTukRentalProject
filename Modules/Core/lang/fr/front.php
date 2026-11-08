@@ -291,6 +291,7 @@ return [
 
     // Product categories, hourly and km-allowance packages.
     'packages_per_hour' => '/ heure',
+    'packages_for_hours' => 'pour :hours heures',
     'packages_per_person' => '/ personne',
     'packages_per_week' => '/ semaine',
     'packages_per_month' => '/ mois',
@@ -340,6 +341,9 @@ return [
     'transfer_pickup_time' => 'Prise en charge',
     'transfer_flight_number' => 'Numéro de vol',
     'transfer_area' => 'Zone de destination',
+    'transfer_area_optional' => 'Zone de destination (facultatif)',
+    'transfer_area_none' => 'Non listée / je ne sais pas',
+    'transfer_area_needed' => 'Veuillez choisir votre zone de destination : le prix de ce trajet en dépend.',
     'transfer_address' => 'Hôtel / adresse de dépose',
     'transfer_address_pickup' => 'Hôtel / adresse de prise en charge',
     'transfer_address_placeholder' => 'Nom de l\'hôtel, rue, ville',

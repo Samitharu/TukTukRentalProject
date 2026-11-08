@@ -154,6 +154,12 @@
                 </div>
             </fieldset>
 
+            <div class="admin-form-field">
+                <label for="people">{{ __('Number of people') }}</label>
+                <input type="number" id="people" name="people" value="{{ old('people') }}" min="1" max="100" style="max-width:6rem;">
+                <p class="admin-hint">{{ __('Only for packages priced by group size; the price comes from the matching group.') }}</p>
+            </div>
+
             <p class="admin-hint">{{ __('Pickup') }}: {{ __('At our office') }}</p>
 
             <div class="admin-form-field">
@@ -195,6 +201,11 @@
 
                 <div data-offer-fields>
                     <div class="admin-location__coords">
+                        <div class="admin-form-field">
+                            <label for="offer_people">{{ __('Number of people') }}</label>
+                            <input type="number" id="offer_people" name="offer[people]" value="{{ old('offer.people') }}" min="1" max="100" style="max-width:6rem;">
+                            <p class="admin-hint">{{ __('Only for packages priced by group size.') }}</p>
+                        </div>
                         <div class="admin-form-field">
                             <label for="offer_start_date">{{ __('Pickup date / check-in') }}</label>
                             <input type="date" id="offer_start_date" name="offer[start_date]" value="{{ old('offer.start_date') }}">

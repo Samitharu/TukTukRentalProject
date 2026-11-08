@@ -46,6 +46,15 @@ final class PackagePricingTier extends Model
         return Money::dual($this->price, $this->price_eur);
     }
 
+    /** The price of $units hours (or people) at this tier's rate, in both currencies. */
+    public function displayPriceFor(int $units): string
+    {
+        return Money::dual(
+            round((float) $this->price * $units, 2),
+            $this->price_eur === null ? null : round((float) $this->price_eur * $units, 2),
+        );
+    }
+
     public function covers(int $days): bool
     {
         return $days >= $this->min_days && ($this->max_days === null || $days <= $this->max_days);

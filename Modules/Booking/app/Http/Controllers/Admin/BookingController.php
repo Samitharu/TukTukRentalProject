@@ -322,7 +322,8 @@ final class BookingController extends Controller
         }
 
         if ($package->isTransfer()) {
-            $transferArea = TransferArea::query()->findOrFail($data['transfer_area_id']);
+            // The destination area is optional.
+            $transferArea = ! empty($data['transfer_area_id']) ? TransferArea::query()->findOrFail($data['transfer_area_id']) : null;
             $data = [...$data, 'has_international_permit' => false];
         } else {
             $data = [...$data, 'transfer_direction' => null, 'flight_number' => null, 'transfer_address' => null, 'transfer_area_id' => null];
@@ -337,16 +338,16 @@ final class BookingController extends Controller
         // An hourly rental is one day; it keeps its real start/return times.
         // An airport pickup reserves its trip's real time slot.
         [$startAt, $endAt] = match (true) {
-            $transferArea !== null => array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), TransferSchedule::range($start->toDateString(), $data['transfer_time'], $transferArea)),
+            $package->isTransfer() => array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), TransferSchedule::range($start->toDateString(), $data['transfer_time'], $transferArea)),
             $hours !== null => array_map(fn (CarbonImmutable $at) => $at->toDateTimeString(), HourlySchedule::range($start->toDateString(), $data['start_time'], $hours)),
             default => [$start->toDateString(), $end->toDateString()],
         };
 
-        if ($transferArea !== null) {
+        if ($package->isTransfer()) {
             [$start, $end] = [CarbonImmutable::parse($startAt), CarbonImmutable::parse($endAt)];
         }
 
-        $price = $this->pricing->calculate($package, $start, $days, $request->addonSelections(), hours: $hours, transferArea: $transferArea);
+        $price = $this->pricing->calculate($package, $start, $days, $request->addonSelections(), hours: $hours, transferArea: $transferArea, people: $package->isGroupPriced() ? (int) $data['people'] : null);
         $offer = $request->chosenOffer();
 
         return [

@@ -28,14 +28,15 @@ final class HomeController extends Controller
 
     public function __invoke(): View
     {
+        // Every package staff tick "featured", in their sort order.
         $featuredPackages = Package::query()
             ->active()
             ->currentlyValid()
             ->inVisibleCategory()
             ->where('is_featured', true)
-            ->with(['images', 'liveOffers', 'routeSlugs' => fn ($q) => $q->where('locale', app()->getLocale())])
+            ->with(['images', 'liveOffers', 'pricingTiers', 'routeSlugs' => fn ($q) => $q->where('locale', app()->getLocale())])
             ->orderBy('sort_order')
-            ->limit(3)
+            ->orderBy('id')
             ->get();
 
         // The registered rental vehicles (SUVs, bikes) — tuk tuks aren't

@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Fleet\Models\VehicleCategory;
+use Modules\Package\Http\Requests\Admin\SimplePackageForm;
 use Modules\Package\Http\Requests\Admin\StorePackageRequest;
 use Modules\Package\Http\Requests\Admin\UpdatePackageRequest;
 use Modules\Package\Models\Addon;
@@ -75,7 +76,7 @@ final class PackageController extends Controller
 
         $this->storePhotos($package, $request);
 
-        return $request->filled('price')
+        return $request->filled('price') || $package->group_pricing
             ? redirect()->route('admin.packages.index')->with('status', __('Package created.'))
             : redirect()->route('admin.packages.edit', $package)->with('status', __('Package created — now add pricing tiers.'));
     }
@@ -101,9 +102,9 @@ final class PackageController extends Controller
             'offerablePackages' => $this->offerablePackages($package),
             'packageOffers' => $package->offers()->get()->keyBy('offered_package_id'),
             'charge' => PackageCharge::of($package),
-            'price' => $package->pricingTiers->count() === 1 ? $package->pricingTiers->first()->price : null,
-            'priceEur' => $package->pricingTiers->count() === 1 ? $package->pricingTiers->first()->price_eur : null,
-            'usesLengthPrices' => $package->pricingTiers->count() > 1,
+            'price' => ! $package->group_pricing && $package->pricingTiers->count() === 1 ? $package->pricingTiers->first()->price : null,
+            'priceEur' => ! $package->group_pricing && $package->pricingTiers->count() === 1 ? $package->pricingTiers->first()->price_eur : null,
+            'usesLengthPrices' => ! $package->group_pricing && $package->pricingTiers->count() > 1,
         ]);
     }
 
@@ -111,13 +112,14 @@ final class PackageController extends Controller
     {
         $data = $this->packageData($request);
         $data['is_active'] = $request->boolean('is_active');
+        $wasGroupPriced = $package->group_pricing;
 
         $package->update($data);
         $package->categories()->sync($request->input('category_ids', []));
         $package->vehicles()->sync($request->input('vehicle_ids', []));
         $this->syncAddons($package, $request);
         $this->syncOffers($package, $request);
-        $this->syncPrice($package, $request);
+        $this->syncPrice($package, $request, $wasGroupPriced);
 
         $this->storePhotos($package, $request);
 
@@ -147,8 +149,10 @@ final class PackageController extends Controller
         $data = $request->safe()->except([
             'category_ids', 'vehicle_ids', 'images', 'cover_image', 'offered_addon_ids', 'included_addon_ids', 'offers',
             // The simple form's own fields (see SimplePackageForm).
-            'charge', 'price', 'price_eur', 'package_days', 'daily_km', 'daily_extra_km_rate', 'daily_extra_km_rate_eur', 'vehicle_type_id',
+            'charge', 'price', 'price_eur', 'package_days', 'daily_km', 'daily_extra_km_rate', 'daily_extra_km_rate_eur', 'vehicle_type_id', 'group_prices',
         ]);
+        // Set by PackageCharge from the form's tick box; false for any way of charging that can't use it.
+        $data['group_pricing'] = (bool) ($data['group_pricing'] ?? false);
         $data['deposit_is_percent'] = $request->boolean('deposit_is_percent');
         $data['is_featured'] = $request->boolean('is_featured');
         $data['included_km_per_day'] = $request->boolean('included_km_per_day', true);
@@ -215,10 +219,26 @@ final class PackageController extends Controller
      * The simple form's price becomes the package's only tier (from 1,
      * no upper limit) — what pricing reads for every way of charging. A
      * package priced by rental length (several tiers) keeps its tiers.
+     * A group-priced package's rows replace all its tiers; leaving group
+     * pricing replaces those rows with the single price.
      */
-    private function syncPrice(Package $package, StorePackageRequest|UpdatePackageRequest $request): void
+    private function syncPrice(Package $package, StorePackageRequest|UpdatePackageRequest $request, bool $wasGroupPriced = false): void
     {
-        if (! $request->filled('price') || $package->pricingTiers()->count() > 1) {
+        if ($package->group_pricing) {
+            $rows = SimplePackageForm::groupPrices($request);
+
+            if ($rows !== []) {
+                $package->pricingTiers()->delete();
+
+                foreach ($rows as $row) {
+                    $package->pricingTiers()->create(['min_days' => $row['from'], 'max_days' => $row['to'], 'price' => $row['price'], 'price_eur' => $row['price_eur']]);
+                }
+            }
+
+            return;
+        }
+
+        if (! $request->filled('price') || (! $wasGroupPriced && $package->pricingTiers()->count() > 1)) {
             return;
         }
 

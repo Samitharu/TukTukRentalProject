@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Modules\Core\Support\Seo;
 use Modules\Fleet\Models\Vehicle;
 use Modules\Package\Models\Package;
+use Modules\Package\Models\PackagePricingTier;
 use Modules\Package\Models\ProductCategory;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -156,7 +157,10 @@ final class PackageController extends Controller
      */
     private function productSchema(Package $package, ?string $image): array
     {
-        $prices = $package->pricingTiers->pluck('price')->map(fn ($price) => (float) $price)->filter(fn (float $price) => $price > 0);
+        // Same prices the page shows: with a minimum of several hours, the price of those hours.
+        $prices = $package->pricingTiers
+            ->map(fn (PackagePricingTier $tier) => round((float) $tier->price * ($package->pricedHours($tier) ?? 1), 2))
+            ->filter(fn (float $price) => $price > 0);
 
         return array_filter([
             '@context' => 'https://schema.org',

@@ -314,6 +314,7 @@ return [
 
     // Product categories, hourly and km-allowance packages.
     'packages_per_hour' => '/ hour',
+    'packages_for_hours' => 'for :hours hours',
     'packages_per_person' => '/ person',
     'packages_per_week' => '/ week',
     'packages_per_month' => '/ month',
@@ -363,6 +364,9 @@ return [
     'transfer_pickup_time' => 'Pickup',
     'transfer_flight_number' => 'Flight number',
     'transfer_area' => 'Destination area',
+    'transfer_area_optional' => 'Destination area (optional)',
+    'transfer_area_none' => 'Not listed / not sure',
+    'transfer_area_needed' => 'Please choose your destination area: the price of this trip depends on it.',
     'transfer_address' => 'Hotel / drop-off address',
     'transfer_address_pickup' => 'Hotel / pickup address',
     'transfer_address_placeholder' => 'Hotel name, street, town',

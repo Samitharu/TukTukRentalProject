@@ -170,6 +170,10 @@ final class BookingFlowController extends Controller
             return back()->withErrors(['package_id' => $this->notEligibleMessage()]);
         }
 
+        if ($package->needsTransferArea() && $this->transferAreaFromState() === null) {
+            return redirect()->route('booking.start')->withErrors(['transfer_area_id' => __('core::front.transfer_area_needed')]);
+        }
+
         if (! $package->hasUnlimitedUnits()) {
             [$start, $end] = $this->datesFromState();
             $eligibleIds = $package->eligibleVehicleIds();
@@ -197,6 +201,7 @@ final class BookingFlowController extends Controller
             'package_id' => $package->id,
             'start_time' => $startTime,
             'hours' => $hours !== null ? (int) $hours : null,
+            'people' => $package->isGroupPriced() ? $request->peopleChoice() : null,
             // An offer belongs to the package it was taken on.
             'offer' => null,
             'extras' => $this->extrasWithout($package->id),
@@ -487,7 +492,7 @@ final class BookingFlowController extends Controller
             'transfer_direction' => $isTransfer ? $state['transfer_direction'] : null,
             'flight_number' => $isTransfer ? $state['flight_number'] : null,
             'transfer_address' => $isTransfer ? $state['transfer_address'] : null,
-            'transfer_area_id' => $isTransfer ? (int) $state['transfer_area_id'] : null,
+            'transfer_area_id' => $isTransfer && ! empty($state['transfer_area_id']) ? (int) $state['transfer_area_id'] : null,
             'has_international_permit' => (bool) ($state['has_international_permit'] ?? false),
             'special_requests' => $state['special_requests'] ?? null,
         ];
@@ -1009,9 +1014,9 @@ final class BookingFlowController extends Controller
         }
 
         if (BookingFlowState::isTransfer()) {
-            // The area may have been switched off, or the pickup time come
-            // too close, since step 1.
-            $problem = $this->transferAreaFromState() === null
+            // The chosen area (it is optional) may have been switched off, or
+            // the pickup time come too close, since step 1.
+            $problem = ! empty(BookingFlowState::value('transfer_area_id')) && $this->transferAreaFromState() === null
                 ? __('core::front.booking_dates_no_longer_valid')
                 : TransferSchedule::problem((string) BookingFlowState::value('start_date'), BookingFlowState::value('transfer_time'));
 
@@ -1029,6 +1034,20 @@ final class BookingFlowController extends Controller
 
             return redirect()->route('booking.package')
                 ->withErrors(['package_id' => $this->notEligibleMessage()]);
+        }
+
+        // Priced only by the destination area, and none was chosen.
+        if ($package->needsTransferArea() && $this->transferAreaFromState() === null) {
+            BookingFlowState::put(['hold_key' => null]);
+
+            return redirect()->route('booking.start')->withErrors(['transfer_area_id' => __('core::front.transfer_area_needed')]);
+        }
+
+        // Its group prices may have changed since the package was chosen.
+        if ($package->isGroupPriced() && ! $package->hasPriceForPeople((int) BookingFlowState::value('people'))) {
+            BookingFlowState::put(['package_id' => null, 'hold_key' => null]);
+
+            return redirect()->route('booking.package')->withErrors(['package_id' => __('core::front.booking_people_not_available')]);
         }
 
         if ($package->isHourly()) {
@@ -1116,10 +1135,8 @@ final class BookingFlowController extends Controller
      */
     private function datesFromState(): array
     {
-        $area = $this->transferAreaFromState();
-
-        if ($area !== null && is_string(BookingFlowState::value('transfer_time'))) {
-            return TransferSchedule::range((string) BookingFlowState::value('start_date'), BookingFlowState::value('transfer_time'), $area);
+        if (BookingFlowState::isTransfer() && is_string(BookingFlowState::value('transfer_time'))) {
+            return TransferSchedule::range((string) BookingFlowState::value('start_date'), BookingFlowState::value('transfer_time'), $this->transferAreaFromState());
         }
 
         return [
@@ -1165,6 +1182,7 @@ final class BookingFlowController extends Controller
             $deliveryZone,
             hours: $package->isHourly() ? (int) ($state['hours'] ?? 0) : null,
             transferArea: $this->transferAreaFromState(),
+            people: $package->isGroupPriced() ? (int) ($state['people'] ?? 0) : null,
         );
         $offer = $this->chosenOffer();
 

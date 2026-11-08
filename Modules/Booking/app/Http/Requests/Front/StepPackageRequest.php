@@ -27,6 +27,7 @@ final class StepPackageRequest extends FormRequest
         return [
             'package_id' => ['required', 'integer', 'exists:packages,id'],
             'hourly' => ['nullable', 'array'],
+            'people' => ['nullable', 'array'],
         ];
     }
 
@@ -34,7 +35,18 @@ final class StepPackageRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
-                if ($validator->errors()->has('package_id') || ($package = $this->package()) === null || ! $package->isHourly()) {
+                if ($validator->errors()->has('package_id') || ($package = $this->package()) === null) {
+                    return;
+                }
+
+                // A group-priced package needs a group size it has a price for.
+                if ($package->isGroupPriced() && ! $package->hasPriceForPeople($this->peopleChoice())) {
+                    $validator->errors()->add('package_id', __('core::front.booking_people_not_available'));
+
+                    return;
+                }
+
+                if (! $package->isHourly()) {
                     return;
                 }
 
@@ -51,6 +63,14 @@ final class StepPackageRequest extends FormRequest
     public function package(): ?Package
     {
         return Package::query()->find($this->integer('package_id'));
+    }
+
+    /** The chosen package's group size (`people[<package id>]`); 0 when none was sent. */
+    public function peopleChoice(): int
+    {
+        $people = $this->input('people.'.$this->integer('package_id'));
+
+        return is_numeric($people) ? (int) $people : 0;
     }
 
     /**

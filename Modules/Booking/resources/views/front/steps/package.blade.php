@@ -61,10 +61,20 @@
                                     <h2 style="font-size:var(--font-size-lg);">{{ $package->name }}</h2>
                                     <p class="text-muted">{{ \Illuminate\Support\Str::limit(strip_tags((string) $package->description), 110) }}</p>
                                     @if ($package->pricingTiers->isNotEmpty())
-                                        <p><strong>{{ __('core::front.packages_from') }} {{ $package->pricingTiers->first()->displayPrice() }}</strong> {{ __($package->priceSuffixKey()) }}</p>
+                                        <p>@include('package::front._from-price', ['package' => $package])</p>
                                     @endif
                                     @include('package::front._offer-flag', ['package' => $package])
                                     @include('package::front._km-allowance', ['package' => $package])
+                                    @if ($package->isGroupPriced() && ! $full)
+                                        @php $chosenPeople = (int) old('people.'.$package->id, ($state['package_id'] ?? null) == $package->id ? ($state['people'] ?? 0) : 0); @endphp
+                                        <div class="hourly-picker">
+                                            <select name="people[{{ $package->id }}]" aria-label="{{ __('core::front.booking_people') }}">
+                                                @foreach ($package->groupSizes() as $size)
+                                                    <option value="{{ $size }}" @selected($chosenPeople === $size)>{{ __('core::front.booking_people') }}: {{ $size }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    @endif
                                     @if ($package->isHourly() && ! $full)
                                         @php $chosen = old('hourly.'.$package->id, ($state['package_id'] ?? null) == $package->id ? ['start_time' => $state['start_time'] ?? null, 'hours' => $state['hours'] ?? null] : []); @endphp
                                         <div class="hourly-picker">

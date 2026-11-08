@@ -291,6 +291,7 @@ return [
 
     // Product categories, hourly and km-allowance packages.
     'packages_per_hour' => '/ час',
+    'packages_for_hours' => 'за :hours ч',
     'packages_per_person' => '/ человек',
     'packages_per_week' => '/ неделя',
     'packages_per_month' => '/ месяц',
@@ -340,6 +341,9 @@ return [
     'transfer_pickup_time' => 'Подача',
     'transfer_flight_number' => 'Номер рейса',
     'transfer_area' => 'Район назначения',
+    'transfer_area_optional' => 'Район назначения (необязательно)',
+    'transfer_area_none' => 'Нет в списке / не уверен',
+    'transfer_area_needed' => 'Пожалуйста, выберите район назначения: от него зависит цена поездки.',
     'transfer_address' => 'Отель / адрес высадки',
     'transfer_address_pickup' => 'Отель / адрес подачи',
     'transfer_address_placeholder' => 'Название отеля, улица, город',

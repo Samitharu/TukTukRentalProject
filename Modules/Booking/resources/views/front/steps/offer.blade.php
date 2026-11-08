@@ -21,6 +21,18 @@
             <form class="booking-panel" method="POST" action="{{ $offer ? route('booking.offer.store', ['offer' => $offer->id]) : route('booking.add.store', ['package' => $offered->id]) }}" novalidate>
                 @csrf
 
+                @if ($offered->isGroupPriced())
+                    <div class="field">
+                        <label for="people">{{ __('core::front.booking_people') }}</label>
+                        <select id="people" name="offer[people]" required>
+                            @foreach ($offered->groupSizes() as $size)
+                                <option value="{{ $size }}" @selected((int) $value('people') === $size)>{{ $size }}</option>
+                            @endforeach
+                        </select>
+                        @error('offer.people')<p class="field-error">{{ $message }}</p>@enderror
+                    </div>
+                @endif
+
                 @if ($offered->isTransfer())
                     <fieldset class="field choice-group">
                         <legend>{{ __('core::front.transfer_direction') }}</legend>
@@ -59,9 +71,9 @@
                     </div>
 
                     <div class="field">
-                        <label for="transfer_area_id">{{ __('core::front.transfer_area') }}</label>
-                        <select id="transfer_area_id" name="offer[transfer_area_id]" required>
-                            <option value="">&nbsp;</option>
+                        <label for="transfer_area_id">{{ __('core::front.transfer_area_optional') }}</label>
+                        <select id="transfer_area_id" name="offer[transfer_area_id]">
+                            <option value="">{{ __('core::front.transfer_area_none') }}</option>
                             @foreach ($transferAreas as $area)
                                 <option value="{{ $area->id }}" @selected((string) $value('transfer_area_id') === (string) $area->id)>{{ $area->name }} — {{ $area->displayPrice() }}</option>
                             @endforeach

@@ -36,7 +36,8 @@
         </div>
     @endif
 
-    <details class="admin-card" @if ($usesLengthPrices) open @endif>
+    {{-- A group-priced package's rows are edited in the form above. --}}
+    <details class="admin-card" @if ($usesLengthPrices) open @endif @if ($package->group_pricing) hidden @endif>
         <summary style="cursor:pointer;font-weight:600;">{{ __('Prices by rental length (advanced)') }}</summary>
         <p class="admin-hint">{{ __('Only if longer rentals get a different price, e.g. 1–3 days 25, 4+ days 20. Otherwise just use the price in the form above.') }}</p>
         <table class="admin-table">

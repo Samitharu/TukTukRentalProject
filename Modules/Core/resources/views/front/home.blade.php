@@ -88,9 +88,7 @@
                             @include('package::front._offer-flag', ['package' => $package])
                             <div class="package-feature__meta">
                                 <span class="package-feature__price">
-                                    {{ __('core::front.packages_from') }}
-                                    <strong>{{ optional($package->pricingTiers->first())->displayPrice() }}</strong>
-                                    {{ __($package->priceSuffixKey()) }}
+                                    @include('package::front._from-price', ['package' => $package])
                                 </span>
                                 <a href="{{ route('packages.show', $package->slugFor(app()->getLocale()) ?? $package->id) }}" class="btn btn--secondary">
                                     {{ __('core::front.packages_view_details') }}

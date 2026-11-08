@@ -372,12 +372,17 @@ final class Booking extends Model
                 : '');
         }
 
+        // A package priced by group size also says how many people it is for.
+        $people = $this->people() !== null
+            ? ', '.trans_choice('core::front.booking_people_count', $this->people(), ['count' => $this->people()])
+            : '';
+
         if ($this->isHourly()) {
             return $this->start_at->format($dateFormat).', '.$this->start_at->format('H:i').'–'.$this->end_at->format('H:i')
-                .' ('.trans_choice('core::front.booking_hours_count', (int) $this->hours(), ['count' => $this->hours()]).')';
+                .' ('.trans_choice('core::front.booking_hours_count', (int) $this->hours(), ['count' => $this->hours()]).$people.')';
         }
 
-        return $this->start_at->format($dateFormat).' → '.$this->end_at->format($dateFormat);
+        return $this->start_at->format($dateFormat).' → '.$this->end_at->format($dateFormat).($people !== '' ? ' ('.ltrim($people, ', ').')' : '');
     }
 
     /** The EUR total frozen at booking time; null on older bookings or when a price had no EUR. */

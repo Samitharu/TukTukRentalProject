@@ -41,15 +41,20 @@ final class PricingService
         // An hourly package is a single-day rental priced by the hour;
         // add-ons see it as the one day it is.
         $hours = $package->isHourly() ? max($hours ?? (int) $package->min_hours, 1) : null;
-        $people = $package->pricing_model === Package::MODEL_PER_PERSON ? max($people ?? 1, 1) : null;
+        $groupPriced = $package->isGroupPriced();
+        $people = $package->pricing_model === Package::MODEL_PER_PERSON || $groupPriced ? max($people ?? 1, 1) : null;
 
         $endDate = $startDate->addDays(max($days - 1, 0));
 
-        // Tiers count hours for an hourly package, people for a per-person one, days for any other.
-        $tier = $this->tierFor($package, $hours ?? $people ?? $days);
+        // Tiers count people for a group-priced or per-person package, hours
+        // for an hourly one, days for any other.
+        $tier = $this->tierFor($package, $groupPriced ? $people : ($hours ?? $people ?? $days));
         $season = $this->seasonFor($package, $startDate, $endDate);
 
-        $baseAmount = $this->baseAmount($package, (float) ($tier?->price ?? 0), $days, $hours ?? $people);
+        // A group's price is not multiplied by people: it is per hour for an
+        // hourly package, per day for a daily one, once for a fixed one.
+        $rateUnits = $groupPriced ? $hours : ($hours ?? $people);
+        $baseAmount = $this->baseAmount($package, (float) ($tier?->price ?? 0), $days, $rateUnits);
         $seasonalAdjustment = $season?->modifierFor($baseAmount) ?? 0.0;
         [$addonLines, $addonsTotal] = $this->calculateAddons($package, $addonSelections, $days);
         $deliveryFee = (float) ($deliveryZone?->extra_fee ?? 0);
@@ -73,7 +78,7 @@ final class PricingService
             depositAmount: $depositAmount,
             hours: $hours,
             transferFee: $transferFee,
-            eur: $this->eurAmounts($package, $tier, $season, $days, $hours ?? $people, $addonLines, $deliveryFee, $transferArea),
+            eur: $this->eurAmounts($package, $tier, $season, $days, $rateUnits, $addonLines, $deliveryFee, $transferArea),
             people: $people,
         );
     }
