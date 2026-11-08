@@ -324,6 +324,21 @@ final class Booking extends Model
         return $this->kind() === Package::KIND_ACTIVITY;
     }
 
+    /**
+     * Where an airport pickup goes: its destination area, or for the
+     * standard trip (no area chosen) the business's own town, "Negombo area".
+     */
+    public function destinationLabel(): string
+    {
+        return $this->transferArea?->name ?? self::standardDestination();
+    }
+
+    /** "Negombo area": where the standard airport trip goes, with no area chosen. */
+    public static function standardDestination(): string
+    {
+        return __('core::front.transfer_area_default', ['city' => config('core.business.city')]);
+    }
+
     /** People booked, for a package priced per person. From the price snapshot, like hours(). */
     public function people(): ?int
     {

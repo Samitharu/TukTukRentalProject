@@ -52,7 +52,7 @@
                         <td>{{ $package->is_featured ? __('Yes') : __('No') }}</td>
                         <td>
                             <a href="{{ route('admin.packages.edit', $package) }}">{{ __('Edit') }}</a>
-                            <form method="POST" action="{{ route('admin.packages.destroy', $package) }}" style="display:inline;" onsubmit="return confirm('{{ __('Remove this package?') }}');">
+                            <form method="POST" action="{{ route('admin.packages.destroy', $package) }}" style="display:inline;" data-confirm="{{ __('Remove this package?') }}">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" style="background:none;border:none;color:#b3261e;cursor:pointer;padding:0 0 0 0.5rem;">{{ __('Remove') }}</button>

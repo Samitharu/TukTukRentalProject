@@ -72,12 +72,13 @@
 
                     <div class="field">
                         <label for="transfer_area_id">{{ __('core::front.transfer_area_optional') }}</label>
-                        <select id="transfer_area_id" name="offer[transfer_area_id]">
-                            <option value="">{{ __('core::front.transfer_area_none') }}</option>
+                        <select id="transfer_area_id" name="offer[transfer_area_id]" aria-describedby="transfer_area_hint">
+                            <option value="">{{ __('core::front.transfer_area_none', ['city' => config('core.business.city')]) }}</option>
                             @foreach ($transferAreas as $area)
-                                <option value="{{ $area->id }}" @selected((string) $value('transfer_area_id') === (string) $area->id)>{{ $area->name }} — {{ $area->displayPrice() }}</option>
+                                <option value="{{ $area->id }}" @selected((string) $value('transfer_area_id') === (string) $area->id)>{{ __('core::front.transfer_area_option', ['area' => $area->name, 'price' => $area->displayPrice()]) }}</option>
                             @endforeach
                         </select>
+                        <p class="text-muted" id="transfer_area_hint" style="font-size:var(--font-size-sm);margin:0.35rem 0 0;">{{ __('core::front.transfer_area_hint', ['city' => config('core.business.city')]) }}</p>
                         @error('offer.transfer_area_id')<p class="field-error">{{ $message }}</p>@enderror
                     </div>
 

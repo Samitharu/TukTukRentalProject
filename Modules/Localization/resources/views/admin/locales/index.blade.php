@@ -33,7 +33,7 @@
                         <td>
                             <a href="{{ route('admin.locales.edit', $locale) }}">{{ __('Edit') }}</a>
                             @if (! $locale->is_default)
-                                <form method="POST" action="{{ route('admin.locales.destroy', $locale) }}" style="display:inline;" onsubmit="return confirm('{{ __('Remove this locale?') }}');">
+                                <form method="POST" action="{{ route('admin.locales.destroy', $locale) }}" style="display:inline;" data-confirm="{{ __('Remove this locale?') }}">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" style="background:none;border:none;color:#b3261e;cursor:pointer;padding:0 0 0 0.5rem;">{{ __('Remove') }}</button>

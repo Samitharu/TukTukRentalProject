@@ -22,10 +22,8 @@
                             <dt class="text-muted">{{ __('core::front.transfer_flight_number') }}</dt>
                             <dd>{{ $booking->flight_number }}</dd>
 
-                            @if ($booking->transferArea)
-                                <dt class="text-muted">{{ __('core::front.transfer_area') }}</dt>
-                                <dd>{{ $booking->transferArea->name }}</dd>
-                            @endif
+                            <dt class="text-muted">{{ __('core::front.transfer_area') }}</dt>
+                            <dd>{{ $booking->destinationLabel() }}</dd>
 
                             <dt class="text-muted">{{ __('core::front.transfer_address') }}</dt>
                             <dd>{{ $booking->transfer_address }}</dd>

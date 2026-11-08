@@ -16,7 +16,7 @@
                 @foreach ($package->galleryImages() as $image)
                     <figure>
                         <img src="{{ $image->url() }}" alt="">
-                        <form method="POST" action="{{ route('admin.packages.images.destroy', [$package, $image]) }}" onsubmit="return confirm('{{ __('Remove this photo?') }}');">
+                        <form method="POST" action="{{ route('admin.packages.images.destroy', [$package, $image]) }}" data-confirm="{{ __('Remove this photo?') }}">
                             @csrf
                             @method('DELETE')
                             <button type="submit" aria-label="{{ __('Remove this photo?') }}" style="position:absolute;top:2px;right:2px;background:#fff;border:1px solid #b3261e;color:#b3261e;border-radius:50%;width:24px;height:24px;cursor:pointer;">×</button>
@@ -63,7 +63,7 @@
                                 @method('PUT')
                                 <button type="submit" style="background:none;border:none;color:#0f6b4c;cursor:pointer;padding:0;">{{ __('Save') }}</button>
                             </form>
-                            <form method="POST" action="{{ route('admin.packages.pricing-tiers.destroy', [$package, $tier]) }}" style="display:inline;margin-left:0.5rem;" onsubmit="return confirm('{{ __('Remove this tier?') }}');">
+                            <form method="POST" action="{{ route('admin.packages.pricing-tiers.destroy', [$package, $tier]) }}" style="display:inline;margin-left:0.5rem;" data-confirm="{{ __('Remove this tier?') }}">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" style="background:none;border:none;color:#b3261e;cursor:pointer;padding:0;">{{ __('Remove') }}</button>
@@ -119,7 +119,7 @@
                         <td>{{ $season->ends_on->toDateString() }}</td>
                         <td>{{ $season->price_modifier_type === 'percent' ? $season->price_modifier_value.'%' : \Modules\Pricing\Support\Money::dual($season->price_modifier_value, $season->price_modifier_value_eur) }}</td>
                         <td>
-                            <form method="POST" action="{{ route('admin.packages.seasons.destroy', [$package, $season]) }}" onsubmit="return confirm('{{ __('Remove this season?') }}');">
+                            <form method="POST" action="{{ route('admin.packages.seasons.destroy', [$package, $season]) }}" data-confirm="{{ __('Remove this season?') }}">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" style="background:none;border:none;color:#b3261e;cursor:pointer;padding:0;">{{ __('Remove') }}</button>

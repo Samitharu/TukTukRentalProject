@@ -11,7 +11,7 @@
                         <td>{{ $page->is_published ? __('Yes') : __('No') }}</td>
                         <td>
                             <a href="{{ route('admin.pages.edit', $page) }}">{{ __('Edit') }}</a>
-                            <form method="POST" action="{{ route('admin.pages.destroy', $page) }}" style="display:inline;" onsubmit="return confirm('{{ __('Remove this page?') }}');">
+                            <form method="POST" action="{{ route('admin.pages.destroy', $page) }}" style="display:inline;" data-confirm="{{ __('Remove this page?') }}">
                                 @csrf @method('DELETE')
                                 <button type="submit" style="background:none;border:none;color:#b3261e;cursor:pointer;padding:0 0 0 0.5rem;">{{ __('Remove') }}</button>
                             </form>

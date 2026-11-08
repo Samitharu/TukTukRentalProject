@@ -14,7 +14,7 @@
                                 @csrf
                                 <button type="submit" style="background:none;border:none;color:#0f6b4c;cursor:pointer;">{{ $r->is_approved ? __('Unapprove') : __('Approve') }}</button>
                             </form>
-                            <form method="POST" action="{{ route('admin.reviews.destroy', $r) }}" style="display:inline;" onsubmit="return confirm('{{ __('Remove?') }}');">
+                            <form method="POST" action="{{ route('admin.reviews.destroy', $r) }}" style="display:inline;" data-confirm="{{ __('Remove?') }}">
                                 @csrf @method('DELETE')
                                 <button type="submit" style="background:none;border:none;color:#b3261e;cursor:pointer;">{{ __('Remove') }}</button>
                             </form>

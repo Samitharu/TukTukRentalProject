@@ -28,7 +28,7 @@
                                 <a href="{{ route('admin.package-categories.edit', $category) }}">{{ __('Edit') }}</a>
                             @endcan
                             @can('delete', $category)
-                                <form method="POST" action="{{ route('admin.package-categories.destroy', $category) }}" style="display:inline;" onsubmit="return confirm('{{ __('Remove this category?') }}');">
+                                <form method="POST" action="{{ route('admin.package-categories.destroy', $category) }}" style="display:inline;" data-confirm="{{ __('Remove this category?') }}">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" style="background:none;border:none;color:#b3261e;cursor:pointer;padding:0 0 0 0.5rem;">{{ __('Remove') }}</button>

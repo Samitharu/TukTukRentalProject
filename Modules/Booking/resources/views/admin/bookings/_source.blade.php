@@ -22,7 +22,7 @@
                 <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Unblock IP') }}</button>
             </form>
         @else
-            <form method="POST" action="{{ route('admin.bookings.block-ip', $booking) }}" onsubmit="return confirm('{{ __('Block this IP from booking online for :days days? Existing bookings are not cancelled.', ['days' => config('booking.block_ip_days')]) }}');">
+            <form method="POST" action="{{ route('admin.bookings.block-ip', $booking) }}" data-confirm="{{ __('Block this IP from booking online for :days days? Existing bookings are not cancelled.', ['days' => config('booking.block_ip_days')]) }}">
                 @csrf
                 <button type="submit" class="admin-btn admin-btn--danger">{{ __('Block IP from booking online') }}</button>
                 <span class="admin-hint">{{ __('Blocked visitors are asked to contact you instead. Mobile networks share IPs, so the block expires after :days days.', ['days' => config('booking.block_ip_days')]) }}</span>
@@ -33,7 +33,7 @@
 
 @if ($related->isNotEmpty())
     <div class="admin-card" style="padding:0;">
-        <form method="POST" action="{{ route('admin.bookings.cancel-related', $booking) }}" onsubmit="return confirm('{{ __('Cancel all ticked bookings?') }}');">
+        <form method="POST" action="{{ route('admin.bookings.cancel-related', $booking) }}" data-confirm="{{ __('Cancel all ticked bookings?') }}">
             @csrf
             <div style="padding:var(--admin-space-3) var(--admin-space-3) 0;">
                 <h2 style="margin-top:0;">{{ __('Related upcoming bookings (:count)', ['count' => $related->count()]) }}</h2>

@@ -99,4 +99,7 @@
             {{ $slot }}
         </div>
     </div>
+
+    {{-- Asks "Are you sure?" for every <form data-confirm="…">. --}}
+    <script src="{{ asset_v('assets/js/admin-confirm.js') }}" defer nonce="{{ csp_nonce() }}"></script>
 </x-core::layouts.master>

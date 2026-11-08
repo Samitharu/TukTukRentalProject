@@ -11,7 +11,7 @@
                         <td>{{ $faq->is_active ? __('Yes') : __('No') }}</td>
                         <td>
                             <a href="{{ route('admin.faqs.edit', $faq) }}">{{ __('Edit') }}</a>
-                            <form method="POST" action="{{ route('admin.faqs.destroy', $faq) }}" style="display:inline;" onsubmit="return confirm('{{ __('Remove this FAQ?') }}');">
+                            <form method="POST" action="{{ route('admin.faqs.destroy', $faq) }}" style="display:inline;" data-confirm="{{ __('Remove this FAQ?') }}">
                                 @csrf @method('DELETE')
                                 <button type="submit" style="background:none;border:none;color:#b3261e;cursor:pointer;padding:0 0 0 0.5rem;">{{ __('Remove') }}</button>
                             </form>

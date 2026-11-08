@@ -17,7 +17,7 @@
             <p><strong>{{ __('Airport pickup') }}:</strong> {{ $booking->transfer_direction === 'departure' ? __('Address → airport (departure)') : __('Airport → address (arrival)') }}</p>
             <p><strong>{{ __('Pickup time') }}:</strong> {{ $booking->start_at->format('Y-m-d H:i') }}</p>
             <p><strong>{{ __('Flight number') }}:</strong> {{ $booking->flight_number }}</p>
-            <p><strong>{{ __('Destination area') }}:</strong> {{ $booking->transferArea?->name ?? '—' }}</p>
+            <p><strong>{{ __('Destination') }}:</strong> {{ $booking->destinationLabel() }}</p>
             <p><strong>{{ __('Hotel / address') }}:</strong> {{ $booking->transfer_address }}</p>
         @elseif ($booking->isStay())
             <p><strong>{{ __('Check-in') }}:</strong> {{ $booking->start_at->format('Y-m-d') }}</p>
@@ -83,7 +83,7 @@
             @endif
 
             @if (in_array($booking->status, [\Modules\Booking\Models\Booking::STATUS_HOLD, \Modules\Booking\Models\Booking::STATUS_PENDING_PAYMENT, \Modules\Booking\Models\Booking::STATUS_CONFIRMED], true))
-                <form method="POST" action="{{ route('admin.bookings.cancel', $booking) }}" style="display:inline;" onsubmit="return confirm('{{ __('Cancel this booking?') }}');">
+                <form method="POST" action="{{ route('admin.bookings.cancel', $booking) }}" style="display:inline;" data-confirm="{{ __('Cancel this booking?') }}">
                     @csrf
                     <input type="hidden" name="reason" value="{{ __('Cancelled by admin') }}">
                     <button type="submit" class="admin-btn admin-btn--danger">{{ __('Cancel booking') }}</button>

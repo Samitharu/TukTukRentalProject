@@ -28,15 +28,6 @@
                     <button type="submit" class="admin-btn admin-btn--danger">{{ __('Remove') }}</button>
                 </form>
             </div>
-
-            {{-- An inline onsubmit="" would be blocked by the Content-Security-Policy; a nonced script is allowed. --}}
-            <script nonce="{{ csp_nonce() }}">
-                document.querySelector('[data-confirm]').addEventListener('submit', function (event) {
-                    if (!window.confirm(event.target.getAttribute('data-confirm'))) {
-                        event.preventDefault();
-                    }
-                });
-            </script>
         @endcan
     </div>
 </x-admin::layouts.app>

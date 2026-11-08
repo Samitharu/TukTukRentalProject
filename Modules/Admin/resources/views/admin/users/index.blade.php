@@ -26,7 +26,7 @@
                                 <a href="{{ route('admin.users.edit', $user) }}">{{ __('Edit') }}</a>
                             @endcan
                             @can('delete', $user)
-                                <form method="POST" action="{{ route('admin.users.destroy', $user) }}" style="display:inline;" onsubmit="return confirm('{{ __('Remove this user?') }}');">
+                                <form method="POST" action="{{ route('admin.users.destroy', $user) }}" style="display:inline;" data-confirm="{{ __('Remove this user?') }}">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" style="background:none;border:none;color:#b3261e;cursor:pointer;padding:0 0 0 0.5rem;">{{ __('Remove') }}</button>

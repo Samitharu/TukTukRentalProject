@@ -119,9 +119,9 @@
                         <input type="text" id="flight_number" name="flight_number" value="{{ old('flight_number') }}" maxlength="10" placeholder="UL 504">
                     </div>
                     <div>
-                        <label for="transfer_area_id">{{ __('Destination area') }}</label>
+                        <label for="transfer_area_id">{{ __('Destination') }}</label>
                         <select id="transfer_area_id" name="transfer_area_id">
-                            <option value="">{{ __('— Select —') }}</option>
+                            <option value="">{{ __(':area (standard trip, package price only)', ['area' => \Modules\Booking\Models\Booking::standardDestination()]) }}</option>
                             @foreach ($transferAreas as $area)
                                 <option value="{{ $area->id }}" @selected(old('transfer_area_id') == $area->id)>{{ $area->name }} (+{{ $area->displayPrice() }})</option>
                             @endforeach
@@ -252,9 +252,9 @@
                                 <input type="text" id="offer_flight_number" name="offer[flight_number]" value="{{ old('offer.flight_number') }}" maxlength="10" placeholder="UL 504">
                             </div>
                             <div class="admin-form-field">
-                                <label for="offer_transfer_area_id">{{ __('Destination area') }}</label>
+                                <label for="offer_transfer_area_id">{{ __('Destination') }}</label>
                                 <select id="offer_transfer_area_id" name="offer[transfer_area_id]">
-                                    <option value="">{{ __('— Select —') }}</option>
+                                    <option value="">{{ __(':area (standard trip, package price only)', ['area' => \Modules\Booking\Models\Booking::standardDestination()]) }}</option>
                                     @foreach ($transferAreas as $area)
                                         <option value="{{ $area->id }}" @selected(old('offer.transfer_area_id') == $area->id)>{{ $area->name }} (+{{ $area->displayPrice() }})</option>
                                     @endforeach

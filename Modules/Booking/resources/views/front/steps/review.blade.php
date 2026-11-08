@@ -98,7 +98,7 @@
                     </h2>
                     @if ($isTransfer)
                         <p>{{ \Illuminate\Support\Carbon::parse($state['start_date'])->format('d M Y') }}, {{ $state['transfer_time'] }} &middot; {{ __($state['transfer_direction'] === 'departure' ? 'core::front.transfer_departure' : 'core::front.transfer_arrival') }}</p>
-                        <p class="text-muted">{{ __('core::front.transfer_flight_number') }}: {{ $state['flight_number'] }}@if ($transferArea) &middot; {{ $transferArea->name }}@endif &middot; {{ $state['transfer_address'] }}</p>
+                        <p class="text-muted">{{ __('core::front.transfer_flight_number') }}: {{ $state['flight_number'] }} &middot; {{ $transferArea?->name ?? \Modules\Booking\Models\Booking::standardDestination() }} &middot; {{ $state['transfer_address'] }}</p>
                     @elseif ($isStay)
                         @php
                             $checkIn = \Illuminate\Support\Carbon::parse($state['start_date']);

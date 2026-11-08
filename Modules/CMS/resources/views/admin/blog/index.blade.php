@@ -10,7 +10,7 @@
                         <td>{{ $post->is_published ? __('Yes') : __('No') }}</td>
                         <td>
                             <a href="{{ route('admin.blog.edit', $post) }}">{{ __('Edit') }}</a>
-                            <form method="POST" action="{{ route('admin.blog.destroy', $post) }}" style="display:inline;" onsubmit="return confirm('{{ __('Remove this post?') }}');">
+                            <form method="POST" action="{{ route('admin.blog.destroy', $post) }}" style="display:inline;" data-confirm="{{ __('Remove this post?') }}">
                                 @csrf @method('DELETE')
                                 <button type="submit" style="background:none;border:none;color:#b3261e;cursor:pointer;padding:0 0 0 0.5rem;">{{ __('Remove') }}</button>
                             </form>

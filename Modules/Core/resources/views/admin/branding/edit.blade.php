@@ -7,7 +7,7 @@
             <div style="margin-bottom:1rem;">
                 <img src="{{ $settings->logoUrl() }}" alt="" style="max-height:60px;background:#16231d;padding:0.5rem;border-radius:0.5rem;">
             </div>
-            <form method="POST" action="{{ route('admin.branding.logo.destroy') }}" onsubmit="return confirm('{{ __('Remove the logo and go back to the text brand name?') }}');" style="margin-bottom:1rem;">
+            <form method="POST" action="{{ route('admin.branding.logo.destroy') }}" data-confirm="{{ __('Remove the logo and go back to the text brand name?') }}" style="margin-bottom:1rem;">
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Remove logo') }}</button>
@@ -33,7 +33,7 @@
             <div style="margin-bottom:1rem;">
                 <img src="{{ $settings->heroImageUrl() }}" alt="" style="max-width:320px;border-radius:0.5rem;">
             </div>
-            <form method="POST" action="{{ route('admin.branding.hero-image.destroy') }}" onsubmit="return confirm('{{ __('Remove the hero image?') }}');" style="margin-bottom:1rem;">
+            <form method="POST" action="{{ route('admin.branding.hero-image.destroy') }}" data-confirm="{{ __('Remove the hero image?') }}" style="margin-bottom:1rem;">
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="admin-btn admin-btn--secondary">{{ __('Remove hero image') }}</button>

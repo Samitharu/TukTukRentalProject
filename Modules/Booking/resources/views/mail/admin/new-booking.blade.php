@@ -26,7 +26,7 @@
 @if ($booking->isTransfer())
 | **{{ __('Direction') }}** | {{ $booking->transfer_direction === 'departure' ? __('Address → airport (departure)') : __('Airport → address (arrival)') }} |
 | **{{ __('Flight') }}** | {{ $md($booking->flight_number) }} |
-| **{{ __('Area') }}** | {{ $md($booking->transferArea?->name ?? '—') }} |
+| **{{ __('Destination') }}** | {{ $md($booking->destinationLabel()) }} |
 | **{{ __('Address') }}** | {{ $md($booking->transfer_address) }} |
 | **{{ __('Service') }}** | {{ $booking->serviceLabel() }} |
 | **{{ __('Package') }}** | {{ $booking->package?->name ?? '—' }} |

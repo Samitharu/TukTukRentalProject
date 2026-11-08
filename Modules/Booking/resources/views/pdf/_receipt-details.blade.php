@@ -13,9 +13,7 @@
         <tr><td class="k">{{ __('core::front.transfer_direction') }}</td><td>{{ $booking->transferRouteLabel() }}</td></tr>
         <tr><td class="k">{{ __('core::front.transfer_pickup_time') }}</td><td>{{ $booking->rentalPeriod() }}</td></tr>
         <tr><td class="k">{{ __('core::front.transfer_flight_number') }}</td><td>{{ $booking->flight_number }}</td></tr>
-        @if ($booking->transferArea)
-            <tr><td class="k">{{ __('core::front.transfer_area') }}</td><td>{{ $booking->transferArea->name }}</td></tr>
-        @endif
+        <tr><td class="k">{{ __('core::front.transfer_area') }}</td><td>{{ $booking->destinationLabel() }}</td></tr>
         <tr><td class="k">{{ __('core::front.transfer_address') }}</td><td>{{ $booking->transfer_address }}</td></tr>
         @if ($booking->package)
             <tr><td class="k">{{ __('core::front.booking_review_package') }}</td><td>{{ $booking->package->name }}</td></tr>

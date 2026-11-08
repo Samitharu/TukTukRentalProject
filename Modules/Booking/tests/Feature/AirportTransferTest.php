@@ -256,8 +256,14 @@ it('lets staff book an airport pickup and move it to another time', function ():
 
 // ---- Destination area is optional ------------------------------------------------
 
-it('books an airport pickup online without a destination area, at the package price', function (): void {
-    $this->get('/en/booking/start?line='.$this->line->id)->assertOk()->assertSee('Destination area (optional)')->assertSee('Not listed / not sure');
+it('books the standard airport trip to the business town without an area, at the package price', function (): void {
+    config(['core.business.city' => 'Negombo']);
+
+    $this->get('/en/booking/start?line='.$this->line->id)->assertOk()
+        ->assertSee('<label for="transfer_area_id">Destination</label>', false)
+        ->assertSee('<option value="">Negombo area (included in the price)</option>', false)
+        ->assertSee('Negombo (+$25.00)')
+        ->assertSee('Going further than the Negombo area? Choose your destination: its price is added to the trip.');
 
     $this->post('/en/booking/start', transferStep1(['transfer_area_id' => '']))->assertSessionHasNoErrors()->assertRedirect('/en/booking/package');
     $this->post('/en/booking/package', ['package_id' => $this->package->id])->assertRedirect('/en/booking/addons');
@@ -267,7 +273,7 @@ it('books an airport pickup online without a destination area, at the package pr
         'nationality' => 'PT', 'passport_number' => 'X1', 'marketing_opt_in' => '0',
     ])->assertRedirect('/en/booking/review');
 
-    $this->get('/en/booking/review')->assertOk()->assertSee('UL504')->assertDontSee('Negombo &middot;', false);
+    $this->get('/en/booking/review')->assertOk()->assertSee('UL504 &middot; Negombo area &middot; Jetwing Blue, Negombo', false);
     $this->post('/en/booking/confirm', ['terms_accepted' => '1'])->assertRedirect();
 
     $booking = Booking::query()->sole();
@@ -277,8 +283,16 @@ it('books an airport pickup online without a destination area, at the package pr
         ->and((float) $booking->total_amount)->toBe(10.0)
         ->and($booking->end_at->format('Y-m-d H:i'))->toBe('2027-03-10 16:30'); // the 2-hour trip length without an area
 
-    $this->get('/en/booking/confirmation/'.$booking->reference)->assertOk()->assertDontSee('Destination area');
+    expect($booking->destinationLabel())->toBe('Negombo area');
+    $this->get('/en/booking/confirmation/'.$booking->reference)->assertOk()->assertSeeInOrder(['Destination area', 'Negombo area']);
     $this->get('/en/booking/confirmation/'.$booking->reference.'/receipt')->assertOk();
+    expect(view('booking::pdf.receipt', ['booking' => $booking, 'statusQrCode' => ''])->render())->toContain('Negombo area');
+});
+
+it('names the chosen area wherever a trip with one is shown', function (): void {
+    $booking = bookTrip($this, '2027-03-10 14:30:00', '2027-03-10 16:00:00');
+
+    expect($booking->destinationLabel())->toBe('Negombo');
 });
 
 it('still needs the area when the package has no price of its own', function (): void {

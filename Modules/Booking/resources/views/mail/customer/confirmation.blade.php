@@ -27,7 +27,7 @@
 | **{{ __('core::front.transfer_direction') }}** | {{ $booking->transferRouteLabel() }} |
 | **{{ __('core::front.transfer_pickup_time') }}** | {{ $booking->start_at->translatedFormat('D j M Y') }}, {{ $booking->start_at->format('H:i') }} |
 | **{{ __('core::front.transfer_flight_number') }}** | {{ $md($booking->flight_number) }} |
-| **{{ __('core::front.transfer_area') }}** | {{ $md($booking->transferArea?->name ?? '—') }} |
+| **{{ __('core::front.transfer_area') }}** | {{ $md($booking->destinationLabel()) }} |
 | **{{ __('core::front.transfer_address') }}** | {{ $md($booking->transfer_address) }} |
 @if ($booking->vehicle)
 | **{{ __('core::front.booking_status_vehicle') }}** | {{ $md($booking->vehicle->name) }} |
