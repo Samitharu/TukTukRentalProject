@@ -114,6 +114,8 @@ final class Booking extends Model
         'transfer_area_id',
         'linked_booking_id',
         'has_international_permit',
+        'licence_documents_required',
+        'licence_documents_received_at',
         'special_requests',
         'start_at',
         'end_at',
@@ -136,10 +138,45 @@ final class Booking extends Model
         'passport_key',
     ];
 
+    protected static function booted(): void
+    {
+        // Copied from the package when booked, so changing the package later
+        // never changes what an existing booking asked of the customer.
+        static::creating(function (self $booking): void {
+            if (! $booking->isDirty('licence_documents_required') && $booking->package_id !== null) {
+                $booking->licence_documents_required = (bool) Package::query()->whereKey($booking->package_id)->value('requires_licence_documents');
+            }
+        });
+    }
+
+    /** The customer still has to send their driving licence for this booking. */
+    public function awaitsLicenceDocuments(): bool
+    {
+        return $this->licence_documents_required
+            && $this->licence_documents_received_at === null
+            && ! in_array($this->status, [self::STATUS_CANCELLED, self::STATUS_COMPLETED, self::STATUS_NO_SHOW], true);
+    }
+
+    /** A WhatsApp chat with the business, the message already naming the booking. */
+    public function licenceWhatsAppUrl(): string
+    {
+        return 'https://wa.me/'.config('core.business.whatsapp')
+            .'?text='.rawurlencode(__('core::front.licence_whatsapp_text', ['reference' => $this->reference]));
+    }
+
+    /** An email to the business, the subject naming the booking. */
+    public function licenceEmailUrl(): string
+    {
+        return 'mailto:'.config('core.business.email')
+            .'?subject='.rawurlencode(__('core::front.licence_email_subject', ['reference' => $this->reference]));
+    }
+
     protected function casts(): array
     {
         return [
             'has_international_permit' => 'boolean',
+            'licence_documents_required' => 'boolean',
+            'licence_documents_received_at' => 'datetime',
             'start_at' => 'datetime',
             'end_at' => 'datetime',
             'price_breakdown' => 'array',

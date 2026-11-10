@@ -63,6 +63,10 @@
 **{{ __('Add-ons') }}:** {{ $booking->addons->map(fn ($line) => ($line->addon?->name ?? '#'.$line->addon_id).' × '.$line->quantity)->implode(', ') }}
 @endif
 
+@if ($booking->licence_documents_required)
+**{{ __('Driving licence') }}:** {{ __('the customer agreed to send it by WhatsApp or email for the Sri Lankan permit. Mark it received on the booking once it arrives.') }}
+
+@endif
 @if (filled($booking->special_requests))
 <x-mail::panel>
 **{{ __('Special requests') }}:** {{ $md($booking->special_requests) }}

@@ -2607,6 +2607,16 @@ html:has(.gallery[open]) { overflow: hidden; }
 
 .alert--error { border: 1px solid #f2c6c3; }
 
+/* "Driving licence needed": stands out from the package's small print. */
+.package-terms .licence-notice { color: #8a5300; }
+
+.licence-accept {
+    padding: var(--space-3);
+    border: 1px solid #f6d79b;
+    border-radius: var(--radius-sm);
+    background: #fff6e5;
+}
+
 .alert--icon {
     display: flex;
     align-items: flex-start;

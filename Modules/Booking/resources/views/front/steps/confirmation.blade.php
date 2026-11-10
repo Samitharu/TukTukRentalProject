@@ -6,6 +6,8 @@
                 <p>{{ __('core::front.booking_confirmation_intro') }}</p>
             </div>
 
+            @include('booking::front.steps._licence-next-step', ['booking' => $booking])
+
             <div class="card" style="margin-bottom:var(--space-4);">
                 <div class="card__body">
                     <p class="text-muted" style="margin-bottom:0;">{{ __('core::front.booking_confirmation_reference') }}</p>

@@ -20,6 +20,16 @@
 {{ __('core::front.booking_confirmation_reference') }}: **{{ $booking->reference }}**
 </x-mail::panel>
 
+@php $licenceBooking = $booking->checkoutBookings()->first(fn ($item) => $item->licence_documents_required && $item->status !== $item::STATUS_CANCELLED); @endphp
+@if ($licenceBooking?->awaitsLicenceDocuments())
+## {{ __('core::front.licence_next_title') }}
+
+{{ __('core::front.licence_next_text', ['reference' => $licenceBooking->reference]) }}
+
+[{{ __('core::front.licence_send_whatsapp') }}]({{ $licenceBooking->licenceWhatsAppUrl() }}) · [{{ __('core::front.licence_send_email') }}]({{ $licenceBooking->licenceEmailUrl() }}) ({{ config('core.business.email') }})
+
+@endif
+
 <x-mail::table>
 | | |
 |:--|:--|

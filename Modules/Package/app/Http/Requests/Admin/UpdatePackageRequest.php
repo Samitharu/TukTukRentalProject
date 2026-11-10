@@ -33,6 +33,7 @@ final class UpdatePackageRequest extends FormRequest
             'deposit_is_percent' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
             'is_featured' => ['sometimes', 'boolean'],
+            'requires_licence_documents' => ['sometimes', 'boolean'],
             'sort_order' => ['required', 'integer', 'min:0'],
             'valid_from' => ['nullable', 'date'],
             'valid_until' => ['nullable', 'date', 'after_or_equal:valid_from'],

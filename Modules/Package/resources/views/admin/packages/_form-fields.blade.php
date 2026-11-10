@@ -168,6 +168,12 @@
     <label><input type="checkbox" name="is_active" value="1" @checked(old('is_active', $package?->is_active ?? true))> {{ __('Show on the website') }}</label>
 </div>
 
+{{-- Ticked by default for a new rental; after an error, as it was left (an unticked box sends nothing). --}}
+<div class="admin-form-field" data-package-kind="vehicle" @if ($selectedKind !== Package::KIND_VEHICLE) hidden @endif>
+    <label><input type="checkbox" name="requires_licence_documents" value="1" @checked(session()->hasOldInput() ? (bool) old('requires_licence_documents') : ($package?->requires_licence_documents ?? true))> {{ __('Customer must send their driving licence after booking (for the Sri Lankan driving permit)') }}</label>
+    <p class="admin-hint">{{ __('Customers must agree to send it before they can book, and are shown how to send it by WhatsApp or email. Untick it for a package where our driver drives, such as a guided tour.') }}</p>
+</div>
+
 <div class="admin-form-field">
     <label for="cover_image">{{ $package?->images->isNotEmpty() ? __('New cover image') : __('Cover image') }}</label>
     <input type="file" id="cover_image" name="cover_image" accept="image/jpeg,image/png,image/webp">

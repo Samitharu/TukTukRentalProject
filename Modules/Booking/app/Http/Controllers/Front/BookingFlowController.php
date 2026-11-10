@@ -308,6 +308,7 @@ final class BookingFlowController extends Controller
         $billsEur = $bills->map(fn (PriceBreakdown $bill) => $bill->eur['total'] ?? null);
 
         return view('booking::front.steps.review', [
+            'needsLicence' => $this->checkoutNeedsLicence(),
             'state' => $state,
             'isStay' => BookingFlowState::isStay(),
             'isTransfer' => BookingFlowState::isTransfer(),
@@ -443,6 +444,10 @@ final class BookingFlowController extends Controller
 
         $request->validate([
             'terms_accepted' => ['accepted'],
+            // A tuk tuk can't be driven until the Sri Lankan permit is arranged from the licence.
+            'licence_documents_accepted' => $this->checkoutNeedsLicence() ? ['accepted'] : ['nullable'],
+        ], [
+            'licence_documents_accepted.accepted' => __('core::front.licence_accept_required'),
         ]);
 
         // Staff blocked this IP from a spam booking (admin booking page).
@@ -862,6 +867,22 @@ final class BookingFlowController extends Controller
         $chosen = BookingFlowState::value('offer');
 
         return is_array($chosen) ? $this->availableOffer((int) ($chosen['offer_id'] ?? 0)) : null;
+    }
+
+    /**
+     * Whether any package in this checkout (the main one, one taken through
+     * an offer, or one added at review) needs the customer to send their
+     * driving licence after booking.
+     */
+    private function checkoutNeedsLicence(): bool
+    {
+        $packageIds = array_filter([
+            BookingFlowState::value('package_id'),
+            $this->chosenOffer()?->offered_package_id,
+            ...array_keys(BookingFlowState::value('extras') ?? []),
+        ]);
+
+        return Package::query()->whereKey($packageIds)->where('requires_licence_documents', true)->exists();
     }
 
     /**

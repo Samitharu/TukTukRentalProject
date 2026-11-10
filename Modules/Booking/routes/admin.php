@@ -27,4 +27,5 @@ Route::prefix('bookings')->name('bookings.')->group(function (): void {
     Route::put('/{booking}/dates', [BookingActionController::class, 'changeDates'])->name('dates.update');
     Route::put('/{booking}/vehicle', [BookingActionController::class, 'reassignVehicle'])->name('vehicle.update');
     Route::put('/{booking}/odometer', [BookingActionController::class, 'recordOdometer'])->name('odometer.update');
+    Route::put('/{booking}/licence', [BookingActionController::class, 'licenceDocuments'])->name('licence.update');
 });

@@ -41,6 +41,9 @@
                             @if (isset($flags[$booking->id]))
                                 <span class="admin-badge admin-badge--warn" title="{{ implode(', ', array_map('__', $flags[$booking->id])) }}">⚠ {{ __('Suspicious') }}</span>
                             @endif
+                            @if ($booking->awaitsLicenceDocuments())
+                                <span class="admin-badge admin-badge--warn" title="{{ __('The customer has not sent their driving licence yet.') }}">{{ __('Licence pending') }}</span>
+                            @endif
                         </td>
                         <td>{{ $booking->customer->full_name }}</td>
                         <td>{{ $booking->serviceLabel() }}</td>

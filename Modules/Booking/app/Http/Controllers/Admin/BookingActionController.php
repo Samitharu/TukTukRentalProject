@@ -104,6 +104,19 @@ final class BookingActionController extends Controller
         return back()->with('status', __('IP unblocked.'));
     }
 
+    /** Staff got the customer's driving licence (by WhatsApp or email), or undo that. */
+    public function licenceDocuments(Request $request, Booking $booking): RedirectResponse
+    {
+        $this->authorize('update', $booking);
+
+        abort_unless($booking->licence_documents_required, 404);
+
+        $received = $request->boolean('received');
+        $booking->update(['licence_documents_received_at' => $received ? now() : null]);
+
+        return back()->with('status', $received ? __('Driving licence marked as received.') : __('Driving licence marked as not received.'));
+    }
+
     public function activate(Booking $booking): RedirectResponse
     {
         $this->authorize('update', $booking);

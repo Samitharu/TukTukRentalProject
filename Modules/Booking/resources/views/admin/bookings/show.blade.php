@@ -59,6 +59,24 @@
         @unless ($booking->isStay() || $booking->isTransfer())
             <p><strong>{{ __('International Driving Permit') }}:</strong> {{ $booking->has_international_permit ? __('Yes') : __('No') }}</p>
         @endunless
+        @if ($booking->licence_documents_required)
+            <div @class(['admin-alert', 'admin-alert--warn' => ! $booking->licence_documents_received_at, 'admin-alert--success' => $booking->licence_documents_received_at]) style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;justify-content:space-between;">
+                <span>
+                    <strong>{{ __('Driving licence (for the Sri Lankan permit)') }}:</strong>
+                    {{ $booking->licence_documents_received_at
+                        ? __('received :date', ['date' => $booking->licence_documents_received_at->timezone(config('booking.business_timezone'))->format('d M Y, H:i')])
+                        : __('not received yet. The customer was asked to send it by WhatsApp or email.') }}
+                </span>
+                @can('update', $booking)
+                    <form method="POST" action="{{ route('admin.bookings.licence.update', $booking) }}" style="margin:0;">
+                        @csrf
+                        @method('PUT')
+                        <input type="hidden" name="received" value="{{ $booking->licence_documents_received_at ? '0' : '1' }}">
+                        <button type="submit" @class(['admin-btn', 'admin-btn--secondary' => $booking->licence_documents_received_at])>{{ $booking->licence_documents_received_at ? __('Mark as not received') : __('Mark as received') }}</button>
+                    </form>
+                @endcan
+            </div>
+        @endif
         @if ($booking->special_requests)
             <p><strong>{{ __('Special requests') }}:</strong> {{ $booking->special_requests }}</p>
         @endif

@@ -63,5 +63,10 @@
             <tr><td class="k">{{ __('core::front.receipt_vehicle') }}</td><td>{{ $booking->vehicle->name }} ({{ $booking->vehicle->plate_no }})</td></tr>
         @endif
         <tr><td class="k">{{ __('core::front.receipt_pickup') }}</td><td>{{ $pickup }}</td></tr>
+        @if ($booking->licence_documents_required)
+            <tr><td class="k">{{ __('core::front.licence_receipt_label') }}</td><td>{{ $booking->licence_documents_received_at
+                ? __('core::front.licence_receipt_received')
+                : __('core::front.licence_receipt_pending', ['phone' => config('core.business.phone'), 'email' => config('core.business.email')]) }}</td></tr>
+        @endif
     </table>
 @endif

@@ -269,6 +269,17 @@
                     @error('terms_accepted')<p class="field-error">{{ $message }}</p>@enderror
                 </div>
 
+                @if ($needsLicence)
+                    <div class="field licence-accept">
+                        <p style="margin:0 0 var(--space-2);"><strong>{{ __('core::front.licence_notice_title') }}</strong> {{ __('core::front.licence_notice') }}</p>
+                        <label class="check">
+                            <input type="checkbox" name="licence_documents_accepted" value="1" required>
+                            {{ __('core::front.licence_accept') }}
+                        </label>
+                        @error('licence_documents_accepted')<p class="field-error">{{ $message }}</p>@enderror
+                    </div>
+                @endif
+
                 @error('package_id')<div class="alert alert--error" role="alert">{{ $message }}</div>@enderror
 
                 <div style="display:flex;gap:var(--space-3);margin-top:var(--space-4);">

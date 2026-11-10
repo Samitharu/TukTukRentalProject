@@ -6,4 +6,7 @@
         <p>{{ __($package->isStay() ? 'core::front.packages_min_nights' : 'core::front.packages_min_days', ['count' => $package->min_days]) }}</p>
     @endif
     @include('package::front._km-allowance', ['package' => $package])
+    @if ($package->requires_licence_documents)
+        <p class="licence-notice"><strong>{{ __('core::front.licence_notice_title') }}</strong> {{ __('core::front.licence_notice') }}</p>
+    @endif
 </div>

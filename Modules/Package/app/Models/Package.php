@@ -110,6 +110,7 @@ final class Package extends Model
         'kind' => self::KIND_VEHICLE,
         'included_km_per_day' => true,
         'group_pricing' => false,
+        'requires_licence_documents' => false,
     ];
 
     /** Pricing models that can be priced by group size instead. */
@@ -124,6 +125,7 @@ final class Package extends Model
         'exclusions',
         'pricing_model',
         'group_pricing',
+        'requires_licence_documents',
         'min_days',
         'max_days',
         'min_hours',
@@ -146,6 +148,7 @@ final class Package extends Model
     {
         return [
             'group_pricing' => 'boolean',
+            'requires_licence_documents' => 'boolean',
             'min_days' => 'integer',
             'max_days' => 'integer',
             'min_hours' => 'integer',
@@ -171,6 +174,11 @@ final class Package extends Model
             // The category decides how the package is booked.
             if ($package->product_category_id !== null && $package->isDirty('product_category_id')) {
                 $package->kind = ProductCategory::query()->whereKey($package->product_category_id)->value('kind') ?? $package->kind;
+            }
+
+            // Only something the customer drives needs their licence.
+            if ($package->kind !== self::KIND_VEHICLE) {
+                $package->requires_licence_documents = false;
             }
 
             // Hourly rentals are always a single day: that is what keeps

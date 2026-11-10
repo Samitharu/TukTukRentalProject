@@ -155,6 +155,7 @@ final class PackageController extends Controller
         $data['group_pricing'] = (bool) ($data['group_pricing'] ?? false);
         $data['deposit_is_percent'] = $request->boolean('deposit_is_percent');
         $data['is_featured'] = $request->boolean('is_featured');
+        $data['requires_licence_documents'] = $request->boolean('requires_licence_documents');
         $data['included_km_per_day'] = $request->boolean('included_km_per_day', true);
         // Hidden on the form for hourly / per-person packages.
         $data['min_days'] = $data['min_days'] ?? 1;
