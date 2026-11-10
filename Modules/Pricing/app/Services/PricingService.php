@@ -51,9 +51,9 @@ final class PricingService
         $tier = $this->tierFor($package, $groupPriced ? $people : ($hours ?? $people ?? $days));
         $season = $this->seasonFor($package, $startDate, $endDate);
 
-        // A group's price is not multiplied by people: it is per hour for an
-        // hourly package, per day for a daily one, once for a fixed one.
-        $rateUnits = $groupPriced ? $hours : ($hours ?? $people);
+        // A group's price is the price of the whole package: never multiplied
+        // by people, hours or days (baseAmount() charges it once).
+        $rateUnits = $groupPriced ? null : ($hours ?? $people);
         $baseAmount = $this->baseAmount($package, (float) ($tier?->price ?? 0), $days, $rateUnits);
         $seasonalAdjustment = $season?->modifierFor($baseAmount) ?? 0.0;
         [$addonLines, $addonsTotal] = $this->calculateAddons($package, $addonSelections, $days);
@@ -167,7 +167,8 @@ final class PricingService
             return round($rate * $rateUnits, 2);
         }
 
-        if ($package->pricing_model === Package::MODEL_FIXED_BUNDLE) {
+        // One price for the package: a fixed bundle, or a group's price.
+        if ($package->pricing_model === Package::MODEL_FIXED_BUNDLE || $package->isGroupPriced()) {
             return $rate;
         }
 

@@ -472,12 +472,12 @@ final class Package extends Model
      */
     public function pricedHours(PackagePricingTier $tier): ?int
     {
-        if (! $this->isHourly()) {
+        // A group's price is for the whole package, not per hour.
+        if (! $this->isHourly() || $this->isGroupPriced()) {
             return null;
         }
 
-        // A group-priced row counts people, not hours.
-        $hours = max((int) $this->min_hours, $this->isGroupPriced() ? 1 : $tier->min_days, 1);
+        $hours = max((int) $this->min_hours, $tier->min_days, 1);
 
         return $hours > 1 ? $hours : null;
     }
@@ -503,6 +503,10 @@ final class Package extends Model
     /** What tierPrice() buys: "for 2 hours", or the usual "/ day", "/ hour"… */
     public function tierPriceSuffix(PackagePricingTier $tier): string
     {
+        if ($this->isGroupPriced()) {
+            return __('core::front.packages_per_group');
+        }
+
         $hours = $this->pricedHours($tier);
 
         return $hours === null

@@ -306,6 +306,7 @@ return [
     // Product categories, hourly and km-allowance packages.
     'packages_per_hour' => '/ час',
     'packages_for_hours' => 'за :hours ч',
+    'packages_per_group' => 'за группу',
     'packages_per_person' => '/ человек',
     'packages_per_week' => '/ неделя',
     'packages_per_month' => '/ месяц',

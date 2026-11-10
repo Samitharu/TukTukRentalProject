@@ -306,6 +306,7 @@ return [
     // Product categories, hourly and km-allowance packages.
     'packages_per_hour' => '/ Stunde',
     'packages_for_hours' => 'für :hours Stunden',
+    'packages_per_group' => 'pro Gruppe',
     'packages_per_person' => '/ Person',
     'packages_per_week' => '/ Woche',
     'packages_per_month' => '/ Monat',

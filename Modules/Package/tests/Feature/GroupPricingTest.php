@@ -65,7 +65,7 @@ function groupFormPayload(object $test, array $overrides = []): array
 
 // ---- Price ---------------------------------------------------------------------
 
-it('charges the group price per hour, not per person', function (int $people, int $hours, float $usd, float $eur): void {
+it('charges the group\'s price once for the whole package, not per hour or per person', function (int $people, int $hours, float $usd, float $eur): void {
     $price = app(PricingService::class)->calculate(lagoonTour($this), CarbonImmutable::today()->addDays(3), 1, hours: $hours, people: $people);
 
     expect($price->total)->toBe($usd)
@@ -73,29 +73,35 @@ it('charges the group price per hour, not per person', function (int $people, in
         ->and($price->people)->toBe($people)
         ->and($price->hours)->toBe($hours);
 })->with([
-    '3 people, 2 hours' => [3, 2, 20.0, 18.0],
-    '5 people, 2 hours' => [5, 2, 20.0, 18.0],
-    '6 people, 3 hours' => [6, 3, 54.0, 48.0],
+    '3 people, 2 hours' => [3, 2, 10.0, 9.0],
+    '5 people, 2 hours' => [5, 2, 10.0, 9.0],
+    '6 people, 3 hours' => [6, 3, 18.0, 16.0],
+    '7 people, 6 hours' => [7, 6, 18.0, 16.0],
 ]);
 
-it('charges a daily group-priced package per day, and a fixed one once', function (): void {
+it('charges a daily or fixed group-priced package once too, however many days', function (): void {
     $pricing = app(PricingService::class);
     $start = CarbonImmutable::today()->addDays(3);
 
-    expect($pricing->calculate(lagoonTour($this, Package::MODEL_PER_DAY), $start, 3, people: 4)->total)->toBe(30.0)
+    expect($pricing->calculate(lagoonTour($this, Package::MODEL_PER_DAY), $start, 3, people: 4)->total)->toBe(10.0)
         ->and($pricing->calculate(lagoonTour($this, Package::MODEL_FIXED_BUNDLE), $start, 1, people: 7)->total)->toBe(18.0);
 });
 
 // ---- What customers see -------------------------------------------------------
 
-it('shows the smallest group\'s price for the minimum hours, and each group in the price table', function (): void {
+it('shows the smallest group\'s price per group, and each group in the price table', function (): void {
     $package = lagoonTour($this);
 
-    $this->get('/en')->assertOk()->assertSee('$20.00 / €18.00')->assertSee('for 2 hours')->assertSee('(3–5 people)', false);
+    $this->get('/en')->assertOk()
+        ->assertSee('$10.00 / €9.00')
+        ->assertSee('per group')
+        ->assertSee('(3–5 people)', false)
+        ->assertDontSee('for 2 hours');
 
     $this->get('/en/packages/'.$package->slugFor('en'))->assertOk()
-        ->assertSeeInOrder(['3–5', 'people', '$20.00 / €18.00', 'for 2 hours', '$10.00 / €9.00', '/ hour'])
-        ->assertSeeInOrder(['6–7', 'people', '$36.00 / €32.00', 'for 2 hours', '$18.00 / €16.00', '/ hour']);
+        ->assertSeeInOrder(['3–5', 'people', '$10.00 / €9.00', 'per group'])
+        ->assertSeeInOrder(['6–7', 'people', '$18.00 / €16.00', 'per group'])
+        ->assertDontSee('/ hour');
 });
 
 // ---- Online booking -------------------------------------------------------------
@@ -131,12 +137,12 @@ it('asks how many people, books the matching group price, and shows the group si
         'nationality' => 'PT', 'passport_number' => 'P1234567', 'has_valid_licence' => '1', 'has_international_permit' => '1', 'marketing_opt_in' => '0',
     ])->assertRedirect('/en/booking/review');
 
-    $this->get('/en/booking/review')->assertOk()->assertSee('$54.00');
+    $this->get('/en/booking/review')->assertOk()->assertSee('$18.00');
     $this->post('/en/booking/confirm', ['terms_accepted' => '1'])->assertRedirect();
 
     $booking = Booking::query()->where('package_id', $package->id)->sole();
 
-    expect((float) $booking->total_amount)->toBe(54.0)
+    expect((float) $booking->total_amount)->toBe(18.0)
         ->and($booking->people())->toBe(6)
         ->and($booking->rentalPeriod())->toContain('3 hours, 6 people');
 });
@@ -223,7 +229,7 @@ it('makes staff enter the group size on a manual booking', function (): void {
 
     $booking = Booking::query()->where('package_id', $package->id)->sole();
 
-    expect((float) $booking->total_amount)->toBe(20.0)->and($booking->people())->toBe(4);
+    expect((float) $booking->total_amount)->toBe(10.0)->and($booking->people())->toBe(4);
 });
 
 it('asks for the group size when the package is added to another booking', function (): void {
@@ -234,7 +240,7 @@ it('asks for the group size when the package is added to another booking', funct
     expect(Modules\Booking\Services\OfferedBookingPlanner::rules($package))->toHaveKey('offer.people')
         ->and(Modules\Booking\Services\OfferedBookingPlanner::problems($package, [...$data, 'people' => 8]))->toHaveKey('offer.people')
         ->and(Modules\Booking\Services\OfferedBookingPlanner::problems($package, [...$data, 'people' => 4]))->toBe([])
-        ->and($planner->plan($package, [...$data, 'people' => 4])['price']->total)->toBe(20.0);
+        ->and($planner->plan($package, [...$data, 'people' => 4])['price']->total)->toBe(10.0);
 });
 
 it('leaves existing packages priced as before', function (): void {

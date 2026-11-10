@@ -76,7 +76,7 @@
     <legend>{{ __('Price by group size') }}</legend>
     <label style="font-weight:400;"><input type="hidden" name="group_pricing" value="0"><input type="checkbox" name="group_pricing" value="1" data-group-pricing @checked($groupPriced)> {{ __('The price depends on how many people come (e.g. per boat)') }}</label>
     <div data-group-on @if (! $groupPriced) hidden @endif>
-        <p class="admin-hint">{{ __('One row per group size. Example: 3 to 5 people 10, 6 to 7 people 18. For a package charged per hour or per day, the price is for each hour or day, so 4 people for 2 hours costs 2 × 10. Customers choose how many people when they book; group sizes without a row cannot be booked.') }}</p>
+        <p class="admin-hint">{{ __('One row per group size. Example: 3 to 5 people 10, 6 to 7 people 18. Each price is for the whole package, however long it is: 4 people pay 10, and 7 people pay 18. Customers choose how many people when they book; group sizes without a row cannot be booked.') }}</p>
         <table class="admin-table">
             <thead>
                 <tr>
