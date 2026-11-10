@@ -34,6 +34,8 @@ final class UpdatePackageRequest extends FormRequest
             'is_active' => ['sometimes', 'boolean'],
             'is_featured' => ['sometimes', 'boolean'],
             'requires_licence_documents' => ['sometimes', 'boolean'],
+            'licence_fee' => ['nullable', 'numeric', 'min:0', 'max:100000'],
+            'licence_fee_eur' => ['nullable', 'required_with:licence_fee', 'numeric', 'min:0', 'max:100000'],
             'sort_order' => ['required', 'integer', 'min:0'],
             'valid_from' => ['nullable', 'date'],
             'valid_until' => ['nullable', 'date', 'after_or_equal:valid_from'],
@@ -45,6 +47,11 @@ final class UpdatePackageRequest extends FormRequest
             'images' => ['nullable', 'array'],
             'images.*' => ['image', 'max:8192', 'mimes:jpg,jpeg,png,webp'],
         ];
+    }
+
+    public function messages(): array
+    {
+        return ['licence_fee_eur.required_with' => __('Enter the permit fee in EUR too.')];
     }
 
     public function after(): array

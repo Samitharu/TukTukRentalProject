@@ -27,6 +27,10 @@
         <tr><td>{{ __('core::front.price_transfer_fee') }}@if ($booking->transferArea) — {{ $booking->transferArea->name }}@endif</td><td class="amt">{{ $money($p['transfer_fee'], $e['transfer_fee'] ?? null) }}</td></tr>
     @endif
 
+    @if ((float) ($p['licence_fee'] ?? 0) > 0)
+        <tr><td>{{ __('core::front.price_licence_fee') }}</td><td class="amt">{{ $money($p['licence_fee'], $e['licence_fee'] ?? null) }}</td></tr>
+    @endif
+
     @if ((float) ($p['delivery_fee'] ?? 0) > 0)
         <tr><td>{{ __('core::front.price_delivery_fee') }}</td><td class="amt">{{ $money($p['delivery_fee']) }}</td></tr>
     @endif

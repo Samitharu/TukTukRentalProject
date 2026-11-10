@@ -394,6 +394,8 @@ return [
     'booking_package_intro_transfer' => 'Choose the vehicle for your trip.',
     'booking_no_transfer_available' => 'Sorry, no vehicle is free at that time any more. Please choose another vehicle or a different time.',
     'price_transfer_fee' => 'Destination area',
+    'price_licence_fee' => 'Sri Lankan driving permit',
+    'licence_fee_notice' => 'Driving permit fee: :price, added to your booking.',
     'offer_title' => 'Special offer',
     'offer_headline' => 'Save :saving on :main',
     'offer_lead' => 'Add :package to this booking and pay less for :main.',

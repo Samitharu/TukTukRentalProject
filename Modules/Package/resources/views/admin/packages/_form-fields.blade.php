@@ -172,6 +172,19 @@
 <div class="admin-form-field" data-package-kind="vehicle" @if ($selectedKind !== Package::KIND_VEHICLE) hidden @endif>
     <label><input type="checkbox" name="requires_licence_documents" value="1" @checked(session()->hasOldInput() ? (bool) old('requires_licence_documents') : ($package?->requires_licence_documents ?? true))> {{ __('Customer must send their driving licence after booking (for the Sri Lankan driving permit)') }}</label>
     <p class="admin-hint">{{ __('Customers must agree to send it before they can book, and are shown how to send it by WhatsApp or email. Untick it for a package where our driver drives, such as a guided tour.') }}</p>
+    <div class="admin-location__coords">
+        <div>
+            <label for="licence_fee">{{ __('Permit fee (USD)') }}</label>
+            <input type="number" id="licence_fee" name="licence_fee" value="{{ old('licence_fee', $package?->licence_fee) }}" min="0" step="0.01">
+            @error('licence_fee')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+        </div>
+        <div>
+            <label for="licence_fee_eur">{{ __('Permit fee (EUR)') }}</label>
+            <input type="number" id="licence_fee_eur" name="licence_fee_eur" value="{{ old('licence_fee_eur', $package?->licence_fee_eur) }}" min="0" step="0.01">
+            @error('licence_fee_eur')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
+        </div>
+    </div>
+    <p class="admin-hint">{{ __('Added once to each booking of this package, shown on the package and as its own line on the bill. Leave empty for no fee.') }}</p>
 </div>
 
 <div class="admin-form-field">

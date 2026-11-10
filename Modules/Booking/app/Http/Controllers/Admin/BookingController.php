@@ -289,6 +289,7 @@ final class BookingController extends Controller
             'base' => Money::dual($price->baseAmount, $eur['base_amount'] ?? null),
             'seasonal' => Money::dual($price->seasonalAdjustment, $eur['seasonal_adjustment'] ?? null),
             'transfer' => Money::dual($price->transferFee, $eur['transfer_fee'] ?? null),
+            'licence' => Money::dual($price->licenceFee, $eur['licence_fee'] ?? null),
             'addons' => Money::dual($price->addonsTotal, $eur['addons_total'] ?? null),
             'delivery' => Money::usd($price->deliveryFee),
             'total' => Money::admin($price->total, $eur['total'] ?? null),

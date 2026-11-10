@@ -371,6 +371,8 @@ return [
     'booking_package_intro_transfer' => 'Wählen Sie das Fahrzeug für Ihre Fahrt.',
     'booking_no_transfer_available' => 'Leider ist zu dieser Zeit kein Fahrzeug mehr frei. Bitte wählen Sie ein anderes Fahrzeug oder eine andere Uhrzeit.',
     'price_transfer_fee' => 'Zielgebiet',
+    'price_licence_fee' => 'Srilankische Fahrerlaubnis',
+    'licence_fee_notice' => 'Gebühr für die Fahrerlaubnis: :price, wird zu Ihrer Buchung hinzugefügt.',
     'offer_title' => 'Sonderangebot',
     'offer_headline' => 'Sparen Sie :saving bei :main',
     'offer_lead' => 'Buchen Sie :package dazu und zahlen Sie weniger für :main.',

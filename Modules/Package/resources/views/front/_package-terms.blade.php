@@ -8,5 +8,8 @@
     @include('package::front._km-allowance', ['package' => $package])
     @if ($package->requires_licence_documents)
         <p class="licence-notice"><strong>{{ __('core::front.licence_notice_title') }}</strong> {{ __('core::front.licence_notice') }}</p>
+        @if ($package->displayLicenceFee())
+            <p class="licence-notice"><strong>{{ __('core::front.licence_fee_notice', ['price' => $package->displayLicenceFee()]) }}</strong></p>
+        @endif
     @endif
 </div>

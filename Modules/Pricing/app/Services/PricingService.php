@@ -60,8 +60,10 @@ final class PricingService
         $deliveryFee = (float) ($deliveryZone?->extra_fee ?? 0);
         // Airport pickup: package price (per trip) + the destination's price.
         $transferFee = $package->isTransfer() ? (float) ($transferArea?->price ?? 0) : 0.0;
+        // Sri Lankan driving permit: once per booking, however long it is.
+        $licenceFee = $package->licenceFee();
 
-        $rentalSubtotal = round($baseAmount + $seasonalAdjustment + $addonsTotal + $transferFee, 2);
+        $rentalSubtotal = round($baseAmount + $seasonalAdjustment + $addonsTotal + $transferFee + $licenceFee, 2);
 
         $total = round($rentalSubtotal + $deliveryFee, 2);
         $depositAmount = $this->calculateDeposit($package, $total);
@@ -80,6 +82,7 @@ final class PricingService
             transferFee: $transferFee,
             eur: $this->eurAmounts($package, $tier, $season, $days, $rateUnits, $addonLines, $deliveryFee, $transferArea),
             people: $people,
+            licenceFee: $licenceFee,
         );
     }
 
@@ -113,6 +116,7 @@ final class PricingService
             eur: $eur,
             offerDiscount: $discount,
             people: $price->people,
+            licenceFee: $price->licenceFee,
         );
     }
 
@@ -133,21 +137,23 @@ final class PricingService
         $base = $this->baseAmount($package, (float) ($tier?->price_eur ?? 0), $days, $rateUnits);
         $seasonal = $season === null ? 0.0 : $season->eurModifierFor($base);
         $transfer = $package->isTransfer() && $transferArea !== null ? $transferArea->price_eur : 0.0;
+        $licence = $package->licenceFeeEur();
         $addonAmounts = array_column($addonLines, 'amount_eur');
 
         // Delivery zones have no EUR fee.
-        if ($seasonal === null || $transfer === null || in_array(null, $addonAmounts, true) || $deliveryFee > 0) {
+        if ($seasonal === null || $transfer === null || $licence === null || in_array(null, $addonAmounts, true) || $deliveryFee > 0) {
             return null;
         }
 
         $addons = round(array_sum($addonAmounts), 2);
-        $subtotal = round($base + $seasonal + $addons + (float) $transfer, 2);
+        $subtotal = round($base + $seasonal + $addons + (float) $transfer + $licence, 2);
 
         return [
             'base_amount' => $base,
             'seasonal_adjustment' => $seasonal,
             'addons_total' => $addons,
             'transfer_fee' => (float) $transfer,
+            'licence_fee' => $licence,
             'rental_subtotal' => $subtotal,
             'total' => $subtotal,
         ];

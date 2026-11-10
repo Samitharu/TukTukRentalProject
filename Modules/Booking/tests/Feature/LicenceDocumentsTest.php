@@ -170,6 +170,87 @@ it('lets staff set it on the package form, only for rentals', function (): void 
         ->and($requires('Cabana'))->toBeFalse();
 });
 
+// ---- Permit fee ------------------------------------------------------------------
+
+it('adds the permit fee once to a booking, however long it is', function (int $days, float $usd, float $eur): void {
+    $this->package->update(['licence_fee' => 15, 'licence_fee_eur' => 14]);
+
+    $price = app(Modules\Pricing\Services\PricingService::class)->calculate($this->package->fresh(), Carbon\CarbonImmutable::parse('2027-01-10'), $days);
+
+    expect($price->licenceFee)->toBe(15.0)
+        ->and($price->total)->toBe($usd)
+        ->and($price->eur['licence_fee'])->toBe(14.0)
+        ->and($price->eur['total'])->toBe($eur);
+})->with([
+    '1 day' => [1, 35.0, 32.0],
+    '7 days' => [7, 155.0, 140.0],
+]);
+
+it('shows the permit fee on the package, at checkout and on the receipt, and charges it', function (): void {
+    Mail::fake();
+    $this->package->update(['licence_fee' => 15, 'licence_fee_eur' => 14]);
+
+    $this->get('/en/packages/'.$this->package->slugFor('en'))->assertOk()
+        ->assertSee('Driving permit fee: $15.00 / €14.00, added to your booking.');
+
+    reachLicenceReview($this, $this->package);
+    $this->get('/en/booking/review')->assertOk()
+        ->assertSeeInOrder(['Sri Lankan driving permit', '$15.00 / €14.00'])
+        ->assertSee('$95.00 / €86.00'); // 4 days at $20 + the fee
+
+    $this->post('/en/booking/confirm', ['terms_accepted' => '1', 'licence_documents_accepted' => '1']);
+    $booking = Booking::query()->sole();
+
+    expect((float) $booking->total_amount)->toBe(95.0)
+        ->and($booking->price_breakdown['licence_fee'])->toEqual(15)
+        ->and($booking->totalEur())->toBe(86.0)
+        ->and(view('booking::pdf.receipt', ['booking' => $booking, 'statusQrCode' => ''])->render())
+        ->toContain('Sri Lankan driving permit')->toContain('$15.00 / €14.00');
+});
+
+it('charges no permit fee when the package does not need the licence', function (): void {
+    $this->package->update(['requires_licence_documents' => false, 'licence_fee' => 15, 'licence_fee_eur' => 14]);
+
+    $price = app(Modules\Pricing\Services\PricingService::class)->calculate($this->package->fresh(), Carbon\CarbonImmutable::parse('2027-01-10'), 2);
+
+    expect($price->licenceFee)->toBe(0.0)->and($price->total)->toBe(40.0);
+    $this->get('/en/packages/'.$this->package->slugFor('en'))->assertOk()->assertDontSee('Driving permit fee');
+});
+
+it('lets staff set the permit fee on the package, in both currencies', function (): void {
+    $this->seed(AdminDatabaseSeeder::class);
+    $admin = User::factory()->create();
+    $admin->assignRole('Admin');
+    $line = ProductCategory::query()->where('kind', Package::KIND_VEHICLE)->firstOrFail();
+    $form = ['name' => ['en' => 'Self Drive'], 'product_category_id' => $line->id, 'charge' => 'per_day', 'price' => '16', 'price_eur' => '14', 'is_active' => '1', 'requires_licence_documents' => '1'];
+
+    $this->actingAs($admin)->post('/control-panel/packages', [...$form, 'licence_fee' => '15'])
+        ->assertSessionHasErrors(['licence_fee_eur' => 'Enter the permit fee in EUR too.']);
+
+    $this->actingAs($admin)->post('/control-panel/packages', [...$form, 'licence_fee' => '15', 'licence_fee_eur' => '14'])->assertSessionHasNoErrors();
+
+    $package = Package::query()->where('name->en', 'Self Drive')->sole();
+    expect((float) $package->licence_fee)->toBe(15.0)->and((float) $package->licence_fee_eur)->toBe(14.0);
+
+    $this->actingAs($admin)->get('/control-panel/packages/'.$package->id.'/edit')->assertOk()
+        ->assertSee('name="licence_fee" value="15.00"', false);
+});
+
+it('includes the permit fee in a staff booking and its price preview', function (): void {
+    $this->seed(AdminDatabaseSeeder::class);
+    $admin = User::factory()->create();
+    $admin->assignRole('Admin');
+    $this->package->update(['licence_fee' => 15, 'licence_fee_eur' => 14]);
+    $form = ['package_id' => $this->package->id, 'start_date' => '2027-01-10', 'end_date' => '2027-01-11', 'full_name' => 'Walk In', 'email' => 'walkin@example.test'];
+
+    $this->actingAs($admin)->postJson('/control-panel/bookings/quote', $form)->assertOk()
+        ->assertJson(['licence_fee' => 15.0, 'total' => 55.0])
+        ->assertJsonPath('display.licence', '$15.00 / €14.00');
+
+    $this->actingAs($admin)->post('/control-panel/bookings', $form)->assertSessionHasNoErrors();
+    expect((float) Booking::query()->sole()->total_amount)->toBe(55.0);
+});
+
 it('turns it on for the existing tuk tuk packages when the update is installed', function (): void {
     $tukTuks = ProductCategory::query()->where('name->en', 'Tuk Tuk Rental')->firstOrFail();
     $stays = ProductCategory::query()->where('kind', Package::KIND_STAY)->firstOrFail();

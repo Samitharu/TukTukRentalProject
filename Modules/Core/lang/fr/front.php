@@ -371,6 +371,8 @@ return [
     'booking_package_intro_transfer' => 'Choisissez le véhicule pour votre trajet.',
     'booking_no_transfer_available' => 'Désolé, plus aucun véhicule n\'est libre à cette heure. Choisissez un autre véhicule ou une autre heure.',
     'price_transfer_fee' => 'Zone de destination',
+    'price_licence_fee' => 'Permis de conduire sri-lankais',
+    'licence_fee_notice' => 'Frais de permis de conduire : :price, ajoutés à votre réservation.',
     'offer_title' => 'Offre spéciale',
     'offer_headline' => 'Économisez :saving sur :main',
     'offer_lead' => 'Ajoutez :package à cette réservation et payez moins pour :main.',

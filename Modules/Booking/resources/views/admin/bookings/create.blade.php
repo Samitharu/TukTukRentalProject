@@ -281,6 +281,7 @@
                 'seasonal' => __('Seasonal adjustment'),
                 'addons' => __('Add-ons'),
                 'transfer' => __('Destination area'),
+                'licence' => __('Sri Lankan driving permit'),
                 'delivery' => __('Delivery'),
                 'offer_saving' => __('Offer saving'),
                 'both_total' => __('Total for both bookings'),

@@ -234,6 +234,10 @@
                 html += line(labels.addons, shown.addons);
             }
 
+            if (Number(price.licence_fee) > 0) {
+                html += line(labels.licence, shown.licence);
+            }
+
             if (Number(price.delivery_fee) > 0) {
                 html += line(labels.delivery, shown.delivery);
             }

@@ -126,6 +126,8 @@ final class Package extends Model
         'pricing_model',
         'group_pricing',
         'requires_licence_documents',
+        'licence_fee',
+        'licence_fee_eur',
         'min_days',
         'max_days',
         'min_hours',
@@ -149,6 +151,8 @@ final class Package extends Model
         return [
             'group_pricing' => 'boolean',
             'requires_licence_documents' => 'boolean',
+            'licence_fee' => 'decimal:2',
+            'licence_fee_eur' => 'decimal:2',
             'min_days' => 'integer',
             'max_days' => 'integer',
             'min_hours' => 'integer',
@@ -330,6 +334,28 @@ final class Package extends Model
     public function needsTransferArea(): bool
     {
         return $this->isTransfer() && (float) ($this->pricingTiers->first()?->price ?? 0) <= 0;
+    }
+
+    /** The Sri Lankan driving permit fee added once to a booking; 0 when none is charged. */
+    public function licenceFee(): float
+    {
+        return $this->requires_licence_documents ? round((float) ($this->licence_fee ?? 0), 2) : 0.0;
+    }
+
+    /** licenceFee() in EUR; null when it has none (the booking then has no EUR total). */
+    public function licenceFeeEur(): ?float
+    {
+        if ($this->licenceFee() <= 0) {
+            return 0.0;
+        }
+
+        return $this->licence_fee_eur !== null ? round((float) $this->licence_fee_eur, 2) : null;
+    }
+
+    /** "$15.00 / €14.00", or null when no fee is charged. */
+    public function displayLicenceFee(): ?string
+    {
+        return $this->licenceFee() > 0 ? Money::dual($this->licenceFee(), $this->licenceFeeEur()) : null;
     }
 
     /** Whether a price row covers a group of $people. */
