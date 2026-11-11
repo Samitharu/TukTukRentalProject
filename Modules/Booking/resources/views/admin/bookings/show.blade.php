@@ -63,6 +63,9 @@
             <div @class(['admin-alert', 'admin-alert--warn' => ! $booking->licence_documents_received_at, 'admin-alert--success' => $booking->licence_documents_received_at]) style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;justify-content:space-between;">
                 <span>
                     <strong>{{ __('Driving licence (for the Sri Lankan permit)') }}:</strong>
+                    @if ($booking->drivers())
+                        {{ trans_choice(':count driver|:count drivers', $booking->drivers(), ['count' => $booking->drivers()]) }} —
+                    @endif
                     {{ $booking->licence_documents_received_at
                         ? __('received :date', ['date' => $booking->licence_documents_received_at->timezone(config('booking.business_timezone'))->format('d M Y, H:i')])
                         : __('not received yet. The customer was asked to send it by WhatsApp or email.') }}

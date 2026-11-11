@@ -64,7 +64,7 @@
 @endif
 
 @if ($booking->licence_documents_required)
-**{{ __('Driving licence') }}:** {{ __('the customer agreed to send it by WhatsApp or email for the Sri Lankan permit. Mark it received on the booking once it arrives.') }}
+**{{ __('Driving licence') }}:** @if ($booking->drivers()){{ trans_choice(':count driver|:count drivers', $booking->drivers(), ['count' => $booking->drivers()]) }}. @endif{{ __('the customer agreed to send it by WhatsApp or email for the Sri Lankan permit. Mark it received on the booking once it arrives.') }}
 
 @endif
 @if (filled($booking->special_requests))

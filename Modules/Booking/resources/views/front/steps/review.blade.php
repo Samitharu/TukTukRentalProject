@@ -185,7 +185,7 @@
                     @endif
 
                     @if ($price->licenceFee > 0)
-                        <dt>{{ __('core::front.price_licence_fee') }}</dt><dd>{{ $money($price->licenceFee, 'licence_fee') }}</dd>
+                        <dt>{{ __('core::front.price_licence_fee') }}@if (($price->drivers ?? 1) > 1) × {{ $price->drivers }}@endif</dt><dd>{{ $money($price->licenceFee, 'licence_fee') }}</dd>
                     @endif
 
                     @if ($price->deliveryFee > 0)

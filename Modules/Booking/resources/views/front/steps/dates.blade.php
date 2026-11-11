@@ -2,9 +2,11 @@
     // A stay's state holds its last night; the form shows the check-out day.
     $storedEnd = $state['end_date'] ?? null;
     $endValue = $isStay && $storedEnd ? \Illuminate\Support\Carbon::parse($storedEnd)->addDay()->toDateString() : $storedEnd;
+    $isTour ??= false;
     $titleKey = match (true) {
         $isStay => 'core::front.booking_stay_dates_title',
         $isTransfer => 'core::front.booking_transfer_title',
+        $isTour => 'core::front.booking_tour_dates_title',
         default => 'core::front.booking_dates_title',
     };
     $direction = old('transfer_direction', $state['transfer_direction'] ?? 'arrival');
@@ -26,6 +28,7 @@
             <p class="text-muted">{{ __(match (true) {
                 $isStay => 'core::front.booking_stay_dates_intro',
                 $isTransfer => 'core::front.booking_transfer_intro',
+                $isTour => 'core::front.booking_tour_dates_intro',
                 default => 'core::front.booking_dates_intro',
             }, ['city' => config('core.business.city')]) }}</p>
 
@@ -94,19 +97,27 @@
                 @else
                     <div class="grid grid--2">
                         <div class="field">
-                            <label for="start_date">{{ __($isStay ? 'core::front.booking_check_in' : 'core::front.booking_start_date') }}</label>
+                            <label for="start_date">{{ __(match (true) {
+                                $isStay => 'core::front.booking_check_in',
+                                $isTour => 'core::front.booking_tour_start_date',
+                                default => 'core::front.booking_start_date',
+                            }) }}</label>
                             <input type="date" id="start_date" name="start_date" min="{{ now()->toDateString() }}" value="{{ old('start_date', $state['start_date'] ?? '') }}" required>
                             @error('start_date')<p class="field-error">{{ $message }}</p>@enderror
                         </div>
 
                         <div class="field">
-                            <label for="end_date">{{ __($isStay ? 'core::front.booking_check_out' : 'core::front.booking_end_date') }}</label>
+                            <label for="end_date">{{ __(match (true) {
+                                $isStay => 'core::front.booking_check_out',
+                                $isTour => 'core::front.booking_tour_end_date',
+                                default => 'core::front.booking_end_date',
+                            }) }}</label>
                             <input type="date" id="end_date" name="end_date" min="{{ $isStay ? now()->addDay()->toDateString() : now()->toDateString() }}" value="{{ old('end_date', $endValue ?? '') }}" required>
                             @error('end_date')<p class="field-error">{{ $message }}</p>@enderror
                         </div>
                     </div>
 
-                    @if (! $isStay)
+                    @if (! $isStay && ! $isTour)
                         {{-- Rentals are only collected at the office — no pickup choice. --}}
                         <p class="text-muted">{{ __('core::front.booking_pickup_office') }}</p>
                     @endif

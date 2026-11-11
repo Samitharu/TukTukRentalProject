@@ -33,6 +33,23 @@
                     </div>
                 @endif
 
+                @if ($offered->requires_licence_documents)
+                    <div class="field">
+                        <label for="drivers">{{ __('core::front.booking_drivers') }}</label>
+                        <select id="drivers" name="offer[drivers]" required style="max-width:10rem;">
+                            @for ($count = 1; $count <= \Modules\Booking\Models\Booking::MAX_DRIVERS; $count++)
+                                <option value="{{ $count }}" @selected((int) ($value('drivers') ?: 1) === $count)>{{ $count }}</option>
+                            @endfor
+                        </select>
+                        <p class="text-muted" style="font-size:var(--font-size-sm);margin:0.35rem 0 0;">
+                            {{ $offered->displayLicenceFee()
+                                ? __('core::front.booking_drivers_hint_fee', ['price' => $offered->displayLicenceFee()])
+                                : __('core::front.booking_drivers_hint') }}
+                        </p>
+                        @error('offer.drivers')<p class="field-error">{{ $message }}</p>@enderror
+                    </div>
+                @endif
+
                 @if ($offered->isTransfer())
                     <fieldset class="field choice-group">
                         <legend>{{ __('core::front.transfer_direction') }}</legend>

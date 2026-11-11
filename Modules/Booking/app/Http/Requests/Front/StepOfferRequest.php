@@ -52,8 +52,8 @@ final class StepOfferRequest extends FormRequest
 
     public static function needsLicenceQuestions(?Package $offered): bool
     {
-        return $offered !== null && ! $offered->isStay() && ! $offered->isTransfer() && ! $offered->isActivity()
-            && (BookingFlowState::isStay() || BookingFlowState::isTransfer());
+        return $offered !== null && ! $offered->isStay() && ! $offered->isTransfer() && ! $offered->isActivity() && ! $offered->isTour()
+            && (BookingFlowState::isStay() || BookingFlowState::isTransfer() || BookingFlowState::isTour());
     }
 
     public function rules(): array

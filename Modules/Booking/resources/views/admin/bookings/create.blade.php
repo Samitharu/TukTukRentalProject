@@ -160,6 +160,12 @@
                 <p class="admin-hint">{{ __('Only for packages priced by group size; the price comes from the matching group.') }}</p>
             </div>
 
+            <div class="admin-form-field">
+                <label for="drivers">{{ __('Number of drivers') }}</label>
+                <input type="number" id="drivers" name="drivers" value="{{ old('drivers', 1) }}" min="1" max="{{ \Modules\Booking\Models\Booking::MAX_DRIVERS }}" style="max-width:6rem;">
+                <p class="admin-hint">{{ __('Only for packages that need the driving licence: the permit fee is charged for each driver.') }}</p>
+            </div>
+
             <p class="admin-hint">{{ __('Pickup') }}: {{ __('At our office') }}</p>
 
             <div class="admin-form-field">
@@ -205,6 +211,11 @@
                             <label for="offer_people">{{ __('Number of people') }}</label>
                             <input type="number" id="offer_people" name="offer[people]" value="{{ old('offer.people') }}" min="1" max="100" style="max-width:6rem;">
                             <p class="admin-hint">{{ __('Only for packages priced by group size.') }}</p>
+                        </div>
+                        <div class="admin-form-field">
+                            <label for="offer_drivers">{{ __('Number of drivers') }}</label>
+                            <input type="number" id="offer_drivers" name="offer[drivers]" value="{{ old('offer.drivers', 1) }}" min="1" max="{{ \Modules\Booking\Models\Booking::MAX_DRIVERS }}" style="max-width:6rem;">
+                            <p class="admin-hint">{{ __('Only for packages that need the driving licence.') }}</p>
                         </div>
                         <div class="admin-form-field">
                             <label for="offer_start_date">{{ __('Pickup date / check-in') }}</label>

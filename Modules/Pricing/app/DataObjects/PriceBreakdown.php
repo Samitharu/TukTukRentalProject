@@ -37,8 +37,10 @@ final readonly class PriceBreakdown
         public float $offerDiscount = 0.0,
         // Set only for a package priced per person: the people priced.
         public ?int $people = null,
-        // The Sri Lankan driving permit fee, once per booking (packages that need the licence).
+        // The Sri Lankan driving permit fee for all drivers: the package's fee × drivers.
         public float $licenceFee = 0.0,
+        // Set only for a package that needs the licence: how many people will drive.
+        public ?int $drivers = null,
     ) {
     }
 
@@ -66,6 +68,7 @@ final readonly class PriceBreakdown
             'delivery_fee' => $this->deliveryFee,
             'transfer_fee' => $this->transferFee,
             'licence_fee' => $this->licenceFee,
+            'drivers' => $this->drivers,
             'rental_subtotal' => $this->rentalSubtotal(),
             'offer_discount' => $this->offerDiscount,
             'total' => $this->total,

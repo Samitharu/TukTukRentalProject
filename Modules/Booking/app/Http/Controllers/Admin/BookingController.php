@@ -348,7 +348,7 @@ final class BookingController extends Controller
             [$start, $end] = [CarbonImmutable::parse($startAt), CarbonImmutable::parse($endAt)];
         }
 
-        $price = $this->pricing->calculate($package, $start, $days, $request->addonSelections(), hours: $hours, transferArea: $transferArea, people: $package->isGroupPriced() ? (int) $data['people'] : null);
+        $price = $this->pricing->calculate($package, $start, $days, $request->addonSelections(), hours: $hours, transferArea: $transferArea, people: $package->isGroupPriced() ? (int) $data['people'] : null, drivers: $package->requires_licence_documents ? (int) ($data['drivers'] ?? 1) : null);
         $offer = $request->chosenOffer();
 
         return [

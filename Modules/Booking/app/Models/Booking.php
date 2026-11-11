@@ -149,6 +149,17 @@ final class Booking extends Model
         });
     }
 
+    /** The most people one booking can list as drivers (each pays the permit fee). */
+    public const int MAX_DRIVERS = 6;
+
+    /** How many people will drive (each needs a Sri Lankan permit); null when no licence is needed. From the price snapshot. */
+    public function drivers(): ?int
+    {
+        $drivers = $this->price_breakdown['drivers'] ?? null;
+
+        return $drivers !== null ? (int) $drivers : null;
+    }
+
     /** The customer still has to send their driving licence for this booking. */
     public function awaitsLicenceDocuments(): bool
     {
@@ -287,11 +298,11 @@ final class Booking extends Model
     /**
      * Where a rental is collected: the business address, when one has been
      * set (config/core's "[… pending]" placeholder isn't shown to customers).
-     * Stays, airport pickups and activities aren't collected from the office.
+     * Stays, airport pickups, activities and tours aren't collected from the office.
      */
     public function officeAddress(): ?string
     {
-        if ($this->isStay() || $this->isTransfer() || $this->isActivity()) {
+        if ($this->isStay() || $this->isTransfer() || $this->isActivity() || $this->isTour()) {
             return null;
         }
 
@@ -359,6 +370,12 @@ final class Booking extends Model
     public function isActivity(): bool
     {
         return $this->kind() === Package::KIND_ACTIVITY;
+    }
+
+    /** A tour plan: first day to last day like a rental, charged per day, run by our driver. */
+    public function isTour(): bool
+    {
+        return $this->kind() === Package::KIND_TOUR;
     }
 
     /**

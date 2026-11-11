@@ -85,8 +85,15 @@ final class Package extends Model
      */
     public const string KIND_TRANSFER = VehicleCategory::KIND_TRANSFER;
 
+    /**
+     * A tour plan: booked online for a run of days and charged per day,
+     * like a rental, but our driver runs it — no unit is ever reserved
+     * and no licence is needed. Staff arrange the tuk tuk themselves.
+     */
+    public const string KIND_TOUR = 'tour';
+
     /** @var string[] */
-    public const array KINDS = [self::KIND_VEHICLE, self::KIND_STAY, self::KIND_ACTIVITY, self::KIND_TRANSFER];
+    public const array KINDS = [self::KIND_VEHICLE, self::KIND_STAY, self::KIND_ACTIVITY, self::KIND_TRANSFER, self::KIND_TOUR];
 
     /**
      * Which pricing models make sense for each booking style. Enforced by
@@ -101,6 +108,7 @@ final class Package extends Model
         // The package price is per trip (0 or a vehicle surcharge); the
         // destination area adds its own price on top.
         self::KIND_TRANSFER => [self::MODEL_FIXED_BUNDLE],
+        self::KIND_TOUR => [self::MODEL_PER_DAY],
     ];
 
     public array $translatable = ['name', 'description', 'inclusions', 'exclusions', 'cancellation_policy'];
@@ -308,6 +316,11 @@ final class Package extends Model
         return $this->kind === self::KIND_TRANSFER;
     }
 
+    public function isTour(): bool
+    {
+        return $this->kind === self::KIND_TOUR;
+    }
+
     public function isHourly(): bool
     {
         return $this->pricing_model === self::MODEL_PER_HOUR;
@@ -380,10 +393,10 @@ final class Package extends Model
             ->all();
     }
 
-    /** An activity, or its line's vehicles come from partners: always bookable, reserves no unit. */
+    /** An activity or tour, or its line's vehicles come from partners: always bookable, reserves no unit. */
     public function hasUnlimitedUnits(): bool
     {
-        return $this->isActivity() || ($this->productCategory?->unlimited_units ?? false);
+        return $this->isActivity() || $this->isTour() || ($this->productCategory?->unlimited_units ?? false);
     }
 
     /**

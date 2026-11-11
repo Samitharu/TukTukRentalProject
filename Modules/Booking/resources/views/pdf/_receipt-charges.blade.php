@@ -28,7 +28,7 @@
     @endif
 
     @if ((float) ($p['licence_fee'] ?? 0) > 0)
-        <tr><td>{{ __('core::front.price_licence_fee') }}</td><td class="amt">{{ $money($p['licence_fee'], $e['licence_fee'] ?? null) }}</td></tr>
+        <tr><td>{{ __('core::front.price_licence_fee') }}@if ((int) ($p['drivers'] ?? 1) > 1) × {{ (int) $p['drivers'] }}@endif</td><td class="amt">{{ $money($p['licence_fee'], $e['licence_fee'] ?? null) }}</td></tr>
     @endif
 
     @if ((float) ($p['delivery_fee'] ?? 0) > 0)

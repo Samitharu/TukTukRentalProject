@@ -28,7 +28,7 @@ beforeEach(function (): void {
     $this->package->vehicles()->attach($this->vehicle->id);
 });
 
-function reachLicenceReview(object $test, Package $package): void
+function reachLicenceReview(object $test, Package $package, int $drivers = 1): void
 {
     $test->post('/en/booking/start', ['start_date' => '2027-01-10', 'end_date' => '2027-01-13'])->assertRedirect('/en/booking/package');
     $test->post('/en/booking/package', ['package_id' => $package->id])->assertRedirect('/en/booking/addons');
@@ -36,15 +36,43 @@ function reachLicenceReview(object $test, Package $package): void
     $test->post('/en/booking/details', [
         'first_name' => 'Jane', 'last_name' => 'Traveller', 'email' => 'jane@example.test', 'phone' => '+44 7911 123456',
         'nationality' => 'GB', 'passport_number' => 'P1234567', 'has_valid_licence' => '1', 'has_international_permit' => '1', 'marketing_opt_in' => '0',
+        'drivers' => (string) $drivers,
     ])->assertRedirect('/en/booking/review');
 }
 
 // ---- Customer ----------------------------------------------------------------
 
-it('tells customers on the package that their driving licence is needed', function (): void {
+it('tells customers on the package that every driver\'s licence is needed', function (): void {
     $this->get('/en/packages/'.$this->package->slugFor('en'))->assertOk()
         ->assertSee('Driving licence needed.')
-        ->assertSee('front and back of your driving licence by WhatsApp or email');
+        ->assertSee('front and back of the driving licence of each person who will drive');
+});
+
+it('asks how many people will drive, and needs an answer', function (): void {
+    $this->package->update(['licence_fee' => 15, 'licence_fee_eur' => 14]);
+    $this->post('/en/booking/start', ['start_date' => '2027-01-10', 'end_date' => '2027-01-13']);
+    $this->post('/en/booking/package', ['package_id' => $this->package->id]);
+    $this->post('/en/booking/addons', []);
+
+    $this->get('/en/booking/details')->assertOk()
+        ->assertSee('How many people will drive?')
+        ->assertSee('name="drivers"', false)
+        ->assertSee('Each driver needs a Sri Lankan driving permit ($15.00 / €14.00 per driver)');
+
+    $details = ['first_name' => 'Jane', 'last_name' => 'Traveller', 'email' => 'jane@example.test', 'phone' => '+44 7911 123456', 'nationality' => 'GB', 'passport_number' => 'P1', 'has_valid_licence' => '1', 'has_international_permit' => '1', 'marketing_opt_in' => '0'];
+
+    $this->post('/en/booking/details', $details)->assertSessionHasErrors('drivers');
+    $this->post('/en/booking/details', [...$details, 'drivers' => '7'])->assertSessionHasErrors('drivers');
+    $this->post('/en/booking/details', [...$details, 'drivers' => '2'])->assertRedirect('/en/booking/review');
+});
+
+it('does not ask about drivers for a package that needs no licence', function (): void {
+    $this->package->update(['requires_licence_documents' => false]);
+    $this->post('/en/booking/start', ['start_date' => '2027-01-10', 'end_date' => '2027-01-13']);
+    $this->post('/en/booking/package', ['package_id' => $this->package->id]);
+    $this->post('/en/booking/addons', []);
+
+    $this->get('/en/booking/details')->assertOk()->assertDontSee('name="drivers"', false);
 });
 
 it('will not book until the customer agrees to send their licence', function (): void {
@@ -53,7 +81,7 @@ it('will not book until the customer agrees to send their licence', function ():
 
     $this->get('/en/booking/review')->assertOk()
         ->assertSee('name="licence_documents_accepted"', false)
-        ->assertSee('I will send my driving licence by WhatsApp or email after booking.');
+        ->assertSee('I will send the driving licence of each driver by WhatsApp or email after booking.');
 
     $this->post('/en/booking/confirm', ['terms_accepted' => '1'])
         ->assertSessionHasErrors(['licence_documents_accepted' => 'Please confirm that you will send your driving licence: we need it to arrange your Sri Lankan driving permit.']);
@@ -172,40 +200,51 @@ it('lets staff set it on the package form, only for rentals', function (): void 
 
 // ---- Permit fee ------------------------------------------------------------------
 
-it('adds the permit fee once to a booking, however long it is', function (int $days, float $usd, float $eur): void {
+it('charges the permit fee for each driver, however long the booking is', function (int $days, int $drivers, float $fee, float $usd, float $eur): void {
     $this->package->update(['licence_fee' => 15, 'licence_fee_eur' => 14]);
 
-    $price = app(Modules\Pricing\Services\PricingService::class)->calculate($this->package->fresh(), Carbon\CarbonImmutable::parse('2027-01-10'), $days);
+    $price = app(Modules\Pricing\Services\PricingService::class)->calculate($this->package->fresh(), Carbon\CarbonImmutable::parse('2027-01-10'), $days, drivers: $drivers);
 
-    expect($price->licenceFee)->toBe(15.0)
+    expect($price->licenceFee)->toBe($fee)
+        ->and($price->drivers)->toBe($drivers)
         ->and($price->total)->toBe($usd)
-        ->and($price->eur['licence_fee'])->toBe(14.0)
         ->and($price->eur['total'])->toBe($eur);
 })->with([
-    '1 day' => [1, 35.0, 32.0],
-    '7 days' => [7, 155.0, 140.0],
+    '1 day, 1 driver' => [1, 1, 15.0, 35.0, 32.0],
+    '7 days, 1 driver' => [7, 1, 15.0, 155.0, 140.0],
+    '1 day, 3 drivers' => [1, 3, 45.0, 65.0, 60.0],
 ]);
 
-it('shows the permit fee on the package, at checkout and on the receipt, and charges it', function (): void {
+it('shows the permit fee per driver on the package, at checkout and on the receipt, and charges it', function (): void {
     Mail::fake();
     $this->package->update(['licence_fee' => 15, 'licence_fee_eur' => 14]);
 
     $this->get('/en/packages/'.$this->package->slugFor('en'))->assertOk()
-        ->assertSee('Driving permit fee: $15.00 / €14.00, added to your booking.');
+        ->assertSee('Driving permit fee: $15.00 / €14.00 per driver, added to your booking.');
 
-    reachLicenceReview($this, $this->package);
+    reachLicenceReview($this, $this->package, drivers: 2);
     $this->get('/en/booking/review')->assertOk()
-        ->assertSeeInOrder(['Sri Lankan driving permit', '$15.00 / €14.00'])
-        ->assertSee('$95.00 / €86.00'); // 4 days at $20 + the fee
+        ->assertSeeInOrder(['Sri Lankan driving permit × 2', '$30.00 / €28.00'])
+        ->assertSee('$110.00 / €100.00'); // 4 days at $20 + 2 permits at $15
 
     $this->post('/en/booking/confirm', ['terms_accepted' => '1', 'licence_documents_accepted' => '1']);
     $booking = Booking::query()->sole();
 
-    expect((float) $booking->total_amount)->toBe(95.0)
-        ->and($booking->price_breakdown['licence_fee'])->toEqual(15)
-        ->and($booking->totalEur())->toBe(86.0)
+    expect((float) $booking->total_amount)->toBe(110.0)
+        ->and($booking->drivers())->toBe(2)
+        ->and($booking->price_breakdown['licence_fee'])->toEqual(30)
+        ->and($booking->totalEur())->toBe(100.0)
         ->and(view('booking::pdf.receipt', ['booking' => $booking, 'statusQrCode' => ''])->render())
-        ->toContain('Sri Lankan driving permit')->toContain('$15.00 / €14.00');
+        ->toContain('Sri Lankan driving permit × 2')->toContain('$30.00 / €28.00');
+});
+
+it('asks for the drivers when a licence package is added to another booking', function (): void {
+    $this->package->update(['licence_fee' => 15, 'licence_fee_eur' => 14]);
+    $package = $this->package->fresh();
+    $data = ['start_date' => '2027-01-10', 'end_date' => '2027-01-11', 'drivers' => 3];
+
+    expect(Modules\Booking\Services\OfferedBookingPlanner::rules($package))->toHaveKey('offer.drivers')
+        ->and(app(Modules\Booking\Services\OfferedBookingPlanner::class)->plan($package, $data)['price']->licenceFee)->toBe(45.0);
 });
 
 it('charges no permit fee when the package does not need the licence', function (): void {
@@ -247,8 +286,12 @@ it('includes the permit fee in a staff booking and its price preview', function 
         ->assertJson(['licence_fee' => 15.0, 'total' => 55.0])
         ->assertJsonPath('display.licence', '$15.00 / €14.00');
 
-    $this->actingAs($admin)->post('/control-panel/bookings', $form)->assertSessionHasNoErrors();
-    expect((float) Booking::query()->sole()->total_amount)->toBe(55.0);
+    $this->actingAs($admin)->postJson('/control-panel/bookings/quote', [...$form, 'drivers' => 2])->assertOk()
+        ->assertJson(['licence_fee' => 30.0, 'drivers' => 2, 'total' => 70.0]);
+
+    $this->actingAs($admin)->post('/control-panel/bookings', [...$form, 'drivers' => 2])->assertSessionHasNoErrors();
+    expect((float) Booking::query()->sole()->total_amount)->toBe(70.0)
+        ->and(Booking::query()->sole()->drivers())->toBe(2);
 });
 
 it('turns it on for the existing tuk tuk packages when the update is installed', function (): void {

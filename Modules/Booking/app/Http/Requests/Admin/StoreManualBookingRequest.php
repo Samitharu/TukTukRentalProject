@@ -89,6 +89,8 @@ final class StoreManualBookingRequest extends FormRequest
             'hours' => ['nullable', 'integer'],
             // Packages priced by group size only (required for those in after()).
             'people' => ['nullable', 'integer', 'min:1', 'max:100'],
+            // Packages that need the licence: each driver pays the permit fee (blank = 1).
+            'drivers' => ['nullable', 'integer', 'min:1', 'max:'.Booking::MAX_DRIVERS],
             // Tuk tuks are always collected at the office (see
             // BookingController::priceFor()), so pickup is never posted.
             'pickup_type' => ['exclude'],

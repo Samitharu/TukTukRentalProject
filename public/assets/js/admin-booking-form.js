@@ -235,7 +235,8 @@
             }
 
             if (Number(price.licence_fee) > 0) {
-                html += line(labels.licence, shown.licence);
+                // One permit per driver: "Sri Lankan driving permit × 2".
+                html += line(labels.licence + (Number(price.drivers) > 1 ? ' × ' + Number(price.drivers) : ''), shown.licence);
             }
 
             if (Number(price.delivery_fee) > 0) {

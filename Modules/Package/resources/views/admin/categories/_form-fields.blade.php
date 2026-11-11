@@ -15,6 +15,7 @@
         <option value="stay" @selected($currentKind === 'stay')>{{ __('Stay — picks check-in and check-out') }}</option>
         <option value="transfer" @selected($currentKind === 'transfer')>{{ __('Airport pickup — picks direction, time, flight and area') }}</option>
         <option value="activity" @selected($currentKind === 'activity')>{{ __('Activity — sees prices, books on WhatsApp') }}</option>
+        <option value="tour" @selected($currentKind === 'tour')>{{ __('Tour plan — picks dates, charged per day') }}</option>
     </select>
     @if ($hasPackages ?? false)
         <p class="admin-hint">{{ __('This category has packages, so this is locked.') }}</p>

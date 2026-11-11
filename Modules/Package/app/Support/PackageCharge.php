@@ -47,6 +47,7 @@ final class PackageCharge
         Package::KIND_STAY => [self::PER_NIGHT],
         Package::KIND_TRANSFER => [self::PER_TRIP],
         Package::KIND_ACTIVITY => [self::PER_PERSON, self::FIXED],
+        Package::KIND_TOUR => [self::PER_DAY],
     ];
 
     /** @var string[] the answers whose price can depend on group size instead */

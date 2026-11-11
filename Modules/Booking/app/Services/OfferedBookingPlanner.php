@@ -42,8 +42,10 @@ final class OfferedBookingPlanner
 
         // A package priced by group size needs the group size, whatever else it asks.
         $people = $package->isGroupPriced() ? ['offer.people' => ['required', 'integer', 'min:1', 'max:100']] : [];
+        // One that needs the licence asks how many people will drive (each pays the permit fee).
+        $drivers = $package->requires_licence_documents ? ['offer.drivers' => ['required', 'integer', 'min:1', 'max:'.Booking::MAX_DRIVERS]] : [];
 
-        return ['offer.start_date' => $startDate, ...$people, ...match (true) {
+        return ['offer.start_date' => $startDate, ...$people, ...$drivers, ...match (true) {
             $package->isTransfer() => [
                 'offer.transfer_direction' => ['required', Rule::in(Booking::TRANSFER_DIRECTIONS)],
                 'offer.transfer_time' => ['required', 'date_format:H:i'],
@@ -153,7 +155,7 @@ final class OfferedBookingPlanner
         };
 
         return [
-            'price' => $this->pricing->calculate($package, CarbonImmutable::parse($start), self::days($data), hours: $hours, transferArea: $area, people: isset($data['people']) && ($package->isGroupPriced() || $package->pricing_model === Package::MODEL_PER_PERSON) ? (int) $data['people'] : null),
+            'price' => $this->pricing->calculate($package, CarbonImmutable::parse($start), self::days($data), hours: $hours, transferArea: $area, people: isset($data['people']) && ($package->isGroupPriced() || $package->pricing_model === Package::MODEL_PER_PERSON) ? (int) $data['people'] : null, drivers: $package->requires_licence_documents ? (int) ($data['drivers'] ?? 1) : null),
             'start_at' => $startAt,
             'end_at' => $endAt,
             'customer' => [
@@ -164,7 +166,7 @@ final class OfferedBookingPlanner
                 'transfer_address' => $isTransfer ? $data['transfer_address'] : null,
                 'transfer_area_id' => $area?->id,
                 // Only a rental's driver needs a permit.
-                'has_international_permit' => ! $package->isStay() && ! $package->isTransfer() && ! $package->isActivity() && (bool) ($data['has_international_permit'] ?? false),
+                'has_international_permit' => ! $package->isStay() && ! $package->isTransfer() && ! $package->isActivity() && ! $package->isTour() && (bool) ($data['has_international_permit'] ?? false),
                 'special_requests' => null,
             ],
         ];
@@ -190,12 +192,18 @@ final class OfferedBookingPlanner
                 $package->isTransfer() => 'core::front.transfer_date',
                 $package->isStay() => 'core::front.booking_check_in',
                 $package->isActivity() => 'core::front.booking_activity_date',
+                $package->isTour() => 'core::front.booking_tour_start_date',
                 default => 'core::front.booking_start_date',
             }),
-            'offer.end_date' => __($package->isStay() ? 'core::front.booking_check_out' : 'core::front.booking_end_date'),
+            'offer.end_date' => __(match (true) {
+                $package->isStay() => 'core::front.booking_check_out',
+                $package->isTour() => 'core::front.booking_tour_end_date',
+                default => 'core::front.booking_end_date',
+            }),
             'offer.start_time' => __('core::front.booking_start_time'),
             'offer.hours' => __('core::front.booking_hours'),
             'offer.people' => __('core::front.booking_people'),
+            'offer.drivers' => __('core::front.booking_drivers'),
             'offer.transfer_direction' => __('core::front.transfer_direction'),
             'offer.transfer_time' => __('core::front.transfer_time'),
             'offer.flight_number' => __('core::front.transfer_flight_number'),

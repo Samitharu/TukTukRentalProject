@@ -52,7 +52,7 @@
                     </div>
                 </div>
 
-                @if (! $isStay && ! $isTransfer)
+                @if (! $isStay && ! $isTransfer && ! ($isTour ?? false))
                 <div class="field">
                     <label class="check">
                         <input type="hidden" name="has_valid_licence" value="0">
@@ -69,6 +69,23 @@
                         {{ __('core::front.booking_has_international_permit') }}
                     </label>
                 </div>
+
+                @if ($licencePackage ?? null)
+                    <div class="field">
+                        <label for="drivers">{{ __('core::front.booking_drivers') }}</label>
+                        <select id="drivers" name="drivers" aria-describedby="drivers_hint" style="max-width:10rem;">
+                            @for ($count = 1; $count <= \Modules\Booking\Models\Booking::MAX_DRIVERS; $count++)
+                                <option value="{{ $count }}" @selected((int) old('drivers', $state['drivers'] ?? 1) === $count)>{{ $count }}</option>
+                            @endfor
+                        </select>
+                        <p class="text-muted" id="drivers_hint" style="font-size:var(--font-size-sm);margin:0.35rem 0 0;">
+                            {{ $licencePackage->displayLicenceFee()
+                                ? __('core::front.booking_drivers_hint_fee', ['price' => $licencePackage->displayLicenceFee()])
+                                : __('core::front.booking_drivers_hint') }}
+                        </p>
+                        @error('drivers')<p class="field-error">{{ $message }}</p>@enderror
+                    </div>
+                @endif
                 @endif
 
                 <div class="field">

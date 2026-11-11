@@ -102,6 +102,7 @@ final class BookingFlowController extends Controller
             'state' => BookingFlowState::get(),
             'isStay' => BookingFlowState::isStay(),
             'isTransfer' => BookingFlowState::isTransfer(),
+            'isTour' => BookingFlowState::isTour(),
             'lines' => $this->bookableLines(),
             'currentLineId' => BookingFlowState::lineId(),
             'transferAreas' => BookingFlowState::isTransfer() ? TransferArea::query()->active()->ordered()->get() : collect(),
@@ -252,7 +253,10 @@ final class BookingFlowController extends Controller
             'state' => BookingFlowState::get(),
             'isStay' => BookingFlowState::isStay(),
             'isTransfer' => BookingFlowState::isTransfer(),
+            'isTour' => BookingFlowState::isTour(),
             'countries' => Countries::all(),
+            // A package that needs the licence asks how many people will drive (each pays the permit fee).
+            'licencePackage' => Package::query()->whereKey(BookingFlowState::value('package_id'))->where('requires_licence_documents', true)->first(),
         ]);
     }
 
@@ -738,7 +742,7 @@ final class BookingFlowController extends Controller
             default => [$request->query('kind'), null],
         };
 
-        if (! in_array($kind, VehicleCategory::KINDS, true)) {
+        if (! in_array($kind, BookingFlowState::KINDS, true)) {
             return;
         }
 
@@ -809,7 +813,7 @@ final class BookingFlowController extends Controller
     {
         return ProductCategory::query()
             ->active()
-            ->whereIn('kind', VehicleCategory::KINDS)
+            ->whereIn('kind', BookingFlowState::KINDS)
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
@@ -1204,6 +1208,7 @@ final class BookingFlowController extends Controller
             hours: $package->isHourly() ? (int) ($state['hours'] ?? 0) : null,
             transferArea: $this->transferAreaFromState(),
             people: $package->isGroupPriced() ? (int) ($state['people'] ?? 0) : null,
+            drivers: $package->requires_licence_documents ? (int) ($state['drivers'] ?? 1) : null,
         );
         $offer = $this->chosenOffer();
 

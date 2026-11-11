@@ -37,6 +37,7 @@ final class PricingService
         ?int $hours = null,
         ?TransferArea $transferArea = null,
         ?int $people = null,
+        ?int $drivers = null,
     ): PriceBreakdown {
         // An hourly package is a single-day rental priced by the hour;
         // add-ons see it as the one day it is.
@@ -60,8 +61,10 @@ final class PricingService
         $deliveryFee = (float) ($deliveryZone?->extra_fee ?? 0);
         // Airport pickup: package price (per trip) + the destination's price.
         $transferFee = $package->isTransfer() ? (float) ($transferArea?->price ?? 0) : 0.0;
-        // Sri Lankan driving permit: once per booking, however long it is.
-        $licenceFee = $package->licenceFee();
+        // Sri Lankan driving permit: one for each person who will drive,
+        // however long the booking is.
+        $drivers = $package->requires_licence_documents ? max($drivers ?? 1, 1) : null;
+        $licenceFee = round($package->licenceFee() * ($drivers ?? 1), 2);
 
         $rentalSubtotal = round($baseAmount + $seasonalAdjustment + $addonsTotal + $transferFee + $licenceFee, 2);
 
@@ -80,9 +83,10 @@ final class PricingService
             depositAmount: $depositAmount,
             hours: $hours,
             transferFee: $transferFee,
-            eur: $this->eurAmounts($package, $tier, $season, $days, $rateUnits, $addonLines, $deliveryFee, $transferArea),
+            eur: $this->eurAmounts($package, $tier, $season, $days, $rateUnits, $addonLines, $deliveryFee, $transferArea, $drivers ?? 1),
             people: $people,
             licenceFee: $licenceFee,
+            drivers: $drivers,
         );
     }
 
@@ -117,6 +121,7 @@ final class PricingService
             offerDiscount: $discount,
             people: $price->people,
             licenceFee: $price->licenceFee,
+            drivers: $price->drivers,
         );
     }
 
@@ -128,7 +133,7 @@ final class PricingService
      * @param array<int, array{amount_eur: float|null}> $addonLines
      * @return array{base_amount: float, seasonal_adjustment: float, addons_total: float, transfer_fee: float, rental_subtotal: float, total: float}|null
      */
-    private function eurAmounts(Package $package, ?PackagePricingTier $tier, ?PackageSeason $season, int $days, ?int $rateUnits, array $addonLines, float $deliveryFee, ?TransferArea $transferArea): ?array
+    private function eurAmounts(Package $package, ?PackagePricingTier $tier, ?PackageSeason $season, int $days, ?int $rateUnits, array $addonLines, float $deliveryFee, ?TransferArea $transferArea, int $drivers = 1): ?array
     {
         if ($tier !== null && $tier->price_eur === null) {
             return null;
@@ -138,6 +143,7 @@ final class PricingService
         $seasonal = $season === null ? 0.0 : $season->eurModifierFor($base);
         $transfer = $package->isTransfer() && $transferArea !== null ? $transferArea->price_eur : 0.0;
         $licence = $package->licenceFeeEur();
+        $licence = $licence === null ? null : round($licence * $drivers, 2);
         $addonAmounts = array_column($addonLines, 'amount_eur');
 
         // Delivery zones have no EUR fee.

@@ -6,6 +6,7 @@ namespace Modules\Booking\Support;
 
 use Illuminate\Support\Facades\Session;
 use Modules\Fleet\Models\VehicleCategory;
+use Modules\Package\Models\Package;
 
 /**
  * The public multi-step booking wizard's state lives in the session
@@ -17,6 +18,15 @@ use Modules\Fleet\Models\VehicleCategory;
 final class BookingFlowState
 {
     private const string SESSION_KEY = 'booking_flow';
+
+    /**
+     * What the wizard books online: the unit kinds, plus tour plans (booked
+     * by the day like a rental, but reserving no unit). Activities are
+     * booked by message instead.
+     *
+     * @var string[]
+     */
+    public const array KINDS = [...VehicleCategory::KINDS, Package::KIND_TOUR];
 
     public static function get(): array
     {
@@ -50,15 +60,24 @@ final class BookingFlowState
 
     /**
      * What is being booked: a rental ('vehicle', the default), a stay
-     * ('stay') or an airport pickup ('transfer'). Set at the start of the
-     * flow from the line, package or unit the customer came from (see
-     * BookingFlowController::start()).
+     * ('stay'), an airport pickup ('transfer') or a tour plan ('tour'). Set
+     * at the start of the flow from the line, package or unit the customer
+     * came from (see BookingFlowController::start()).
      */
     public static function kind(): string
     {
         $kind = self::value('kind');
 
-        return in_array($kind, VehicleCategory::KINDS, true) ? $kind : VehicleCategory::KIND_VEHICLE;
+        return in_array($kind, self::KINDS, true) ? $kind : VehicleCategory::KIND_VEHICLE;
+    }
+
+    /**
+     * A tour plan: the same day-inclusive range as a rental (first day to
+     * last day, charged per day), but nothing is collected from the office.
+     */
+    public static function isTour(): bool
+    {
+        return self::kind() === Package::KIND_TOUR;
     }
 
     /**

@@ -184,7 +184,7 @@
             @error('licence_fee_eur')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
         </div>
     </div>
-    <p class="admin-hint">{{ __('Added once to each booking of this package, shown on the package and as its own line on the bill. Leave empty for no fee.') }}</p>
+    <p class="admin-hint">{{ __('Charged for each person who will drive (customers say how many when they book), shown on the package and as its own line on the bill. Leave empty for no fee.') }}</p>
 </div>
 
 <div class="admin-form-field">
@@ -231,7 +231,7 @@
     @error('included_addon_ids.*')<p class="field-error" style="color:#b3261e;">{{ $message }}</p>@enderror
 </fieldset>
 
-<details class="admin-form-field" data-package-kind="vehicle stay transfer" @if ($selectedKind === 'activity') hidden @endif @if ($hasError('offers.*') || ($packageOffers ?? collect())->isNotEmpty()) open @endif>
+<details class="admin-form-field" data-package-kind="vehicle stay transfer tour" @if ($selectedKind === 'activity') hidden @endif @if ($hasError('offers.*') || ($packageOffers ?? collect())->isNotEmpty()) open @endif>
     <summary style="cursor:pointer;font-weight:600;">{{ __('Special offers (optional)') }}</summary>
     <p class="admin-hint">{{ __('When a customer books this package and also adds one below, this package gets cheaper by the amount you enter. Example: airport pickup $15, saves $3 with a tuk tuk, so the customer pays $12. Leave a row empty for no offer.') }}</p>
     @if ($offerablePackages->isEmpty())
