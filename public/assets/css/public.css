@@ -1898,6 +1898,15 @@ html:has(.gallery[open]) { overflow: hidden; }
     gap: clamp(2rem, 6vw, 5rem);
 }
 
+/* One column below 40rem: in two, the form is too narrow for the five
+   rating stars, which then stick out and make the page scroll sideways. */
+@media (max-width: 40rem) {
+    .feedback-section__layout {
+        grid-template-columns: 1fr;
+        gap: 1.4rem;
+    }
+}
+
 .feedback-section__eyebrow,
 .booking-status-section__eyebrow {
     margin-bottom: 0.55rem;
