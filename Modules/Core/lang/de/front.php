@@ -448,4 +448,12 @@ return [
     'nav_about' => 'Über uns',
     'nav_services' => 'Leistungen',
     'nav_services_all' => 'Alle Leistungen',
+    'booking_line_preview_title' => 'Verfügbare Pakete: :line',
+    'booking_line_preview_title_generic' => 'Verfügbare Pakete',
+    'booking_line_preview_intro' => 'Das können Sie buchen. Ihr Paket wählen Sie im nächsten Schritt.',
+    'booking_line_preview_note' => 'Manche Pakete haben eine Mindestdauer, daher zeigt der nächste Schritt die Pakete, die zu Ihren Daten passen.',
+    'booking_line_empty_title' => 'Derzeit keine Pakete: :line',
+    'booking_line_empty_title_generic' => 'Derzeit keine Pakete',
+    'booking_line_empty_body' => 'Wir bereiten neue Pakete vor. Schauen Sie bald wieder vorbei, wählen Sie oben eine andere Leistung oder kontaktieren Sie uns – wir helfen Ihnen gern bei der Planung.',
+    'booking_line_empty_body_single' => 'Wir bereiten neue Pakete vor. Schauen Sie bald wieder vorbei oder kontaktieren Sie uns – wir helfen Ihnen gern bei der Planung.',
 ];

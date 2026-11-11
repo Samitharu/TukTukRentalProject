@@ -448,4 +448,12 @@ return [
     'nav_about' => 'À propos',
     'nav_services' => 'Services',
     'nav_services_all' => 'Tous les services',
+    'booking_line_preview_title' => 'Formules disponibles : :line',
+    'booking_line_preview_title_generic' => 'Formules disponibles',
+    'booking_line_preview_intro' => "Voici ce que vous pouvez réserver. Vous choisirez votre formule à l'étape suivante.",
+    'booking_line_preview_note' => "Certaines formules exigent une durée minimale : l'étape suivante affiche celles qui correspondent à vos dates.",
+    'booking_line_empty_title' => 'Aucune formule pour le moment : :line',
+    'booking_line_empty_title_generic' => 'Aucune formule pour le moment',
+    'booking_line_empty_body' => 'Nous préparons de nouvelles formules. Revenez bientôt, choisissez un autre service ci-dessus ou contactez-nous : nous vous aiderons à organiser votre voyage.',
+    'booking_line_empty_body_single' => 'Nous préparons de nouvelles formules. Revenez bientôt ou contactez-nous : nous vous aiderons à organiser votre voyage.',
 ];

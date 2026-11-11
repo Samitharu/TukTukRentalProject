@@ -32,6 +32,17 @@
                 default => 'core::front.booking_dates_intro',
             }, ['city' => config('core.business.city')]) }}</p>
 
+            @if ($linePackages->isEmpty())
+                {{-- Nothing to book in this service yet: no point asking for dates. --}}
+                <div class="booking-panel booking-empty" role="status">
+                    <span class="booking-empty__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="7" width="17" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 7V5.5a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5V7M3.5 12h17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    </span>
+                    <h2>{{ $currentLine ? __('core::front.booking_line_empty_title', ['line' => $currentLine->name]) : __('core::front.booking_line_empty_title_generic') }}</h2>
+                    <p class="text-muted">{{ __($lines->count() > 1 ? 'core::front.booking_line_empty_body' : 'core::front.booking_line_empty_body_single') }}</p>
+                    <a href="{{ route('contact') }}" class="btn btn--primary">{{ __('core::front.contact_title') }}</a>
+                </div>
+            @else
             <form
                 class="booking-panel"
                 method="POST"
@@ -125,6 +136,42 @@
 
                 <button type="submit" class="btn btn--primary btn--block">{{ __('core::front.booking_continue') }}</button>
             </form>
+
+            <section class="line-preview" aria-labelledby="line-preview-title">
+                <h2 id="line-preview-title">{{ $currentLine ? __('core::front.booking_line_preview_title', ['line' => $currentLine->name]) : __('core::front.booking_line_preview_title_generic') }}</h2>
+                <p class="text-muted">{{ $currentLine?->description ?: __('core::front.booking_line_preview_intro') }}</p>
+
+                <ul class="line-preview__list">
+                    @foreach ($linePackages as $package)
+                        @php $cover = $package->primaryImage(); @endphp
+                        <li class="line-preview__item">
+                            @if ($cover)
+                                <img src="{{ $cover->thumbUrl() }}" alt="" loading="lazy" class="line-preview__photo">
+                            @else
+                                <span class="line-preview__photo line-preview__photo--empty" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16v12H4zM4 11h16M9 4v3M15 4v3" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+                                </span>
+                            @endif
+                            <div class="line-preview__body">
+                                <h3>{{ $package->name }}</h3>
+                                @if (filled($package->description))
+                                    <p class="text-muted">{{ \Illuminate\Support\Str::limit(strip_tags((string) $package->description), 90) }}</p>
+                                @endif
+                                <p class="line-preview__meta">
+                                    @if ($package->pricingTiers->isNotEmpty())
+                                        <span>@include('package::front._from-price', ['package' => $package])</span>
+                                    @endif
+                                    @if (! $package->isHourly() && ! $package->isActivity() && $package->min_days > 1)
+                                        <span class="line-preview__tag">{{ __($package->isStay() ? 'core::front.packages_min_nights' : 'core::front.packages_min_days', ['count' => $package->min_days]) }}</span>
+                                    @endif
+                                </p>
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+                <p class="line-preview__note text-muted">{{ __('core::front.booking_line_preview_note') }}</p>
+            </section>
+            @endif
         </div>
     </section>
 </x-core::layouts.public>

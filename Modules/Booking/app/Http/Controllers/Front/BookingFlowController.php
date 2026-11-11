@@ -98,13 +98,19 @@ final class BookingFlowController extends Controller
             BookingFlowState::put(['vehicle_id' => $request->integer('vehicle')]);
         }
 
+        $lines = $this->bookableLines();
+
         return view('booking::front.steps.dates', [
             'state' => BookingFlowState::get(),
             'isStay' => BookingFlowState::isStay(),
             'isTransfer' => BookingFlowState::isTransfer(),
             'isTour' => BookingFlowState::isTour(),
-            'lines' => $this->bookableLines(),
+            'lines' => $lines,
             'currentLineId' => BookingFlowState::lineId(),
+            'currentLine' => $lines->firstWhere('id', BookingFlowState::lineId()),
+            // What this service offers, before any dates are picked. The
+            // package step still filters these by the chosen dates.
+            'linePackages' => $this->flowPackages()->with(['pricingTiers', 'images'])->orderBy('sort_order')->get(),
             'transferAreas' => BookingFlowState::isTransfer() ? TransferArea::query()->active()->ordered()->get() : collect(),
         ]);
     }

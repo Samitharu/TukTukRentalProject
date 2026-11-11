@@ -457,4 +457,12 @@ return [
     'nav_about' => 'About Us',
     'nav_services' => 'Services',
     'nav_services_all' => 'All services',
+    'booking_line_preview_title' => 'Available :line packages',
+    'booking_line_preview_title_generic' => 'Available packages',
+    'booking_line_preview_intro' => 'Here is what you can book. You will choose your package in the next step.',
+    'booking_line_preview_note' => 'Some packages need a minimum number of days, so the next step shows the ones that fit your dates.',
+    'booking_line_empty_title' => 'No :line packages at the moment',
+    'booking_line_empty_title_generic' => 'No packages at the moment',
+    'booking_line_empty_body' => 'We are getting new packages ready. Please check back soon, choose another service above, or contact us and we will help you plan it.',
+    'booking_line_empty_body_single' => 'We are getting new packages ready. Please check back soon, or contact us and we will help you plan it.',
 ];

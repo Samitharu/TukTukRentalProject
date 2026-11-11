@@ -448,4 +448,12 @@ return [
     'nav_about' => 'О нас',
     'nav_services' => 'Услуги',
     'nav_services_all' => 'Все услуги',
+    'booking_line_preview_title' => 'Доступные пакеты: :line',
+    'booking_line_preview_title_generic' => 'Доступные пакеты',
+    'booking_line_preview_intro' => 'Вот что можно забронировать. Пакет вы выберете на следующем шаге.',
+    'booking_line_preview_note' => 'У некоторых пакетов есть минимальный срок, поэтому на следующем шаге показаны те, что подходят под ваши даты.',
+    'booking_line_empty_title' => 'Пакетов пока нет: :line',
+    'booking_line_empty_title_generic' => 'Пакетов пока нет',
+    'booking_line_empty_body' => 'Мы готовим новые пакеты. Загляните позже, выберите другую услугу выше или свяжитесь с нами — мы поможем всё спланировать.',
+    'booking_line_empty_body_single' => 'Мы готовим новые пакеты. Загляните позже или свяжитесь с нами — мы поможем всё спланировать.',
 ];
