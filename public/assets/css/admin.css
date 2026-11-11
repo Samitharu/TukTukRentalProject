@@ -720,6 +720,13 @@ a {
     margin-top: var(--admin-space-3);
 }
 
+/* Fields side by side (e.g. USD and EUR price) start on the same line: the
+   gap already spaces them, so the stacked-field top margin would push the
+   second one down. */
+.admin-location__coords > .admin-form-field + .admin-form-field {
+    margin-top: 0;
+}
+
 .admin-location__status {
     color: var(--admin-success-text);
     font-size: 0.85em;
